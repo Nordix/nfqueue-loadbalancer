@@ -15,7 +15,7 @@
    viewBox="0 0 877.80988 549"
    version="1.1"
    id="SVGRoot"
-   inkscape:version="0.92.3 (2405546, 2018-03-11)"
+   inkscape:version="0.92.5 (2060ec1f9f, 2020-04-08)"
    sodipodi:docname="nfqueue.svg">
   <sodipodi:namedview
      id="base"
@@ -25,14 +25,14 @@
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
      inkscape:zoom="1"
-     inkscape:cx="438.77134"
+     inkscape:cx="265.27134"
      inkscape:cy="283.5"
      inkscape:document-units="px"
      inkscape:current-layer="layer1"
      showgrid="false"
      inkscape:window-width="1717"
      inkscape:window-height="1046"
-     inkscape:window-x="2117"
+     inkscape:window-x="2113"
      inkscape:window-y="33"
      inkscape:window-maximized="0"
      inkscape:snap-nodes="false"
@@ -114,7 +114,7 @@
         <dc:format>image/svg+xml</dc:format>
         <dc:type
            rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title></dc:title>
+        <dc:title />
       </cc:Work>
     </rdf:RDF>
   </metadata>
@@ -194,7 +194,7 @@
          sodipodi:role="line"
          x="320"
          y="211.66667"
-         id="tspan886">3. Set fwmark</tspan></text>
+         id="tspan886">3. Set fwmark/verdict</tspan></text>
     <rect
        style="opacity:0.8;vector-effect:none;fill:#f0e4d8;fill-opacity:1;stroke:#000000;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:3, 3;stroke-dashoffset:0;stroke-opacity:1"
        id="rect878"
@@ -240,7 +240,7 @@
          sodipodi:role="line"
          id="tspan1182"
          x="315"
-         y="130">Program (lb run)</tspan></text>
+         y="130">nfqlb lb</tspan></text>
     <use
        x="0"
        y="0"
@@ -258,7 +258,7 @@
          y="130"
          x="617"
          id="tspan1188"
-         sodipodi:role="line">Program (lb &lt;cmd&gt;)</tspan></text>
+         sodipodi:role="line">nfqlb &lt;cmd&gt;</tspan></text>
     <text
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;font-size:14.66666698px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none"
