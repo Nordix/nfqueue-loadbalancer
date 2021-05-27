@@ -33,10 +33,9 @@ The `nfqlb` is scalable, a property inherited from the Maglev
 load-balancer. Since the configuration is the same for all nfqlb's it
 does not matter which instance that receives a packet.
 
-The forwarding of packets is done by normal Linux routing. The `nfqlb`
-just sets an `fwmark`. That gives you possibility to use any Linux
-routing to route packets to your targets. The simplest way is to use
-routing "rules". Example;
+The forwarding of packets is done by normal Linux routing, the `nfqlb`
+just sets a `fwmark`. That let you use any Linux function to route
+packets to your targets. Example;
 
 ```
 ip rule add fwmark 1 table 1
