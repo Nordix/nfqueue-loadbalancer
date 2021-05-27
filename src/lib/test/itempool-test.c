@@ -1,6 +1,5 @@
 #include "itempool.h"
 #include <assert.h>
-#include <stddef.h>
 #include <stdio.h>
 
 static int chkItemPoolStats(

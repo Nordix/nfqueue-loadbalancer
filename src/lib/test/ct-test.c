@@ -4,8 +4,6 @@
 */
 
 #include "conntrack.h"
-#include "util.h"
-#include <netinet/in.h>
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
