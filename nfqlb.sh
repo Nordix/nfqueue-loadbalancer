@@ -11,6 +11,7 @@
 prg=$(basename $0)
 dir=$(dirname $0); dir=$(readlink -f $dir)
 tmp=/tmp/${prg}_$$
+me=$dir/$prg
 
 die() {
     echo "ERROR: $*" >&2
@@ -40,8 +41,7 @@ cmd_env() {
 }
 
 ##  include_check
-##    Remove any unnecessary #include in c-files
-##
+##    Remove any unnecessary #include's in c-files
 cmd_include_check() {
 	local f
 	cd $dir
@@ -70,6 +70,98 @@ cmd_include_check_file() {
 	done
 }
 
+##  add_pragma_once
+##    Add "#pragma once" in header files if needed
+cmd_add_pragma_once() {
+	local f
+	for f in $(find src -name '*.h'); do
+		grep -q '^#pragma once' $f && continue
+		sed -i '1s/^/#pragma once\n/' $f
+		echo $f
+	done
+}
+
+##  update_license
+##    Check and update license notes
+cmd_update_license() {
+	local Y=$(date +%Y)
+	if ! grep -q "Copyright $Y Nordix foundation" LICENSE; then
+		echo "Copyright incorrect in; LICENSE"
+		grep "Copyright.*Nordix" LICENSE
+	fi
+	local f
+	for f in $(find src -name '*.[c|h]'); do
+		if ! grep -q 'SPDX-License-Identifier:' $f; then
+			echo "No SPDX-License-Identifier in; $f" >&2
+			continue
+		fi
+		grep -q 'SPDX-License-Identifier: Apache-2.0' $f && continue
+		sed -i -e 's,SPDX-License-Identifier: .*,SPDX-License-Identifier: Apache-2.0,' $f
+		echo "SPDX-License-Identifier: updated in; $f"
+	done
+	for f in $(find src -name '*.[c|h]'); do
+		grep -q 'SPDX-License-Identifier:' $f || continue
+		if ! grep -q "Copyright .*$Y Nordix Foundation" $f; then
+			echo "Copyright incorrect in; $f"
+		fi
+	done
+}
+##
+
+##  build_image
+##    Build a docker image for test
+cmd_build_image() {
+	cd $dir
+	local d=$dir/image/opt/nfqlb/bin
+	mkdir -p $d
+	cp $me $d
+	make -C src X=$d/nfqlb
+	strip $d/nfqlb
+	docker build -t nordixorg/nfqlb:latest .
+}
+##  start_image
+##    The start-point for the test image. Don't call manually!
+cmd_start_image() {
+	test -x $dir/nfqlb_start && exec $dir/nfqlb_start
+	exec tail -f /dev/null			# Block
+}
+##
+
+##  lb --vip=<virtual-ip> <targets...>
+##    Setup load-balancing to targets. Examples;
+##
+##      lb --vip=10.0.0.0/32 172.17.0.4 172.17.0.5 172.17.0.6
+##      lb --vip=1000::/128 2000::4 2000::5 2000::6
+##
+##    NOTE: Should normally be executed in a container.  fwoffset=100
+##          for targets is assumed (default).
+##
+cmd_lb() {
+	test -n "$__vip" || die "No VIP address"
+	local iptables=iptables
+	local ip=ip
+	if echo $__vip | grep -q :; then
+		iptables=ip6tables
+		ip="ip -6"
+	fi
+	local n fw ntargets=0
+	for n in $@; do
+		ntargets=$((ntargets + 1))
+		fw=$((ntargets + 100))
+		$ip rule add fwmark $fw table $fw
+		$ip route add default via $n table $fw
+		$iptables -t nat -A OUTPUT -m mark --mark $fw \
+			-j DNAT --to-destination $n
+	done
+	test $ntargets -eq 0 && return 0
+
+	$iptables -t mangle -A OUTPUT -d $__vip -j NFQUEUE --queue-num 2
+
+	PATH=$PATH:/opt/nfqlb/bin
+	nfqlb show > /dev/null 2>&1 || nfqlb init --ownfw=1
+	nfqlb activate $(seq 1 $ntargets)
+	nfqlb lb >> /var/log/nfqlb.log 2>&1 &
+}
 
 # Get the command
 cmd=$1
