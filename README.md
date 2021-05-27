@@ -55,7 +55,7 @@ Linked with `-lmnl -lnetfilter_queue` so you must install those.
 You must have some targets. You can for instance use docker
 containers, but anything with an ip-address (not loopback) will do.
 
-Bring up some container targets
+Bring up some container targets;
 ```
 for n in 1 2 3; do
   name=target$n
@@ -98,4 +98,6 @@ for IPv6. You must setup ipv6 support in `docker` and use ipv6
 addresses for the VIP and targets in the `nfqlb.sh lb` command. But
 that is left as an exercise for the reader :smiley:
 
-You can also test with [xcluster]() in [ovl/load-balancer]().
+You can also test with [xcluster](https://github.com/Nordix/xcluster)
+in [ovl/load-balancer](https://github.com/Nordix/xcluster/tree/master/ovl/load-balancer).
+
