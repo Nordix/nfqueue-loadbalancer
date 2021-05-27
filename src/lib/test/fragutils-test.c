@@ -1,6 +1,7 @@
 #include "fragutils.h"
 #include <assert.h>
 #include <string.h>
+#include <stdio.h>
 
 #define MS 1000000				/* One milli second in nanos */
 
