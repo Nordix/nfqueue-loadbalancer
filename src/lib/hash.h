@@ -1,3 +1,4 @@
+#pragma once
 /*
   http://www.cse.yorku.ca/~oz/hash.html
 */

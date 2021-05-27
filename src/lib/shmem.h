@@ -1,3 +1,4 @@
+#pragma once
 /*
   SPDX-License-Identifier: MIT License
   Copyright (c) 2021 Nordix Foundation

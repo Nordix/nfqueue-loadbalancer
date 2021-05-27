@@ -1,5 +1,4 @@
-#ifndef MAGLEV_H
-#define MAGLEV_H
+#pragma once
 
 #ifndef MAX_M
 #define MAX_M 10000
@@ -16,4 +15,3 @@ struct MagData {
 void initMagData(struct MagData* d, unsigned m, unsigned n);
 void populate(struct MagData* d);
 
-#endif	/* MAGLEV_H */
