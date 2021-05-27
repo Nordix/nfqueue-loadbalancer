@@ -4,10 +4,8 @@
 */
 
 #include "conntrack.h"
-#include <time.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
 
 #ifdef SINGLE_THREAD
 #warning SINGLE_THREAD

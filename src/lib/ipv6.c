@@ -10,11 +10,7 @@
 #include <arpa/inet.h>
 #include <netinet/ip6.h>
 #include <netinet/icmp6.h>
-#include <string.h>
-#include <stdlib.h>
-#include <time.h>
 #include <pthread.h>
-#include <stddef.h>
 
 #define HASH(d,l) djb2_hash(d,l)
 

@@ -7,12 +7,8 @@
 #include "iputils.h"
 #include <unistd.h>
 #include <stdio.h>
-#include <stdarg.h>
-#include <stdlib.h>
 #include <string.h>
-#include <time.h>
 #include <netinet/ether.h>
-#include <arpa/inet.h>			/* htons */
 
 int macParse(char const* str, uint8_t* mac)
 {

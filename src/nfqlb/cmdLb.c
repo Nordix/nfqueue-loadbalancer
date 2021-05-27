@@ -14,8 +14,6 @@
 #include <netinet/if_ether.h>
 #include <netinet/ip.h>
 #include <netinet/ip6.h>
-#include <time.h>
-#include <fcntl.h>
 
 #if 0
 #define D(x)

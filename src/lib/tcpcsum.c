@@ -3,7 +3,6 @@
 
 #include <netinet/tcp.h>
 #include <netinet/ip.h>
-//#include <net/if.h>
 #include <linux/if_ether.h>
 
 /* set tcp checksum: given IP header and tcp segment */
