@@ -1,3 +1,8 @@
+/*
+  SPDX-License-Identifier: Apache-2.0
+  Copyright (c) 2021 Nordix Foundation
+*/
+
 #include "fragutils.h"
 #include <assert.h>
 #include <string.h>

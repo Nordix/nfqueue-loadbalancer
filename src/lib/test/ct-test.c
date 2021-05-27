@@ -1,5 +1,5 @@
 /*
-  SPDX-License-Identifier: MIT License
+  SPDX-License-Identifier: Apache-2.0
   Copyright (c) 2021 Nordix Foundation
 */
 
