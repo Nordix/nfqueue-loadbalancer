@@ -4,7 +4,8 @@
 ## Targets;
 ##  help - This printout
 ##  all (default) - Build the lib and the executable
-##  test - Build the lib and test programs, run unit-tests
+##  test - Build the lib and test programs and run them
+##  test_progs - Build the lib and test programs
 ##  clean - Remove built files
 ##
 ## Beside the usual CFLAGS and LDFLAGS some usable variables;
@@ -14,7 +15,7 @@
 ## Examples;
 ##  make -j8
 ##  make -j8 test
-##  make -j8 X=/tmp/nfqlb
+##  make -j8 X=/tmp/my-nfqlb
 ##  make -j8 O=.       # (you *can*, but don't do that!)
 ##
 
@@ -63,4 +64,7 @@ clean:
 .PHONY: help
 help:
 	@grep '^##' $(lastword $(MAKEFILE_LIST)) | cut -c3-
-
+	@echo "Binary:"
+	@echo "  $(X)"
+	@echo "Test programs:"
+	@$(foreach p,$(TEST_PROGS),echo "  $(p)";)
