@@ -16,8 +16,6 @@ is lost it must be removed from the configuration with;
 nfqlb deactivate 5
 ```
 
-The `nfqlb` is scalable. Since the configuration is the same for all
-nfqlb's it does not matter which instance that receives a packet.
 Automatic detection and re-configuration when a target (or
 load-balancer) is lost/added is *not* a part of
 `nfqueue-loadbalancer`. You must do that in your own way.
@@ -25,8 +23,10 @@ load-balancer) is lost/added is *not* a part of
 <img src="lb-tier.svg" alt="load-balancer tier" width="75%" />
 
 
-Hashing and fragment handling is done in the same way as the
-Google load-balancer, [Maglev](maglev.md).
+Hashing and fragment handling is done in the same way as the Google
+load-balancer; [Maglev](maglev.md).  The `nfqlb` is scalable. Since
+the configuration is the same for all nfqlb's it does not matter which
+instance that receives a packet.
 
 
 The forwarding of packets is done by normal Linux routing, `nfqlb lb`
@@ -42,10 +42,10 @@ ip route add default via 192.168.1.1 table 1
 
 * [Maglev](maglev.md) - How functions from the Google load-balancer is used
 * [Fragment handling](fragments.md) - How fragmented packets are handled
-* [Improved TCP performance](syn-only.md) - For TCP only `SYN` packets must be load-balanced
+* [Improved TCP performance](syn-only.md) - For TCP only `SYN` packets may be load-balanced
 
 
-### Build
+## Build
 
 ```
 make -C src help

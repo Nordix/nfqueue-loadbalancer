@@ -15,7 +15,7 @@ ports, and store the hash value in a hash-table with key
 `<src,dst,frag-id>`. Subsequent fragments will have the same `frag-id`
 and we retrieve the stored hash value.
 
-If the fragments are re-ordered and the first fragment with the ports
+If the fragments are re-ordered and the first fragment, with the ports,
 does not come first we have no option but it store fragments until the
 first fragment arrives.
 
@@ -36,8 +36,21 @@ first fragment arrives.
    load-balanced.
 
 
-
 The NFQUEUE does not support stored packets to be re-injected, so some
 other mechanism must be used for fragments, e.g. a raw socket or a tap
 device.
 
+
+
+## The unwanted re-assembly problem
+
+If the Linux conntracker has *ever* been used in a netns (including
+the main netns) packets are re-assembed by the kernel. Only whole
+packets are received by the `nfqlb`. This is described in an excellent
+way [here](https://unix.stackexchange.com/questions/650790/unwanted-defragmentation-of-forwarded-ipv4-packets).
+
+One must be **very careful** to never used the Linux conntracker if
+fragments should be handled.
+
+This also means that if DNAT based load-balancing is used `nfqlb`
+can't handle fragments.
