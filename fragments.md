@@ -5,8 +5,12 @@ When a fragment arrive we hash on addresses only as described in the
 If the lookup gives us our own fwmark we handle the fragment
 locally. If not, route it to another load-balancer.
 
+
+<img src="nfqueue-frag-routing.svg" alt="nfqueue frament routing" width="75%" />
+
+
 Now we have made sure that all fragments from a particular source ends
-up in the same load-balancer. Here we do the "real" hashing, including
+up in the same load-balancer. Here we do the L4 hashing, including
 ports, and store the hash value in a hash-table with key
 `<src,dst,frag-id>`. Subsequent fragments will have the same `frag-id`
 and we retrieve the stored hash value.

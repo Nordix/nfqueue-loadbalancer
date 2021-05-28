@@ -25,7 +25,7 @@
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
      inkscape:zoom="1"
-     inkscape:cx="399.03338"
+     inkscape:cx="544.56773"
      inkscape:cy="315.5"
      inkscape:document-units="px"
      inkscape:current-layer="layer1"
@@ -220,7 +220,7 @@
         <dc:format>image/svg+xml</dc:format>
         <dc:type
            rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title></dc:title>
+        <dc:title />
       </cc:Work>
     </rdf:RDF>
   </metadata>
@@ -307,7 +307,7 @@
            y="122"
            x="161"
            id="tspan1191"
-           sodipodi:role="line">nfqueuelb</tspan></text>
+           sodipodi:role="line">nfqlb</tspan></text>
     </g>
     <g
        id="g1331">
@@ -373,7 +373,7 @@
            sodipodi:role="line"
            id="tspan1220"
            x="625"
-           y="122">nfqueuelb</tspan></text>
+           y="122">nfqlb</tspan></text>
       <text
          id="text1242"
          y="137"
@@ -457,7 +457,7 @@
            y="452"
            x="161"
            id="tspan1349"
-           sodipodi:role="line">nfqueuelb</tspan></text>
+           sodipodi:role="line">nfqlb</tspan></text>
       <text
          xml:space="preserve"
          style="font-style:normal;font-weight:normal;font-size:14.66666698px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none"
@@ -528,7 +528,7 @@
          y="452"
          x="625"
          id="tspan1622"
-         sodipodi:role="line">nfqueuelb</tspan></text>
+         sodipodi:role="line">nfqlb</tspan></text>
     <text
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;font-size:14.66666698px;line-height:1.25;font-family:sans-serif;text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;fill:#000000;fill-opacity:1;stroke:none"
