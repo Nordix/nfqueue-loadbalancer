@@ -1,4 +1,4 @@
-# nfqueue-loadbalancer
+# Nordix/nfqueue-loadbalancer
 
 A load-balancer based on the `NFQUEUE` iptables target. The `-j
 NFQUEUE` iptables target directs packets to a user-space program. The
@@ -16,10 +16,10 @@ is lost it must be removed from the configuration with;
 nfqlb deactivate 3
 ```
 
-The `nfqlb` is scalable since the configuration is the same for all
+The `nfqlb` is scalable. Since the configuration is the same for all
 nfqlb's it does not matter which instance that receives a packet.
-Automatic detection and re-configuration when a target or
-load-balancer is lost/added is *not* a part of the
+Automatic detection and re-configuration when a target (or
+load-balancer) is lost/added is *not* a part of
 `nfqueue-loadbalancer`. You must do that in your own way.
 
 <img src="lb-tier.svg" alt="load-balancer tier" width="75%" />
@@ -38,19 +38,28 @@ ip rule add fwmark 1 table 1
 ip route add default via 192.168.1.1 table 1
 ```
 
+### More info
+
+* [Maglev](maglev.md) - How functions from the Google load-balancer is used
+* [Fragment handling](fragments.md) - How fragmented packets are handled
+* [Improved TCP performance](syn-only.md) - For TCP only `SYN` packets must be load-balanced
+
+
 ### Build
 
 ```
 make -C src help
 make -C src -j8
+./nfqlb.sh build_image    # Build the test docker image
 ```
-
 Linked with `-lmnl -lnetfilter_queue` so you must install those.
+
+
 
 ## Try it locally
 
-You must have some targets. You can for instance use docker
-containers, but anything with an ip-address (not loopback) will do.
+You must have some targets. We use docker containers, but anything
+with an ip-address (not loopback) will do.
 
 Bring up some container targets;
 ```
@@ -58,6 +67,7 @@ for n in 1 2 3; do
   name=target$n
   docker run -d --hostname=$name --name=$name --rm alpine:latest nc -nlk -p 8888 -e hostname
   docker inspect $name | jq .[].NetworkSettings.Networks.bridge.IPAddress
+  #docker inspect $name | jq .[].NetworkSettings.Networks.bridge.GlobalIPv6Address
 done
 nc <addr> 8888   # Test connectivity
 ```
@@ -75,14 +85,14 @@ Use the `nfqlb.sh lb` script to setup load-balancing and check the
 setup. Later you can make your own setup and/or check the `nfqlb.sh`
 script.
 
-In the container;
+In the test container;
 ```
 PATH=$PATH:/opt/nfqlb/bin
 nfqlb.sh lb --vip=10.0.0.0/32 <your container targets here...>
 # Check load-balancing;
 for n in $(seq 1 20); do echo | nc 10.0.0.0 8888; done
 # Check some things
-iptables -t nat -S    # OUTPUT for local origin, forwardng not setup
+iptables -t nat -S    # OUTPUT chain for local origin, forwarding is not setup
 iptables -t mangle -S # The VIP is routed to user-space
 nfqlb show            # Shows the Maglev hash lookup
 nfqlb deactivate 1    # Deactivates a target. Check load-balancing again!

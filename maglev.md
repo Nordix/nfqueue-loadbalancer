@@ -1,13 +1,15 @@
-## The Google Maglev load-balancer
+## Nordix/nfqueue-loadbalancer - Maglev
+
+Maglev is the Google load-balancer:
 
 * https://static.googleusercontent.com/media/research.google.com/en//pubs/archive/44824.pdf
 
 The `nfqueue-loadbalancer` uses a local implementation more or less
 exactly as described in this document [maglev.c](src/lib/maglev.c).
 
-The hash state is stored in "shared memory" so it is accessible from
-the program doing load-balancing (`nfqlb lb`) as well as from programs
-performing various configurations (`nfqlb <cmd>`);
+The hash state, `struct MagData`, is stored in shared memory
+accessible from the program doing load-balancing (`nfqlb lb`) as well
+as from programs performing various configurations (`nfqlb <cmd>`);
 
 ```c
 #define MAX_M 10000
@@ -40,16 +42,16 @@ Described in section 4.3 p8 in the
 > Each Maglev is configured with a special backend pool consisting of
 > all Maglevs within the cluster.
 
-When a fragment is received a address hash is performend and the
+When a fragment is received a address hash (L3) is performed and the
 packet is forwarded to a backend in this pool, i.e another
-maglev. This maglev will get all fragments and maintain a state to
-ensure all fragments are sent to the same backend.
+Maglev. This Maglev will get all fragments for the packet and can
+maintain a state to ensure all fragments are sent to the same backend.
 
 > We use the GRE recursion control field to ensure that fragments are
 > only redirected once.
 
 In `nfqueue-loadbalancer` the `ownFwmark` is used instead.  If a
-fragment would be forwarded to our selves we handle the packet locally.
+fragment would be forwarded to ourselves, we handle it locally.
 
 Fragments can arrive in wrong order;
 

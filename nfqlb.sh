@@ -33,12 +33,56 @@ dbg() {
 	test -n "$__verbose" && echo "$prg: $*" >&2
 }
 
-##  env
-##    Print environment.
-##
+#  env
+#    Print environment.
+#
 cmd_env() {
 	test "$cmd" = "env" && set | grep -E '^(__.*|ARCHIVE)='
 }
+
+##  start_image
+##    The start-point for the test container. Don't call manually!
+cmd_start_image() {
+	test -x $dir/nfqlb_start && exec $dir/nfqlb_start
+	exec tail -f /dev/null			# Block
+}
+
+##  lb --vip=<virtual-ip> <targets...>
+##
+##    NOTE: Should normally be executed in a container.  fwoffset=100
+##          for targets is assumed (default).
+##
+##    Setup load-balancing to targets. Examples;
+##
+##      lb --vip=10.0.0.0/32 172.17.0.4 172.17.0.5 172.17.0.6
+##      lb --vip=1000::/128 2000::4 2000::5 2000::6
+cmd_lb() {
+	test -n "$__vip" || die "No VIP address"
+	local iptables=iptables
+	local ip=ip
+	if echo $__vip | grep -q :; then
+		iptables=ip6tables
+		ip="ip -6"
+	fi
+	local n fw ntargets=0
+	for n in $@; do
+		ntargets=$((ntargets + 1))
+		fw=$((ntargets + 100))
+		$ip rule add fwmark $fw table $fw
+		$ip route add default via $n table $fw
+		$iptables -t nat -A OUTPUT -m mark --mark $fw \
+			-j DNAT --to-destination $n
+	done
+	test $ntargets -eq 0 && return 0
+
+	$iptables -t mangle -A OUTPUT -d $__vip -j NFQUEUE --queue-num 2
+
+	PATH=$PATH:/opt/nfqlb/bin
+	nfqlb show > /dev/null 2>&1 || nfqlb init --ownfw=1
+	nfqlb activate $(seq 1 $ntargets)
+	nfqlb lb >> /var/log/nfqlb.log 2>&1 &
+}
+##
 
 ##  include_check
 ##    Remove any unnecessary #include's in c-files
@@ -119,49 +163,8 @@ cmd_build_image() {
 	strip $d/nfqlb
 	docker build -t nordixorg/nfqlb:latest .
 }
-##  start_image
-##    The start-point for the test image. Don't call manually!
-cmd_start_image() {
-	test -x $dir/nfqlb_start && exec $dir/nfqlb_start
-	exec tail -f /dev/null			# Block
-}
 ##
 
-##  lb --vip=<virtual-ip> <targets...>
-##    Setup load-balancing to targets. Examples;
-##
-##      lb --vip=10.0.0.0/32 172.17.0.4 172.17.0.5 172.17.0.6
-##      lb --vip=1000::/128 2000::4 2000::5 2000::6
-##
-##    NOTE: Should normally be executed in a container.  fwoffset=100
-##          for targets is assumed (default).
-##
-cmd_lb() {
-	test -n "$__vip" || die "No VIP address"
-	local iptables=iptables
-	local ip=ip
-	if echo $__vip | grep -q :; then
-		iptables=ip6tables
-		ip="ip -6"
-	fi
-	local n fw ntargets=0
-	for n in $@; do
-		ntargets=$((ntargets + 1))
-		fw=$((ntargets + 100))
-		$ip rule add fwmark $fw table $fw
-		$ip route add default via $n table $fw
-		$iptables -t nat -A OUTPUT -m mark --mark $fw \
-			-j DNAT --to-destination $n
-	done
-	test $ntargets -eq 0 && return 0
-
-	$iptables -t mangle -A OUTPUT -d $__vip -j NFQUEUE --queue-num 2
-
-	PATH=$PATH:/opt/nfqlb/bin
-	nfqlb show > /dev/null 2>&1 || nfqlb init --ownfw=1
-	nfqlb activate $(seq 1 $ntargets)
-	nfqlb lb >> /var/log/nfqlb.log 2>&1 &
-}
 
 # Get the command
 cmd=$1
