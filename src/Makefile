@@ -35,7 +35,7 @@ $(O)/%.o : %.c
 	$(CC) -c $(CFLAGS) -Wall -Ilib $< -o $@
 
 .PHONY: all
-all: $(DIRS) $(X)
+all: dirs  $(X)
 
 $(X): $(LIB) $(OBJ)
 	$(CC) -o $(X) $(OBJ) $(LDFLAGS) -L$(O)/lib -lnfqlb -lrt -lmnl -lnetfilter_queue
@@ -44,7 +44,8 @@ $(LIB): $(LIB_OBJ)
 	@rm -f $(LIB)
 	ar rcs $(LIB) $(LIB_OBJ)
 
-$(DIRS):
+.PHONY: dirs
+dirs:
 	@mkdir -p $(DIRS)
 
 .PHONY: test test_progs
@@ -52,14 +53,15 @@ $(O)/lib/test/% : lib/test/%.c
 	$(CC) $(CFLAGS) -Wall -Ilib $< -o $@ -L$(O)/lib -lnfqlb -lrt
 TEST_SRC := $(wildcard lib/test/*-test.c)
 TEST_PROGS := $(TEST_SRC:%.c=$(O)/%)
-test_progs: $(LIB) $(TEST_PROGS)
-test: $(LIB) $(TEST_PROGS)
+$(TEST_PROGS): $(LIB)
+test_progs: dirs $(TEST_PROGS)
+test: dirs $(TEST_PROGS)
 	@$(foreach p,$(TEST_PROGS),echo $(p);$(p);)
 
 
 .PHONY: clean
 clean:
-	rm -f $(X) $(LIB) $(OBJ) $(LIB_OBJ) $(TEST_OBJ)
+	rm -f $(X) $(LIB) $(OBJ) $(LIB_OBJ) $(TEST_OBJ) $(TEST_PROGS)
 
 .PHONY: help
 help:
