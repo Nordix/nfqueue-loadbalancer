@@ -1,7 +1,7 @@
 # Nordix/nfqueue-loadbalancer
 
 A load-balancer based on the `NFQUEUE` iptables target. The `-j
-NFQUEUE` iptables target directs packets to a user-space program. The
+NFQUEUE` target directs packets to a user-space program. The
 program can analyze the packet and set `fwmark` and `verdict`.
 
 <img src="nfqueue.svg" alt="NFQUEUQE packet path" width="75%" />
@@ -13,7 +13,7 @@ traffic handling from configuration. For instance when a real-target
 is lost it must be removed from the configuration with;
 
 ```
-nfqlb deactivate 3
+nfqlb deactivate 5
 ```
 
 The `nfqlb` is scalable. Since the configuration is the same for all
@@ -25,11 +25,11 @@ load-balancer) is lost/added is *not* a part of
 <img src="lb-tier.svg" alt="load-balancer tier" width="75%" />
 
 
-Hashing and fragment handling is done in the same way as for the
+Hashing and fragment handling is done in the same way as the
 Google load-balancer, [Maglev](maglev.md).
 
 
-The forwarding of packets is done by normal Linux routing, the `nfqlb`
+The forwarding of packets is done by normal Linux routing, `nfqlb lb`
 just sets a `fwmark`. That let you use any Linux function to route
 packets to your targets. Example;
 
