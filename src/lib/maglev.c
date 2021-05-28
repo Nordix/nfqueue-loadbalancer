@@ -1,6 +1,3 @@
-// gcc -o /tmp/maglev maglev.c maglev-test.c
-// /tmp/maglev 1000 10 2 2
-
 #include <stdlib.h>
 #include <string.h>
 #include "maglev.h"
