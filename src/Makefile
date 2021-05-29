@@ -20,6 +20,7 @@
 ##
 
 # https://www.google.se/search?q=recursive+make+harmful
+# https://stackoverflow.com/questions/4440500/depending-on-directories-in-make
 
 O ?= /tmp/$(USER)/nfqlb
 X ?= $(O)/nfqlb/nfqlb
@@ -35,18 +36,15 @@ $(O)/%.o : %.c
 	$(CC) -c $(CFLAGS) -Wall -Ilib $< -o $@
 
 .PHONY: all
-all: dirs  $(X)
+all: $(X)
 
 $(X): $(LIB) $(OBJ)
 	$(CC) -o $(X) $(OBJ) $(LDFLAGS) -L$(O)/lib -lnfqlb -lrt -lmnl -lnetfilter_queue
-
+$(OBJ): | $(DIRS)
 $(LIB): $(LIB_OBJ)
 	@rm -f $(LIB)
 	ar rcs $(LIB) $(LIB_OBJ)
-
-.PHONY: dirs
-dirs:
-	@mkdir -p $(DIRS)
+$(LIB_OBJ): | $(DIRS)
 
 .PHONY: test test_progs
 $(O)/lib/test/% : lib/test/%.c
@@ -54,10 +52,12 @@ $(O)/lib/test/% : lib/test/%.c
 TEST_SRC := $(wildcard lib/test/*-test.c)
 TEST_PROGS := $(TEST_SRC:%.c=$(O)/%)
 $(TEST_PROGS): $(LIB)
-test_progs: dirs $(TEST_PROGS)
-test: dirs $(TEST_PROGS)
+test_progs: $(TEST_PROGS)
+test: $(TEST_PROGS)
 	@$(foreach p,$(TEST_PROGS),echo $(p);$(p);)
 
+$(DIRS):
+	@mkdir -p $(DIRS)
 
 .PHONY: clean
 clean:
