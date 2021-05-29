@@ -5,7 +5,7 @@ Maglev is the Google load-balancer:
 * https://static.googleusercontent.com/media/research.google.com/en//pubs/archive/44824.pdf
 
 The `nfqueue-loadbalancer` uses a local implementation more or less
-exactly as described in this document [maglev.c](src/lib/maglev.c).
+exactly as described in the document above (see [maglev.c](src/lib/maglev.c)).
 
 The hash state, `struct MagData`, is stored in shared memory
 accessible from the program doing load-balancing (`nfqlb lb`) as well

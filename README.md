@@ -43,6 +43,8 @@ ip route add default via 192.168.1.1 table 1
 * [Maglev](maglev.md) - How functions from the Google load-balancer is used
 * [Fragment handling](fragments.md) - How fragmented packets are handled
 * [Improved TCP performance](syn-only.md) - For TCP only `SYN` packets may be load-balanced
+* [Fragment tracking](fragtrack.md) - With another hash table
+
 
 
 ## Build
