@@ -102,14 +102,17 @@ static int cmdStats(int argc, char **argv)
 	(void)parseOptionsOrDie(argc, argv, options);
 	struct ctStats* sft = mapSharedDataOrDie(ftShm, sizeof(*sft), O_RDONLY);
 	printf(
-		"size:         %u\n"
-		"ttlNanos:     %lu\n"
-		"collisions:   %u\n"
-		"inserts:      %u (%u)\n"
-		"lookups:      %u\n"
-		"objGC:        %u\n",
-		sft->size, sft->ttlNanos, sft->collisions, sft->inserts,
-		sft->rejectedInserts, sft->lookups, sft->objGC);
+		"{\n"
+		"  \"size\":         %u,\n"
+		"  \"ttlMillis\":    %u,\n"
+		"  \"collisions\":   %u,\n"
+		"  \"inserts\":      %u,\n"
+		"  \"rejected\":     %u,\n"
+		"  \"lookups\":      %u,\n"
+		"  \"objGC\":        %u\n"
+		"}\n",
+		sft->size, (unsigned)(sft->ttlNanos/1000000), sft->collisions,
+		sft->inserts, sft->rejectedInserts, sft->lookups, sft->objGC);
 	return 0;
 }
 

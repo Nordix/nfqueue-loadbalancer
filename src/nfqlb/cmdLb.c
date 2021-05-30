@@ -19,7 +19,7 @@ static struct FragTable* ft;
 static struct SharedData* st;
 static struct SharedData* slb;
 
-#if 1
+#ifdef VERBOSE
 #include "time.h"
 #include "limiter.h"
 #define D(x)
@@ -154,8 +154,8 @@ static int cmdLb(int argc, char **argv)
 	char const* lbShm = defaultLbShm;
 	char const* ftShm = "ftshm";
 	char const* qnum = "2";
-	char const* ft_size = "997";
-	char const* ft_buckets = "100";
+	char const* ft_size = "500";
+	char const* ft_buckets = "500";
 	char const* ft_frag = "100";
 	char const* ft_ttl = "200";
 	struct Option options[] = {
@@ -169,7 +169,7 @@ static int cmdLb(int argc, char **argv)
 		{"ft_size", &ft_size, 0, "Frag table; size"},
 		{"ft_buckets", &ft_buckets, 0, "Frag table; extra buckets"},
 		{"ft_frag", &ft_frag, 0, "Frag table; stored frags"},
-		{"ft_ttl", &ft_ttl, 0, "Frag table; ttl"},
+		{"ft_ttl", &ft_ttl, 0, "Frag table; ttl milliS"},
 		{0, 0, 0, 0}
 	};
 	(void)parseOptionsOrDie(argc, argv, options);
