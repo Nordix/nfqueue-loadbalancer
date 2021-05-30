@@ -5,16 +5,19 @@
 */
 
 #include <stdint.h>
+#include "fragutils.h"
 
 struct ip6_hdr;
 struct icmp6_hdr;
 unsigned ipv4TcpUdpHash(void const* data, unsigned len);
 unsigned ipv4IcmpHash(void const* data, unsigned len);
 unsigned ipv4AddressHash(void const* data, unsigned len);
-int ipv4HandleFragment(void const* data, unsigned len, unsigned* hash);
 unsigned ipv6Hash(void const* data, unsigned len);
 unsigned ipv6AddressHash(void const* data, unsigned len);
-int ipv6HandleFragment(void const* data, unsigned len, unsigned* hash);
+int ipv6HandleFragment(
+	struct FragTable* ft, void const* data, unsigned len, unsigned* hash);
+int ipv4HandleFragment(
+	struct FragTable* ft, void const* data, unsigned len, unsigned* hash);
 
 // MAC
 int macParse(char const* str, uint8_t* mac);

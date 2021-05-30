@@ -4,7 +4,6 @@
 */
 
 #include "iputils.h"
-#include "fragutils.h"
 #include "hash.h"
 #include <stdio.h>
 #include <arpa/inet.h>
@@ -75,7 +74,8 @@ unsigned ipv6AddressHash(void const* data, unsigned len)
 
 #define PAFTER(x) (void*)x + (sizeof(*x))
 
-int ipv6HandleFragment(void const* data, unsigned len, unsigned* hash)
+int ipv6HandleFragment(
+	struct FragTable* ft, void const* data, unsigned len, unsigned* hash)
 {
 	struct timespec now;
 	clock_gettime(CLOCK_MONOTONIC, &now);
@@ -104,13 +104,13 @@ int ipv6HandleFragment(void const* data, unsigned len, unsigned* hash)
 		default:
 			*hash = 0;
 		}
-		if (fragInsertFirst(&now, &key, *hash) != 0) {
+		if (fragInsertFirst(ft, &now, &key, *hash) != 0) {
 			return -1;
 		}
 
 		/* Check if we have any stored fragments that should be
 		 * re-injected */
-		struct Item* storedFragments = fragGetStored(&now, &key);
+		struct Item* storedFragments = fragGetStored(ft, &now, &key);
 		if (storedFragments != NULL) {
 			unsigned cnt = 0;
 			for (struct Item* i = storedFragments; i != NULL; i = i->next)
@@ -127,5 +127,5 @@ int ipv6HandleFragment(void const* data, unsigned len, unsigned* hash)
 	  fragment if not.
 	*/
 
-	return fragGetHashOrStore(&now, &key, hash, data, len);
+	return fragGetHashOrStore(ft, &now, &key, hash, data, len);
 }

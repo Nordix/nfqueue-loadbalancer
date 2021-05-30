@@ -15,6 +15,10 @@
 #include <netinet/ip.h>
 #include <netinet/ip6.h>
 
+static struct FragTable* ft;
+static struct SharedData* st;
+static struct SharedData* slb;
+
 #if 1
 #include "time.h"
 #include "limiter.h"
@@ -23,7 +27,7 @@
 static void printFragStats(struct timespec* now)
 {
 	struct fragStats stats;
-	fragGetStats(now, &stats);
+	fragGetStats(ft, now, &stats);
 	printf(
 		"Frag Stats;\n"
 		"  active=%u, collisions=%u, inserts=%u(%u), lookups=%u, gc=%u\n"
@@ -48,11 +52,6 @@ static void printIpv6FragStats(void)
 #define Dx(x)
 #endif
 
-#define HASH djb2_hash
-
-static struct SharedData* st;
-static struct SharedData* slb;
-
 
 static int handleIpv4(void* payload, unsigned plen)
 {
@@ -69,7 +68,7 @@ static int handleIpv4(void* payload, unsigned plen)
 		}
 
 		// We shall handle the frament here
-		int rc = ipv4HandleFragment(payload, plen, &hash);
+		int rc = ipv4HandleFragment(ft, payload, plen, &hash);
 		if (rc != 0) {
 			Dx(printf("IPv4 fragment dropped or stored, rc=%d\n", rc));
 			return -1;
@@ -113,7 +112,7 @@ static int handleIpv6(void* payload, unsigned plen)
 		}
 
 		// We shall handle the frament here
-		int rc = ipv6HandleFragment(payload, plen, &hash);
+		int rc = ipv6HandleFragment(ft, payload, plen, &hash);
 		if (rc != 0) {
 			Dx(printf("IPv6 fragment dropped or stored, rc=%d\n", rc));
 			Dx(printIpv6FragStats());
@@ -176,17 +175,19 @@ static int cmdLb(int argc, char **argv)
 	(void)parseOptionsOrDie(argc, argv, options);
 	st = mapSharedDataOrDie(targetShm,sizeof(*st), O_RDONLY);
 	slb = mapSharedDataOrDie(lbShm,sizeof(*slb), O_RDONLY);
+	// Create and re-map the stats struct
 	struct ctStats* sft = calloc(1, sizeof(*sft));
 	createSharedDataOrDie(ftShm, sft, sizeof(*sft));
 	free(sft);
 	sft = mapSharedDataOrDie(ftShm, sizeof(*sft), O_RDWR);
-	fragInit(
+
+	ft = fragInit(
 		atoi(ft_size),		/* table size */
 		atoi(ft_buckets),	/* Extra buckets for hash collisions */
 		atoi(ft_frag),		/* Max stored fragments */
 		1550,				/* MTU + some extras */
 		atoi(ft_ttl));		/* Fragment TTL in milli seconds */
-	fragUseStats(sft);
+	fragUseStats(ft, sft);
 	printf(
 		"FragTable; size=%d, buckets=%d, frag=%d, mtu=%d, ttl=%d\n",
 		atoi(ft_size),atoi(ft_buckets),atoi(ft_frag),1550,atoi(ft_ttl));

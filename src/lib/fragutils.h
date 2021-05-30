@@ -72,13 +72,14 @@
   indicate a DoS attack.
 
 */
-void fragInit(
+struct FragTable;
+struct FragTable* fragInit(
 	unsigned hsize,				/* Hash-table size */
 	unsigned maxBuckets,		/* on top of hsize */
 	unsigned maxFragments,		/* Max non-first fragments to store */
 	unsigned mtu,				/* Max size of stored fragments */
 	unsigned ttlMillis);		/* Timeout for fragments */
-void fragUseStats(struct ctStats* stats);
+void fragUseStats(struct FragTable* ft, struct ctStats* stats);
 /*
   Inserts the first fragment and stores the passed hash to be used for
   sub-sequent fragments.
@@ -87,7 +88,8 @@ void fragUseStats(struct ctStats* stats);
   -1 - Failed to store hash
 */
 int fragInsertFirst(
-	struct timespec* now, struct ctKey* key, unsigned hash);
+	struct FragTable* ft, struct timespec* now,
+	struct ctKey* key, unsigned hash);
 
 /*
   Called for non-first fragments.
@@ -97,7 +99,8 @@ int fragInsertFirst(
   -1 - Hash is NOT valid. Failed to store the fragment.
 */
 int fragGetHashOrStore(
-	struct timespec* now, struct ctKey* key, unsigned* hash,
+	struct FragTable* ft, struct timespec* now,
+	struct ctKey* key, unsigned* hash,
 	void const* data, unsigned len);
 
 /*
@@ -107,7 +110,9 @@ int fragGetHashOrStore(
    0 - Hash is valid.
   -1 - Hash is NOT valid.
 */
-int fragGetHash(struct timespec* now, struct ctKey* key, unsigned* hash);
+int fragGetHash(
+	struct FragTable* ft, struct timespec* now,
+	struct ctKey* key, unsigned* hash);
 
 
 /*
@@ -117,7 +122,8 @@ int fragGetHash(struct timespec* now, struct ctKey* key, unsigned* hash);
   return:
   Fragment Items ot NULL.
 */
-struct Item* fragGetStored(struct timespec* now, struct ctKey* key);
+struct Item* fragGetStored(
+	struct FragTable* ft, struct timespec* now, struct ctKey* key);
 
 
 struct fragStats {
@@ -137,4 +143,5 @@ struct fragStats {
 	unsigned storedFrags;
 };
 
-void fragGetStats(struct timespec* now, struct fragStats* stats);
+void fragGetStats(
+	struct FragTable* ft, struct timespec* now, struct fragStats* stats);

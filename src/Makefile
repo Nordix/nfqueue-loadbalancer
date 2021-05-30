@@ -14,7 +14,8 @@
 ##
 ## Examples;
 ##  make -j8
-##  make -j8 test
+##  make -j8 clean
+##  make -j8 CFLAGS=-DSANITY_CHECK test
 ##  make -j8 X=/tmp/my-nfqlb
 ##  make -j8 O=.       # (you *can*, but don't do that!)
 ##

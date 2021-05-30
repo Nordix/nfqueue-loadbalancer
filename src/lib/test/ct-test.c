@@ -98,6 +98,7 @@ static void testConntrack(struct ctStats* accumulatedStats)
 	void* data;
 	int rc;
 
+	ctDestroy(NULL);			/* Should be OK */
 	// Create table
 	ct = ctCreate(
 		1, 99, freeData, NULL, BUCKET_ALLOC, BUCKET_FREE, NULL);

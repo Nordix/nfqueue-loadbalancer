@@ -280,6 +280,8 @@ struct ctStats const* ctStats(struct ct* ct, struct timespec* now)
 void ctDestroy(struct ct* ct)
 {
 	unsigned i;
+	if (ct == NULL)
+		return;
 	struct ctBucket* b = ct->bucket;
 	for (i = 0; i < ct->stats->size; i++, b++) {
 		LOCK(&b->mutex);

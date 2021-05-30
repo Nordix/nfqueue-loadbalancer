@@ -54,10 +54,11 @@ cmdFragutilsBasic(int argc, char* argv[])
 	int rc;
 	unsigned hash;
 	struct Item* item;
+	struct FragTable* ft;
 
 	// Init and check stats
-	fragInit(2, 3, 4, 1500, 100);
-	fragGetStats(&now, &a);
+	ft = fragInit(2, 3, 4, 1500, 100);
+	fragGetStats(ft, &now, &a);
 	memset(&b, 0, sizeof(b));
 	b.ttlMillis = 100;
 	b.size = 2;
@@ -67,113 +68,113 @@ cmdFragutilsBasic(int argc, char* argv[])
 	assert(statsCmp(&a, &b) == 0);
 
 	// Unsuccesful lookup
-	fragGetStats(&now, &a);
+	fragGetStats(ft, &now, &a);
 	a.lookups++;
-	rc = fragGetHash(&now, &key, &hash);
+	rc = fragGetHash(ft, &now, &key, &hash);
 	assert(rc == -1);
-	fragGetStats(&now, &b);
+	fragGetStats(ft, &now, &b);
 	assert(statsCmp(&a, &b) == 0);
 
 	// Insert a first-fragment and look it up
-	fragGetStats(&now, &a);
+	fragGetStats(ft, &now, &a);
 	a.lookups++;
 	a.inserts++;
 	a.active++;
-	rc = fragInsertFirst(&now, &key, 5);
+	rc = fragInsertFirst(ft, &now, &key, 5);
 	assert(rc == 0);
-	fragGetStats(&now, &b);
+	fragGetStats(ft, &now, &b);
 	assert(statsCmp(&a, &b) == 0);
 
-	fragGetStats(&now, &a);
+	fragGetStats(ft, &now, &a);
 	a.lookups++;
-	rc = fragGetHash(&now, &key, &hash);
+	rc = fragGetHash(ft, &now, &key, &hash);
 	assert(rc == 0);
 	assert(hash == 5);
-	fragGetStats(&now, &b);
+	fragGetStats(ft, &now, &b);
 	assert(statsCmp(&a, &b) == 0);
 
 	// Step time and check GC
-	fragGetStats(&now, &a);
+	fragGetStats(ft, &now, &a);
 	a.active = 0;
 	a.objGC++;
 	now.tv_nsec += 150 * MS;
-	fragGetStats(&now, &b);
+	fragGetStats(ft, &now, &b);
 	assert(statsCmp(&a, &b) == 0);
 
 	// Add 3 sub-frags
-	fragGetStats(&now, &a);
+	fragGetStats(ft, &now, &a);
 	a.active++;
 	a.lookups++;
 	a.inserts++;
 	a.storedFrags++;
-	rc = fragGetHashOrStore(&now, &key, &hash, &key, sizeof(key));
+	rc = fragGetHashOrStore(ft, &now, &key, &hash, &key, sizeof(key));
 	assert(rc == 1);
-	fragGetStats(&now, &b);
+	fragGetStats(ft, &now, &b);
 	assert(statsCmp(&a, &b) == 0);
 
-	fragGetStats(&now, &a);
+	fragGetStats(ft, &now, &a);
 	a.lookups++;
 	a.storedFrags++;
-	rc = fragGetHashOrStore(&now, &key, &hash, &key, sizeof(key));
+	rc = fragGetHashOrStore(ft, &now, &key, &hash, &key, sizeof(key));
 	assert(rc == 1);
-	fragGetStats(&now, &b);
+	fragGetStats(ft, &now, &b);
 	assert(statsCmp(&a, &b) == 0);
 
-	fragGetStats(&now, &a);
+	fragGetStats(ft, &now, &a);
 	a.lookups++;
 	a.storedFrags++;
-	rc = fragGetHashOrStore(&now, &key, &hash, &key, sizeof(key));
+	rc = fragGetHashOrStore(ft, &now, &key, &hash, &key, sizeof(key));
 	assert(rc == 1);
-	fragGetStats(&now, &b);
+	fragGetStats(ft, &now, &b);
 	assert(statsCmp(&a, &b) == 0);
 
 	// Step time and check that the (3) fragments are released
-	fragGetStats(&now, &a);
+	fragGetStats(ft, &now, &a);
 	a.active = 0;
 	a.objGC++;
 	a.storedFrags = 0;
 	now.tv_nsec += 150 * MS;
-	fragGetStats(&now, &b);
+	fragGetStats(ft, &now, &b);
 	assert(statsCmp(&a, &b) == 0);
 
 	// Add 3 sub-frags #2
-	fragGetStats(&now, &a);
+	fragGetStats(ft, &now, &a);
 	a.active++;
 	a.lookups++;
 	a.inserts++;
 	a.storedFrags++;
-	rc = fragGetHashOrStore(&now, &key, &hash, &key, sizeof(key));
+	rc = fragGetHashOrStore(ft, &now, &key, &hash, &key, sizeof(key));
 	assert(rc == 1);
-	fragGetStats(&now, &b);
+	fragGetStats(ft, &now, &b);
 	assert(statsCmp(&a, &b) == 0);
 
-	fragGetStats(&now, &a);
+	fragGetStats(ft, &now, &a);
 	a.lookups++;
 	a.storedFrags++;
-	rc = fragGetHashOrStore(&now, &key, &hash, &key, sizeof(key));
+	rc = fragGetHashOrStore(ft, &now, &key, &hash, &key, sizeof(key));
 	assert(rc == 1);
-	fragGetStats(&now, &b);
+	fragGetStats(ft, &now, &b);
 	assert(statsCmp(&a, &b) == 0);
 
-	fragGetStats(&now, &a);
+	fragGetStats(ft, &now, &a);
 	a.lookups++;
 	a.storedFrags++;
-	rc = fragGetHashOrStore(&now, &key, &hash, &key, sizeof(key));
+	rc = fragGetHashOrStore(ft, &now, &key, &hash, &key, sizeof(key));
 	assert(rc == 1);
-	fragGetStats(&now, &b);
+	fragGetStats(ft, &now, &b);
 	assert(statsCmp(&a, &b) == 0);
 
 	// Get and release the stored fragments
-	fragGetStats(&now, &a);
+	fragGetStats(ft, &now, &a);
 	a.lookups++;
-	item = fragGetStored(&now, &key);
+	item = fragGetStored(ft, &now, &key);
 	assert(item != NULL);
 	assert(numItems(item) == 3);
-	fragGetStats(&now, &b);
+	fragGetStats(ft, &now, &b);
 	assert(statsCmp(&a, &b) == 0);
 	a.storedFrags = 0;
 	itemFree(item);
-	fragGetStats(&now, &b);
+	fragGetStats(ft, &now, &b);
 	assert(statsCmp(&a, &b) == 0);
 	
 

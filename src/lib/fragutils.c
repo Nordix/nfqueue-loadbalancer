@@ -7,11 +7,10 @@
 #include <pthread.h>
 #include <stddef.h>
 #include <string.h>
+#include <stdlib.h>
 
-// Nobody ever use -DNDEBUG so we better control this our selves
-#if 1
+#ifdef SANITY_CHECK
 #include <assert.h>
-#define SANITY_CHECK
 #else
 #define assert(x)
 #endif
@@ -31,10 +30,9 @@
 
 /*
   Holds data necessary to store hash values and fragments to re-inject
-  in the ct. A pointer to this structure is passed as "user_ref" to
-  ctCreate() and is passed back as the firsts parameter in call-backs.
- */
-struct CtObj {
+  in the ct.
+*/
+struct FragTable {
 	struct ct* ct;
 	struct ItemPool* fragDataPool; /* Items actually stored in the ct */
 	struct ItemPool* bucketPool;   /* Extra buckets on hash collisions */
@@ -46,12 +44,12 @@ struct CtObj {
   ctLookup() we must ensure that the object is not released by another
   thread while the ctLookup() caller is using it. So, a
   reference-counter is used.
- */
+*/
 struct FragData {
 	int referenceCounter;
+	MUTEX(mutex);
 	int firstFragmentSeen;		/* Meaning the hash is valid */
 	unsigned hash;
-	MUTEX(mutex);				/* For "storedFragments" */
 	struct Item* storedFragments;
 };
 
@@ -83,13 +81,13 @@ static void fragDataUnlock(void* user_ref, void* data)
   != NULL - FragData. The calling function *must* call fragDataUnlock!
 */
 static struct FragData* fragDataLookup(
-	struct CtObj* ctobj, struct timespec* now, struct ctKey const* key)
+	struct FragTable* ft, struct timespec* now, struct ctKey const* key)
 {
-	struct FragData* f = ctLookup(ctobj->ct, now, key);
+	struct FragData* f = ctLookup(ft->ct, now, key);
 	// if != NULL the reference-counter has been incremented
 	if (f == NULL) {
 		// Did not exist. Allocate it from the fragDataPool
-		struct Item* i = itemAllocate(ctobj->fragDataPool);
+		struct Item* i = itemAllocate(ft->fragDataPool);
 		if (i == NULL)
 			return NULL;
 		f = (struct FragData*) i->data;
@@ -97,7 +95,7 @@ static struct FragData* fragDataLookup(
 		f->firstFragmentSeen = 0;
 		f->storedFragments = NULL;
 
-		switch (ctInsert(ctobj->ct, now, key, f)) {
+		switch (ctInsert(ft->ct, now, key, f)) {
 		case 0:
 			// Make it look like a succesful ctLookup()
 			REFINC(f->referenceCounter);
@@ -107,8 +105,8 @@ static struct FragData* fragDataLookup(
 			  Another thread has also allocated the entry and we lost
 			  the race. Yeld, and use the inserted object.
 			 */
-			fragDataUnlock(ctobj, f); /* will release our allocated object */
-			f = ctLookup(ctobj->ct, now, key);
+			fragDataUnlock(ft, f); /* will release our allocated object */
+			f = ctLookup(ft->ct, now, key);
 			if (f == NULL) {
 				/*
 				  The object created by another thread has been
@@ -123,7 +121,7 @@ static struct FragData* fragDataLookup(
 			  locked with referenceCounter=1, call fragDataUnlock() to
 			  release it.
 			 */
-			fragDataUnlock(ctobj, f);
+			fragDataUnlock(ft, f);
 			return NULL;
 		}
 	}
@@ -142,8 +140,8 @@ static struct FragData* fragDataLookup(
  */
 static void* bucketPoolAllocate(void* user_ref)
 {
-	struct CtObj* ctobj = user_ref;
-	struct Item* i = itemAllocate(ctobj->bucketPool);
+	struct FragTable* ft = user_ref;
+	struct Item* i = itemAllocate(ft->bucketPool);
 	if (i == NULL)
 		return NULL;
 	return i->data;
@@ -157,7 +155,6 @@ static void bucketPoolFree(void* user_ref, void* b)
 /* ----------------------------------------------------------------------
 */
 
-static struct CtObj ctobj = {0};
 
 static void initMutex(struct Item* item)
 {
@@ -165,34 +162,39 @@ static void initMutex(struct Item* item)
 	MUTEX_INIT(&f->mutex);
 }
 
-void fragInit(
+struct FragTable* fragInit(
 	unsigned hsize,
 	unsigned maxBuckets,
 	unsigned maxFragments,
 	unsigned mtu,
 	unsigned timeoutMillis)
 {
-	if (ctobj.ct != NULL)
-		return;
-	ctobj.bucketPool = itemPoolCreate(maxBuckets, sizeof_bucket, NULL);
-	ctobj.fragmentPool = itemPoolCreate(maxFragments, mtu, NULL);
+	struct FragTable* ft = calloc(1, sizeof(*ft));
+	if (ft == NULL)
+		return NULL;
+	ft->bucketPool = itemPoolCreate(maxBuckets, sizeof_bucket, NULL);
+	ft->fragmentPool = itemPoolCreate(maxFragments, mtu, NULL);
 	// In theory we can have max (hsize + maxBuckets) FragData objects in the ct
-	ctobj.fragDataPool = itemPoolCreate(
+	ft->fragDataPool = itemPoolCreate(
 		hsize + maxBuckets, sizeof(struct FragData), initMutex);
-	ctobj.ct = ctCreate(
+	/* A pointer to the FragTable structure is passed as "user_ref" to
+	   ctCreate() and is passed back as the firsts parameter in call-backs. */
+	ft->ct = ctCreate(
 		hsize, timeoutMillis * MS, fragDataUnlock, fragDataLock,
-		bucketPoolAllocate, bucketPoolFree, &ctobj);
-	assert(ctobj.ct != NULL);
+		bucketPoolAllocate, bucketPoolFree, ft);
+	assert(ft->ct != NULL);
+	return ft;
 }
-void fragUseStats(struct ctStats* stats)
+void fragUseStats(struct FragTable* ft, struct ctStats* stats)
 {
-	ctUseStats(ctobj.ct, stats);
+	ctUseStats(ft->ct, stats);
 }
 
 int fragInsertFirst(
-	struct timespec* now, struct ctKey* key, unsigned hash)
+	struct FragTable* ft, struct timespec* now,
+	struct ctKey* key, unsigned hash)
 {
-	struct FragData* f = fragDataLookup(&ctobj, now, key);
+	struct FragData* f = fragDataLookup(ft, now, key);
 	if (f == NULL) {
 		return -1;				/* Out of buckets */
 	}
@@ -205,9 +207,10 @@ int fragInsertFirst(
 	return 0;					/* OK return */
 }
 
-struct Item* fragGetStored(struct timespec* now, struct ctKey* key)
+struct Item* fragGetStored(
+	struct FragTable* ft, struct timespec* now, struct ctKey* key)
 {
-	struct FragData* f = ctLookup(ctobj.ct, now, key);
+	struct FragData* f = ctLookup(ft->ct, now, key);
 	if (f == NULL)
 		return NULL;
 
@@ -221,9 +224,11 @@ struct Item* fragGetStored(struct timespec* now, struct ctKey* key)
 	return storedFragments;
 }
 
-int fragGetHash(struct timespec* now, struct ctKey* key, unsigned* hash)
+int fragGetHash(
+	struct FragTable* ft, struct timespec* now,
+	struct ctKey* key, unsigned* hash)
 {
-	struct FragData* f = ctLookup(ctobj.ct, now, key);
+	struct FragData* f = ctLookup(ft->ct, now, key);
 	if (f == NULL || !f->firstFragmentSeen) {
 		return -1;
 	}
@@ -233,10 +238,11 @@ int fragGetHash(struct timespec* now, struct ctKey* key, unsigned* hash)
 }
 
 int fragGetHashOrStore(
-	struct timespec* now, struct ctKey* key, unsigned* hash,
+	struct FragTable* ft, struct timespec* now,
+	struct ctKey* key, unsigned* hash,
 	void const* data, unsigned len)
 {
-	struct FragData* f = fragDataLookup(&ctobj, now, key);
+	struct FragData* f = fragDataLookup(ft, now, key);
 	if (f == NULL) {
 		return -1;				/* Out of buckets */
 	}
@@ -249,13 +255,13 @@ int fragGetHashOrStore(
 	/*
 	  We have not seen the first fragment. Store this fragment.
 	 */
-	struct ItemPoolStats const* stats = itemPoolStats(ctobj.fragmentPool);
+	struct ItemPoolStats const* stats = itemPoolStats(ft->fragmentPool);
 	if (len > stats->itemSize) {
 		fragDataUnlock(NULL, f);
 		return -1;				/* Fragment > MTU ?? */
 	}
 
-	struct Item* item = itemAllocate(ctobj.fragmentPool);
+	struct Item* item = itemAllocate(ft->fragmentPool);
 	if (item == NULL) {
 		fragDataUnlock(NULL, f);
 		return -1;				/* Out of fragment space */
@@ -290,13 +296,14 @@ int fragGetHashOrStore(
 	return rc;
 }
 
-void fragGetStats(struct timespec* now, struct fragStats* stats)
+void fragGetStats(
+	struct FragTable* ft, struct timespec* now, struct fragStats* stats)
 {
 	/*
 	  To call ctStats() will trig a full GC. I.e. call-backs to
 	  fragDataUnlock for timed-out FragData objects.
 	 */
-	struct ctStats const* ctstats = ctStats(ctobj.ct, now);
+	struct ctStats const* ctstats = ctStats(ft->ct, now);
 
 	stats->ttlMillis = ctstats->ttlNanos / MS;
 	stats->size = ctstats->size;
@@ -308,20 +315,20 @@ void fragGetStats(struct timespec* now, struct fragStats* stats)
 	stats->objGC = ctstats->objGC;
 
 	struct ItemPoolStats const* istats;
-	istats = itemPoolStats(ctobj.bucketPool);
+	istats = itemPoolStats(ft->bucketPool);
 	stats->maxBuckets = istats->size;
-	istats = itemPoolStats(ctobj.fragmentPool);
+	istats = itemPoolStats(ft->fragmentPool);
 	stats->maxFragments = istats->size;
 	stats->mtu = istats->itemSize;
-	istats = itemPoolStats(ctobj.fragmentPool);
+	istats = itemPoolStats(ft->fragmentPool);
 	stats->storedFrags = istats->size - istats->nFree;
 
 #ifdef SANITY_CHECK
-	istats = itemPoolStats(ctobj.fragDataPool);
+	istats = itemPoolStats(ft->fragDataPool);
 	assert(ctstats->active == (istats->size - istats->nFree));
 	assert(stats->size == (istats->size - stats->maxBuckets));
 
-	istats = itemPoolStats(ctobj.bucketPool);
+	istats = itemPoolStats(ft->bucketPool);
 	assert(ctstats->collisions == (istats->size - istats->nFree));
 #endif
 }
