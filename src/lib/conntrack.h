@@ -74,7 +74,7 @@ struct ctStats {
 typedef void (*ctFree)(void* user_ref, void* data);
 typedef void (*ctLock)(void* user_ref, void* data);
 typedef void* (*ctAllocBucket)(void* user_ref); /* Return "sizeof_bucket" bytes or NULL */
-extern size_t sizeof_bucket;
+extern size_t const sizeof_bucket;
 
 struct ct* ctCreate(
 	ctCounter hsize,

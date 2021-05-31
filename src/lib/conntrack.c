@@ -50,7 +50,7 @@ struct ct {
 	void* user_ref;
 };
 
-size_t sizeof_bucket = sizeof(struct ctBucket);
+size_t const sizeof_bucket = sizeof(struct ctBucket);
 
 static int keyEqual(struct ctKey const* key1, struct ctKey const* key2)
 {
