@@ -70,5 +70,31 @@ thinks packets should not take more time.
 
 Then we must estimate a continuous rate of fragmented packets (packets
 that is, not fragments) that we must handle. This is not possible in
-most cases I think so the rate is taken out of thin air, we pick
+most cases I think, so the rate is taken out of thin air, we pick
 `rate=10000pkt/S` in this example.
+
+If hashing was perfect this would give a table size of;
+```
+ft_size = rate * ft_ttl
+hsize = 10000 * 0.2 = 2000 in our example.
+```
+
+But we will get collisions so we must have the pool for extra buckets
+and use a larger table. The recommended formula is;
+
+```
+ft_size = rate * ft_ttl * C
+ft_buckets = ft_size
+```
+
+The value of `C` can be found with simulations;
+```
+make -j8 -C src test_progs
+alias ct=/tmp/$USER/nfqlb/lib/test/ct-test
+ct -h
+ct --repeat=8 --parallel=8 --duration=300 --rate=10000 --ft_ttl=200 --ft_size=2000 --ft_buckets=2000 
+```
+
+Here we run 8 simulations of 10000pkt/S rate each for a simulated time
+of 300s (5m). With C=1 we get ~1% packet loss. The simulation run
+takes less than 1s.
