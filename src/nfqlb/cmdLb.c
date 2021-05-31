@@ -5,7 +5,6 @@
 
 #include "nfqueue.h"
 #include <iputils.h>
-#include <fragutils.h>
 #include <shmem.h>
 #include <cmd.h>
 
