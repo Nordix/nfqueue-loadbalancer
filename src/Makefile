@@ -49,7 +49,7 @@ $(LIB_OBJ): | $(DIRS)
 
 .PHONY: test test_progs
 $(O)/lib/test/% : lib/test/%.c
-	$(CC) $(CFLAGS) -Wall -Ilib $< -o $@ -L$(O)/lib -lnfqlb -lrt
+	$(CC) $(CFLAGS) -Wall -Ilib -pthread $< -o $@ -L$(O)/lib -lnfqlb -lrt
 TEST_SRC := $(wildcard lib/test/*-test.c)
 TEST_PROGS := $(TEST_SRC:%.c=$(O)/%)
 $(TEST_PROGS): $(LIB)

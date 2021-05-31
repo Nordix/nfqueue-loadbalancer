@@ -4,11 +4,13 @@
 */
 
 #include "conntrack.h"
+#include <cmd.h>
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 #include <string.h>
+#include <pthread.h>
 
 // Debug macros
 #define Dx(x) x
@@ -18,31 +20,86 @@
 static void testConntrack(struct ctStats* stats);
 static void testRefcount(struct ctStats* accumulatedStats);
 static void testLimitedBuckets(struct ctStats* accumulatedStats);
-static void testSustainedRate(
-	unsigned repeat, unsigned rate, unsigned durationSeconds, unsigned factor);
+
+struct SustainedRateArg {
+	unsigned duration;
+	unsigned rate;
+	unsigned ttl;
+	unsigned hsize;
+	unsigned buckets;
+	unsigned seed;
+	int assert;					/* Assert if packet loss > 1% */
+};
+static void* testSustainedRate(void *arg);
 
 int
 cmdCtBasic(int argc, char* argv[])
 {
-	unsigned repeat = 1;
-	unsigned rate = 10000;
-	unsigned durationSeconds = 300;
-	unsigned factor = 60;
-
-	if (argc > 1)
-		repeat = atoi(argv[1]);
-	if (argc > 2)
-		rate = atoi(argv[2]);
-	if (argc > 3)
-		durationSeconds = atoi(argv[3]);
-	if (argc > 4)
-		factor = atoi(argv[4]);
+	char const* ft_size = "4000";
+	char const* ft_buckets = "4000";
+	char const* ft_ttl = "200";
+	char const* repeat = "0";
+	char const* parallel = "4";
+	char const* duration = "300";
+	char const* rate = "10000";
+	struct Option options[] = {
+		{"help", NULL, 0,
+		 "ct-test [options]\n"
+		 "  Connection/fragment tracker tests"},
+		{"ft_size", &ft_size, 0, "Frag table size"},
+		{"ft_buckets", &ft_buckets, 0, "Extra buckets"},
+		{"ft_ttl", &ft_ttl, 0, "Ttl milliS"},
+		{"repeat", &repeat, 0, "Repeat test"},
+		{"parallel", &parallel, 0, "Parallel for repeated tests"},
+		{"duration", &duration, 0, "Simulated test time in seconds"},
+		{"rate", &rate, 0, "Rate in packets/S"},
+		{0, 0, 0, 0}
+	};
+	(void)parseOptionsOrDie(argc, argv, options);
+	srand(time(NULL));
+	int rpt = atoi(repeat);
+	
+	struct SustainedRateArg sarg;
+	sarg.duration = atoi(duration);
+	sarg.rate = atoi(rate);
+	sarg.ttl = atoi(ft_ttl);
+	sarg.hsize = atoi(ft_size);
+	sarg.buckets = atoi(ft_buckets);
+	if (rpt > 0) {
+		unsigned j = atoi(parallel);
+		unsigned i;
+		sarg.assert = 0;
+		if (j < 1) {
+			for (i = 0; i < rpt; i++) {
+				testSustainedRate(&sarg);
+			}
+			return 0;
+		}
+		pthread_t threads[j];
+		while (rpt > 0) {
+			int n = j;
+			if (n > rpt)
+				n = rpt;
+			for (i = 0; i < n; i++) {
+				if (pthread_create(
+						&threads[i], NULL, testSustainedRate, &sarg) != 0)
+					die("Failed to start pthread\n");
+			}
+			for (i = 0; i < n; i++) {
+				void* retval;
+				pthread_join(threads[i], &retval);
+			}
+			rpt -= n;
+		}
+		return 0;
+	}
 
 	struct ctStats stats = {0};
 	testConntrack(&stats);
 	testRefcount(&stats);
 	testLimitedBuckets(&stats);
-	testSustainedRate(repeat, rate, durationSeconds, factor);
+	sarg.assert = 1;
+	testSustainedRate(&sarg);
 
 	printf(
 		"==== ct-test OK. inserts=%u(%u) lookups=%u collisions=%u\n",
@@ -51,15 +108,9 @@ cmdCtBasic(int argc, char* argv[])
 }
 
 
-static unsigned maxBuckets = 10000;
-static unsigned bucketsPeak = 0;
 static long nAllocatedBuckets = 0;
 static void* BUCKET_ALLOC(void* user_ref) {
-	if (nAllocatedBuckets >= maxBuckets)
-		return NULL;
 	nAllocatedBuckets++;
-	if (nAllocatedBuckets > bucketsPeak)
-		bucketsPeak = nAllocatedBuckets;
 	return calloc(1,sizeof_bucket);
 }
 static void BUCKET_FREE(void* user_ref, void* b) {
@@ -421,93 +472,130 @@ static void testLimitedBuckets(struct ctStats* accumulatedStats)
 	assert(bucketPool.nfree == 2);
 }
 
+/* ----------------------------------------------------------------------
+   Sustained rate tests
+*/
+static pthread_mutex_t printmutex = PTHREAD_MUTEX_INITIALIZER;
+struct UserRef {
+	unsigned maxBuckets;
+	unsigned bucketsPeak;
+	unsigned nAllocatedBuckets;
+	unsigned nFreeData;
+};
+static void* bucket_alloc(void* user_ref) {
+	struct UserRef* userRef = user_ref;
+	if (userRef->nAllocatedBuckets >= userRef->maxBuckets)
+		return NULL;
+	userRef->nAllocatedBuckets++;
+	if (userRef->nAllocatedBuckets > userRef->bucketsPeak)
+		userRef->bucketsPeak = userRef->nAllocatedBuckets;
+	return calloc(1,sizeof_bucket);
+}
+static void bucket_free(void* user_ref, void* b) {
+	struct UserRef* userRef = user_ref;
+	userRef->nAllocatedBuckets--;
+	free(b);
+}
+static void data_free(void* user_ref, void* b) {
+	struct UserRef* userRef = user_ref;
+	userRef->nFreeData++;
+}
+
 /*
   With ttl=0.2s and sustained rate of 10000 pkt/sec we test the formula;
 
     hsize = rate * ttl * C
-	maxBuckets = hsize / 2
+	maxBuckets = hsize
 
-  C = 5 is supposed to give rough recommended sizes.
+  C = 2 is supposed to give rough recommended sizes.
  */
 #define MS 1000000ul
 #define SEC 1000000000ul
-static uint64_t timeToNextPacket(unsigned rate);
-static void testSustainedRate(
-	unsigned repeat, unsigned rate, unsigned durationSeconds, unsigned factor)
+static uint64_t timeToNextPacket(unsigned rate, unsigned* seed);
+static void* testSustainedRate(void *_arg)
 {
+	struct SustainedRateArg* arg = _arg;
 	struct ct* ct;
 	struct timespec now = {0,0};
 	struct ctKey key;
 	uint64_t nowNanos = 0;
-	uint64_t duration = (uint64_t)durationSeconds * SEC;
+	uint64_t duration = (uint64_t)arg->duration * SEC;
 	struct ctStats stats;
-	//unsigned hsize = primeBelow(rate * factor / 10 / 5);
-	unsigned hsize = rate * factor / 10 / 5;
+	struct UserRef userRef = {0};
+	unsigned seed;
 
-	srand(time(NULL));
-	D(printf("rand=%u\n", rand()));
+	pthread_mutex_lock(&printmutex);
+	seed = rand();
+	pthread_mutex_unlock(&printmutex);
 
-	for (int i = 0; i < repeat; i++) {
-		// init variables
-		expectedFreeData = 0;
-		nFreeData = 0;
-		maxBuckets = hsize / 2;
-		bucketsPeak = 0;
-		assert(nAllocatedBuckets == 0);
-		nowNanos = 0;
-		memset(&key, 0, sizeof(key));
+	// init variables
+	nowNanos = 0;
+	memset(&key, 0, sizeof(key));
 
-		// Create table and init globals
-		ct = ctCreate(
-			hsize, 200*MS,
-			freeData, NULL, BUCKET_ALLOC, BUCKET_FREE, NULL);
-		ctUseStats(ct, &stats);
+	// Create table
+	userRef.maxBuckets = arg->buckets;
+	ct = ctCreate(
+		arg->hsize, arg->ttl*MS,
+		data_free, NULL, bucket_alloc, bucket_free, &userRef);
+	ctUseStats(ct, &stats);
 
-		// Simulated time
-		while (nowNanos < duration) {
-			nowNanos += timeToNextPacket(rate);
-			now.tv_sec = nowNanos / SEC;
-			now.tv_nsec = nowNanos % SEC;
-			key.src.s6_addr32[0]++;
-			key.id = rand();
-			ctInsert(ct, &now, &key, (void*)(key.id));
-		}
-
-		unsigned beforeFullGC = stats.objGC;
-		(void)ctStats(ct, &now);
-		Dx(printf(
-			   "ttlNanos:     %lu\n"
-			   "size:         %u\n"
-			   "active:       %u\n"
-			   "collisions:   %u\n"
-			   "inserts:      %u (%u)\n"
-			   "lookups:      %u\n"
-			   "objGC:        %u\n",
-			   stats.ttlNanos, stats.size, stats.active,
-			   stats.collisions, stats.inserts, stats.rejectedInserts,
-			   stats.lookups, stats.objGC));
-
-		Dx(printf(
-			   "Buckets; peak=%u, stale=%u\n",
-			   bucketsPeak, stats.objGC - beforeFullGC));
-		double percentLoss =
-			(double)stats.rejectedInserts * 100.0 / (double)stats.inserts;
-		Dx(printf("Packet loss; %2.1f%%\n", percentLoss));
-		if (repeat == 1)
-			assert(percentLoss <= 1);
-	
-		// Destroy table
-		unsigned nData = stats.inserts - stats.rejectedInserts;
-		ctDestroy(ct);
-		assert(nAllocatedBuckets == 0);
-		assert(nFreeData == nData);
+	// Simulated time
+	while (nowNanos < duration) {
+		nowNanos += timeToNextPacket(arg->rate, &seed);
+		now.tv_sec = nowNanos / SEC;
+		now.tv_nsec = nowNanos % SEC;
+		key.src.s6_addr32[0]++;
+		key.id = rand_r(&seed);
+		ctInsert(ct, &now, &key, (void*)(key.id));
 	}
+
+	unsigned beforeFullGC = stats.objGC;
+	(void)ctStats(ct, &now);
+	double percentLoss = 0;
+	if (stats.inserts > 0)
+		percentLoss =
+			(double)stats.rejectedInserts * 100.0 / (double)stats.inserts;
+	if (arg->assert) {
+		if (percentLoss > 1.0)
+			printf("Packet loss; %2.1f%%\n", percentLoss);
+		assert(percentLoss <= 1.0);
+	} else {
+		pthread_mutex_lock(&printmutex);
+		printf(
+            "{\n"
+            "  \"ttlMillis\":     %u,\n"
+            "  \"size\":          %u,\n"
+            "  \"active\":        %u,\n"
+            "  \"collisions\":    %u,\n"
+            "  \"inserts\":       %u,\n"
+            "  \"rejected\":      %u,\n"
+            "  \"lookups\":       %u,\n"
+            "  \"objGC\":         %u,\n"
+            "  \"bucketsMax\":    %u,\n"
+            "  \"bucketsPeak\":   %u,\n"
+            "  \"bucketsStale\":  %u,\n"
+            "  \"percentLoss\":   %2.1f\n"
+            "}\n",
+			(unsigned)(stats.ttlNanos / MS), stats.size, stats.active,
+			stats.collisions, stats.inserts, stats.rejectedInserts,
+			stats.lookups, stats.objGC,
+			userRef.maxBuckets, userRef.bucketsPeak, stats.objGC - beforeFullGC,
+			percentLoss);
+		pthread_mutex_unlock(&printmutex);
+	}
+
+	// Destroy table
+	unsigned nData = stats.inserts - stats.rejectedInserts;
+	ctDestroy(ct);
+	assert(userRef.nAllocatedBuckets == 0);
+	assert(userRef.nFreeData == nData);
+	return NULL;
 }
-static uint64_t timeToNextPacket(unsigned rate)
+static uint64_t timeToNextPacket(unsigned rate, unsigned* seed)
 {
 	uint64_t d = SEC / rate;
 	// Randomize this some
-	return rand() % (d * 2);
+	return rand_r(seed) % (d * 2);
 }
 
 #ifdef CMD
