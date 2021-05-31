@@ -3,6 +3,8 @@
   https://www.kernel.org/doc/Documentation/networking/tuntap.txt
 */
 
+#include <linux/if_tun.h>
+
 /* Flags: IFF_TUN   - TUN device (no Ethernet headers) 
  *        IFF_TAP   - TAP device  
  *

@@ -14,10 +14,13 @@ unsigned ipv4IcmpHash(void const* data, unsigned len);
 unsigned ipv4AddressHash(void const* data, unsigned len);
 unsigned ipv6Hash(void const* data, unsigned len);
 unsigned ipv6AddressHash(void const* data, unsigned len);
+typedef void (*injectFragFn_t)(void const* data, unsigned len);
 int ipv6HandleFragment(
-	struct FragTable* ft, void const* data, unsigned len, unsigned* hash);
+	struct FragTable* ft, void const* data, unsigned len, unsigned* hash,
+	injectFragFn_t injectFragFn);
 int ipv4HandleFragment(
-	struct FragTable* ft, void const* data, unsigned len, unsigned* hash);
+	struct FragTable* ft, void const* data, unsigned len, unsigned* hash,
+	injectFragFn_t injectFragFn);
 
 // MAC
 int macParse(char const* str, uint8_t* mac);

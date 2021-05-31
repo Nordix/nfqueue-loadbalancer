@@ -7,16 +7,22 @@
 #include <iputils.h>
 #include <shmem.h>
 #include <cmd.h>
+#include <tuntap.h>
 
 #include <stdlib.h>
 #include <stdio.h>
 #include <netinet/if_ether.h>
 #include <netinet/ip.h>
 #include <netinet/ip6.h>
+#include <unistd.h>
 
 static struct FragTable* ft;
 static struct SharedData* st;
 static struct SharedData* slb;
+static int tun_fd = -1;
+struct fragStats* sft;
+
+#define CNTINC(x) __atomic_add_fetch(&(x),1,__ATOMIC_RELAXED)
 
 #ifdef VERBOSE
 #include "time.h"
@@ -27,13 +33,7 @@ static void printFragStats(struct timespec* now)
 {
 	struct fragStats stats;
 	fragGetStats(ft, now, &stats);
-	printf(
-		"Frag Stats;\n"
-		"  active=%u, collisions=%u, inserts=%u(%u), lookups=%u, gc=%u\n"
-		"  storedFrags=%u\n",
-		stats.active, stats.collisions, stats.inserts,
-		stats.rejectedInserts, stats.lookups, stats.objGC,
-		stats.storedFrags); 
+	fragPrintStats(&stats);
 }
 static void printIpv6FragStats(void)
 {
@@ -51,6 +51,15 @@ static void printIpv6FragStats(void)
 #define Dx(x)
 #endif
 
+static void injectFragFn(void const* data, unsigned len)
+{
+	int rc = write(tun_fd, data, len);
+	if (rc == len)
+		CNTINC(sft->fragsInjected);
+	Dx(printf("Injected frag, len=%u, rc=%d\n", len, rc));
+}
+
+
 
 static int handleIpv4(void* payload, unsigned plen)
 {
@@ -67,7 +76,7 @@ static int handleIpv4(void* payload, unsigned plen)
 		}
 
 		// We shall handle the frament here
-		int rc = ipv4HandleFragment(ft, payload, plen, &hash);
+		int rc = ipv4HandleFragment(ft, payload, plen, &hash, injectFragFn);
 		if (rc != 0) {
 			Dx(printf("IPv4 fragment dropped or stored, rc=%d\n", rc));
 			return -1;
@@ -111,7 +120,7 @@ static int handleIpv6(void* payload, unsigned plen)
 		}
 
 		// We shall handle the frament here
-		int rc = ipv6HandleFragment(ft, payload, plen, &hash);
+		int rc = ipv6HandleFragment(ft, payload, plen, &hash, injectFragFn);
 		if (rc != 0) {
 			Dx(printf("IPv6 fragment dropped or stored, rc=%d\n", rc));
 			Dx(printIpv6FragStats());
@@ -157,10 +166,14 @@ static int cmdLb(int argc, char **argv)
 	char const* ft_buckets = "500";
 	char const* ft_frag = "100";
 	char const* ft_ttl = "200";
+	char const* dev;
+	char const* tun = NULL;
 	struct Option options[] = {
 		{"help", NULL, 0,
 		 "lb [options]\n"
 		 "  Load-balance"},
+		{"dev", &dev, REQUIRED, "Ingress device"},
+		{"tun", &tun, 0, "Tun device for re-inject fragments"},
 		{"tshm", &targetShm, 0, "Target shared memory"},
 		{"lbshm", &lbShm, 0, "Lb shared memory"},
 		{"queue", &qnum, 0, "NF-queue to listen to (default 2)"},
@@ -175,21 +188,37 @@ static int cmdLb(int argc, char **argv)
 	st = mapSharedDataOrDie(targetShm,sizeof(*st), O_RDONLY);
 	slb = mapSharedDataOrDie(lbShm,sizeof(*slb), O_RDONLY);
 	// Create and re-map the stats struct
-	struct ctStats* sft = calloc(1, sizeof(*sft));
+	sft = calloc(1, sizeof(*sft));
 	createSharedDataOrDie(ftShm, sft, sizeof(*sft));
 	free(sft);
 	sft = mapSharedDataOrDie(ftShm, sizeof(*sft), O_RDWR);
+
+	// Get MTU from the ingress device
+	int mtu = get_mtu(dev);
+	if (mtu < 576)
+		die("Could not get a valid MTU from dev [%s]\n", dev);
+
+	/* Open the "tun" device if specified. Check that the mtu is at
+	 * least as large as for the ingress device */
+	if (tun != NULL) {
+		tun_fd = tun_alloc(tun, IFF_TUN|IFF_NO_PI);
+		if (tun_fd < 0)
+			die("Failed to open tun device [%s]\n", tun);
+		int tun_mtu = get_mtu(tun);
+		if (tun_mtu < mtu)
+			die("Tun mtu too small; %d < %d\n", tun_mtu, mtu);
+	}
 
 	ft = fragInit(
 		atoi(ft_size),		/* table size */
 		atoi(ft_buckets),	/* Extra buckets for hash collisions */
 		atoi(ft_frag),		/* Max stored fragments */
-		1550,				/* MTU + some extras */
+		mtu + 100,			/* MTU + some extras */
 		atoi(ft_ttl));		/* Fragment TTL in milli seconds */
 	fragUseStats(ft, sft);
 	printf(
 		"FragTable; size=%d, buckets=%d, frag=%d, mtu=%d, ttl=%d\n",
-		atoi(ft_size),atoi(ft_buckets),atoi(ft_frag),1550,atoi(ft_ttl));
+		atoi(ft_size),atoi(ft_buckets),atoi(ft_frag),mtu,atoi(ft_ttl));
 	return nfqueueRun(atoi(qnum), packetHandleFn);
 }
 

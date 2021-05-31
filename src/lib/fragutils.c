@@ -8,6 +8,7 @@
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 #ifdef SANITY_CHECK
 #include <assert.h>
@@ -19,6 +20,8 @@
 
 #define REFINC(x) __atomic_add_fetch(&(x),1,__ATOMIC_SEQ_CST)
 #define REFDEC(x) __atomic_sub_fetch(&(x),1,__ATOMIC_SEQ_CST)
+#define CNTINC(x) __atomic_add_fetch(&(x),1,__ATOMIC_RELAXED)
+#define CNTDEC(x) __atomic_sub_fetch(&(x),1,__ATOMIC_RELAXED)
 #define MUTEX(x) pthread_mutex_t x
 #define LOCK(x) pthread_mutex_lock(x)
 #define UNLOCK(x) pthread_mutex_unlock(x)
@@ -37,6 +40,8 @@ struct FragTable {
 	struct ItemPool* fragDataPool; /* Items actually stored in the ct */
 	struct ItemPool* bucketPool;   /* Extra buckets on hash collisions */
 	struct ItemPool* fragmentPool; /* Stored not-first fragments to re-inject */
+	struct fragStats _fstats;
+	struct fragStats* fstats;
 };
 
 /*
@@ -52,6 +57,7 @@ struct FragData {
 	unsigned hash;
 	struct Item* storedFragments;
 };
+
 
 // user_ref may be NULL
 static void fragDataLock(void* user_ref, void* data)
@@ -69,6 +75,10 @@ static void fragDataUnlock(void* user_ref, void* data)
 		  may be stored fragments lingering. Normally these should
 		  have been re-injected and freed by now.
 		 */
+		struct Item* i;
+		struct FragTable* ft = user_ref;
+		for (i = f->storedFragments; i != NULL; i = i->next)
+			CNTINC(ft->fstats->fragsDiscarded);
 		itemFree(f->storedFragments);
 		struct Item* item = ITEM_OF(data);
 		itemFree(item);
@@ -144,6 +154,7 @@ static void* bucketPoolAllocate(void* user_ref)
 	struct Item* i = itemAllocate(ft->bucketPool);
 	if (i == NULL)
 		return NULL;
+	CNTINC(ft->fstats->bucketsAllocated);
 	return i->data;
 }
 static void bucketPoolFree(void* user_ref, void* b)
@@ -177,6 +188,11 @@ struct FragTable* fragInit(
 	// In theory we can have max (hsize + maxBuckets) FragData objects in the ct
 	ft->fragDataPool = itemPoolCreate(
 		hsize + maxBuckets, sizeof(struct FragData), initMutex);
+	// Init stats
+	ft->fstats = &ft->_fstats;
+	ft->fstats->bucketsMax = maxBuckets;
+	ft->fstats->fragsMax = maxFragments;
+	ft->fstats->mtu = mtu;
 	/* A pointer to the FragTable structure is passed as "user_ref" to
 	   ctCreate() and is passed back as the firsts parameter in call-backs. */
 	ft->ct = ctCreate(
@@ -185,9 +201,11 @@ struct FragTable* fragInit(
 	assert(ft->ct != NULL);
 	return ft;
 }
-void fragUseStats(struct FragTable* ft, struct ctStats* stats)
+void fragUseStats(struct FragTable* ft, struct fragStats* stats)
 {
-	ctUseStats(ft->ct, stats);
+	*stats = *ft->fstats;
+	ft->fstats = stats;
+	ctUseStats(ft->ct, &stats->ctstats);
 }
 
 int fragInsertFirst(
@@ -282,6 +300,7 @@ int fragGetHashOrStore(
 	} else {
 		item->next = f->storedFragments;
 		f->storedFragments = item;
+		CNTINC(ft->fstats->fragsAllocated);
 		rc = 1;
 	}
 	UNLOCK(&f->mutex);
@@ -304,33 +323,54 @@ void fragGetStats(
 	  fragDataUnlock for timed-out FragData objects.
 	 */
 	struct ctStats const* ctstats = ctStats(ft->ct, now);
-
-	stats->ttlMillis = ctstats->ttlNanos / MS;
-	stats->size = ctstats->size;
-	stats->active = ctstats->active;
-	stats->collisions = ctstats->collisions;
-	stats->inserts = ctstats->inserts;
-	stats->rejectedInserts = ctstats->rejectedInserts;
-	stats->lookups = ctstats->lookups;
-	stats->objGC = ctstats->objGC;
-
-	struct ItemPoolStats const* istats;
-	istats = itemPoolStats(ft->bucketPool);
-	stats->maxBuckets = istats->size;
-	istats = itemPoolStats(ft->fragmentPool);
-	stats->maxFragments = istats->size;
-	stats->mtu = istats->itemSize;
-	istats = itemPoolStats(ft->fragmentPool);
-	stats->storedFrags = istats->size - istats->nFree;
+	if (stats != ft->fstats) {
+		*stats = *ft->fstats;
+		stats->ctstats = *ctstats;
+	}
 
 #ifdef SANITY_CHECK
-	istats = itemPoolStats(ft->fragDataPool);
-	assert(ctstats->active == (istats->size - istats->nFree));
-	assert(stats->size == (istats->size - stats->maxBuckets));
+
+	struct ItemPoolStats const* istats;
 
 	istats = itemPoolStats(ft->bucketPool);
-	assert(ctstats->collisions == (istats->size - istats->nFree));
+	assert(ft->fstats->bucketsMax == istats->size);
+	assert(ft->fstats->ctstats.collisions == (istats->size - istats->nFree));
+
+	istats = itemPoolStats(ft->fragmentPool);
+	assert(ft->fstats->fragsMax == istats->size);
+	assert(ft->fstats->mtu == istats->itemSize);
+
+	istats = itemPoolStats(ft->fragDataPool);
+	assert(stats->ctstats.active == (istats->size - istats->nFree));
+	assert(istats->size == (ft->fstats->bucketsMax + stats->ctstats.size));
+
 #endif
 }
 
+void fragPrintStats(struct fragStats* sft)
+{
+	printf(
+		"{\n"
+		"  \"hsize\":            %u,\n"
+		"  \"ttlMillis\":        %u,\n"
+		"  \"collisions\":       %u,\n"
+		"  \"inserts\":          %u,\n"
+		"  \"rejected\":         %u,\n"
+		"  \"lookups\":          %u,\n"
+		"  \"objGC\":            %u,\n"
+		"  \"mtu\":              %u,\n"
+		"  \"bucketsMax\":       %u,\n"
+		"  \"bucketsAllocated\": %u,\n"
+		"  \"fragsMax\":         %u,\n"
+		"  \"fragsInjected\":    %u,\n"
+		"  \"fragsAllocated\":   %u\n"
+		"  \"fragsDiscarded\":   %u\n"
+		"}\n",
+		sft->ctstats.size, (unsigned)(sft->ctstats.ttlNanos/1000000),
+		sft->ctstats.collisions, sft->ctstats.inserts,
+		sft->ctstats.rejectedInserts, sft->ctstats.lookups, sft->ctstats.objGC,
+		sft->mtu, sft->bucketsMax, sft->bucketsAllocated,
+		sft->fragsMax, sft->fragsInjected, sft->fragsAllocated,
+		sft->fragsDiscarded);
+}
 

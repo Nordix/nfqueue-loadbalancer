@@ -18,18 +18,18 @@
 static int statsCmp(struct fragStats* a, struct fragStats* b)
 {
 	int rc = 0;
-	S_CMP(ttlMillis);
-	S_CMP(size);
-	S_CMP(active);
-	S_CMP(collisions);
-	S_CMP(inserts);
-	S_CMP(rejectedInserts);
-	S_CMP(lookups);
-	S_CMP(objGC);
-	S_CMP(maxBuckets);
-	S_CMP(maxFragments);
+	S_CMP(ctstats.size);
+	S_CMP(ctstats.active);
+	S_CMP(ctstats.collisions);
+	S_CMP(ctstats.inserts);
+	S_CMP(ctstats.rejectedInserts);
+	S_CMP(ctstats.lookups);
+	S_CMP(ctstats.objGC);
+	S_CMP(bucketsMax);
+	S_CMP(fragsMax);
 	S_CMP(mtu);
-	S_CMP(storedFrags);
+	S_CMP(fragsAllocated);
+	S_CMP(fragsDiscarded);
 	return rc;
 }
 
@@ -60,16 +60,16 @@ cmdFragutilsBasic(int argc, char* argv[])
 	ft = fragInit(2, 3, 4, 1500, 100);
 	fragGetStats(ft, &now, &a);
 	memset(&b, 0, sizeof(b));
-	b.ttlMillis = 100;
-	b.size = 2;
-	b.maxBuckets = 3;
-	b.maxFragments = 4;
+	b.ctstats.ttlNanos = 100*MS;
+	b.ctstats.size = 2;
+	b.bucketsMax = 3;
+	b.fragsMax = 4;
 	b.mtu = 1500;
 	assert(statsCmp(&a, &b) == 0);
 
 	// Unsuccesful lookup
 	fragGetStats(ft, &now, &a);
-	a.lookups++;
+	a.ctstats.lookups++;
 	rc = fragGetHash(ft, &now, &key, &hash);
 	assert(rc == -1);
 	fragGetStats(ft, &now, &b);
@@ -77,16 +77,16 @@ cmdFragutilsBasic(int argc, char* argv[])
 
 	// Insert a first-fragment and look it up
 	fragGetStats(ft, &now, &a);
-	a.lookups++;
-	a.inserts++;
-	a.active++;
+	a.ctstats.lookups++;
+	a.ctstats.inserts++;
+	a.ctstats.active++;
 	rc = fragInsertFirst(ft, &now, &key, 5);
 	assert(rc == 0);
 	fragGetStats(ft, &now, &b);
 	assert(statsCmp(&a, &b) == 0);
 
 	fragGetStats(ft, &now, &a);
-	a.lookups++;
+	a.ctstats.lookups++;
 	rc = fragGetHash(ft, &now, &key, &hash);
 	assert(rc == 0);
 	assert(hash == 5);
@@ -95,70 +95,70 @@ cmdFragutilsBasic(int argc, char* argv[])
 
 	// Step time and check GC
 	fragGetStats(ft, &now, &a);
-	a.active = 0;
-	a.objGC++;
+	a.ctstats.active = 0;
+	a.ctstats.objGC++;
 	now.tv_nsec += 150 * MS;
 	fragGetStats(ft, &now, &b);
 	assert(statsCmp(&a, &b) == 0);
 
 	// Add 3 sub-frags
 	fragGetStats(ft, &now, &a);
-	a.active++;
-	a.lookups++;
-	a.inserts++;
-	a.storedFrags++;
+	a.ctstats.active++;
+	a.ctstats.lookups++;
+	a.ctstats.inserts++;
+	a.fragsAllocated++;
 	rc = fragGetHashOrStore(ft, &now, &key, &hash, &key, sizeof(key));
 	assert(rc == 1);
 	fragGetStats(ft, &now, &b);
 	assert(statsCmp(&a, &b) == 0);
 
 	fragGetStats(ft, &now, &a);
-	a.lookups++;
-	a.storedFrags++;
+	a.ctstats.lookups++;
+	a.fragsAllocated++;
 	rc = fragGetHashOrStore(ft, &now, &key, &hash, &key, sizeof(key));
 	assert(rc == 1);
 	fragGetStats(ft, &now, &b);
 	assert(statsCmp(&a, &b) == 0);
 
 	fragGetStats(ft, &now, &a);
-	a.lookups++;
-	a.storedFrags++;
+	a.ctstats.lookups++;
+	a.fragsAllocated++;
 	rc = fragGetHashOrStore(ft, &now, &key, &hash, &key, sizeof(key));
 	assert(rc == 1);
 	fragGetStats(ft, &now, &b);
 	assert(statsCmp(&a, &b) == 0);
 
-	// Step time and check that the (3) fragments are released
+	// Step time and check that the (3) fragments are discarded
 	fragGetStats(ft, &now, &a);
-	a.active = 0;
-	a.objGC++;
-	a.storedFrags = 0;
+	a.ctstats.active = 0;
+	a.ctstats.objGC++;
+	a.fragsDiscarded = 3;
 	now.tv_nsec += 150 * MS;
 	fragGetStats(ft, &now, &b);
 	assert(statsCmp(&a, &b) == 0);
 
 	// Add 3 sub-frags #2
 	fragGetStats(ft, &now, &a);
-	a.active++;
-	a.lookups++;
-	a.inserts++;
-	a.storedFrags++;
+	a.ctstats.active++;
+	a.ctstats.lookups++;
+	a.ctstats.inserts++;
+	a.fragsAllocated++;
 	rc = fragGetHashOrStore(ft, &now, &key, &hash, &key, sizeof(key));
 	assert(rc == 1);
 	fragGetStats(ft, &now, &b);
 	assert(statsCmp(&a, &b) == 0);
 
 	fragGetStats(ft, &now, &a);
-	a.lookups++;
-	a.storedFrags++;
+	a.ctstats.lookups++;
+	a.fragsAllocated++;
 	rc = fragGetHashOrStore(ft, &now, &key, &hash, &key, sizeof(key));
 	assert(rc == 1);
 	fragGetStats(ft, &now, &b);
 	assert(statsCmp(&a, &b) == 0);
 
 	fragGetStats(ft, &now, &a);
-	a.lookups++;
-	a.storedFrags++;
+	a.ctstats.lookups++;
+	a.fragsAllocated++;
 	rc = fragGetHashOrStore(ft, &now, &key, &hash, &key, sizeof(key));
 	assert(rc == 1);
 	fragGetStats(ft, &now, &b);
@@ -166,13 +166,12 @@ cmdFragutilsBasic(int argc, char* argv[])
 
 	// Get and release the stored fragments
 	fragGetStats(ft, &now, &a);
-	a.lookups++;
+	a.ctstats.lookups++;
 	item = fragGetStored(ft, &now, &key);
 	assert(item != NULL);
 	assert(numItems(item) == 3);
 	fragGetStats(ft, &now, &b);
 	assert(statsCmp(&a, &b) == 0);
-	a.storedFrags = 0;
 	itemFree(item);
 	fragGetStats(ft, &now, &b);
 	assert(statsCmp(&a, &b) == 0);

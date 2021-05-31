@@ -6,7 +6,7 @@
 #include "nfqueue.h"
 #include <shmem.h>
 #include <cmd.h>
-#include <conntrack.h>
+#include <fragutils.h>
 #include <stdlib.h>
 #include <stdio.h>
 
@@ -100,19 +100,8 @@ static int cmdStats(int argc, char **argv)
 		{0, 0, 0, 0}
 	};
 	(void)parseOptionsOrDie(argc, argv, options);
-	struct ctStats* sft = mapSharedDataOrDie(ftShm, sizeof(*sft), O_RDONLY);
-	printf(
-		"{\n"
-		"  \"size\":         %u,\n"
-		"  \"ttlMillis\":    %u,\n"
-		"  \"collisions\":   %u,\n"
-		"  \"inserts\":      %u,\n"
-		"  \"rejected\":     %u,\n"
-		"  \"lookups\":      %u,\n"
-		"  \"objGC\":        %u\n"
-		"}\n",
-		sft->size, (unsigned)(sft->ttlNanos/1000000), sft->collisions,
-		sft->inserts, sft->rejectedInserts, sft->lookups, sft->objGC);
+	struct fragStats* sft = mapSharedDataOrDie(ftShm, sizeof(*sft), O_RDONLY);
+	fragPrintStats(sft);
 	return 0;
 }
 

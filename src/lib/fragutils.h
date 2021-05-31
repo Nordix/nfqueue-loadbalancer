@@ -79,7 +79,7 @@ struct FragTable* fragInit(
 	unsigned maxFragments,		/* Max non-first fragments to store */
 	unsigned mtu,				/* Max size of stored fragments */
 	unsigned ttlMillis);		/* Timeout for fragments */
-void fragUseStats(struct FragTable* ft, struct ctStats* stats);
+
 /*
   Inserts the first fragment and stores the passed hash to be used for
   sub-sequent fragments.
@@ -128,20 +128,18 @@ struct Item* fragGetStored(
 
 struct fragStats {
 	// Conntrack stats
-	unsigned ttlMillis;
-	unsigned size;
-	unsigned active;
-	unsigned collisions;
-	unsigned inserts;
-	unsigned rejectedInserts;
-	unsigned lookups;
-	unsigned objGC;
+	struct ctStats ctstats;
 	// Frag stats
-	unsigned maxBuckets;
-	unsigned maxFragments;
 	unsigned mtu;
-	unsigned storedFrags;
+	unsigned bucketsMax;
+	unsigned bucketsAllocated;
+	unsigned fragsMax;
+	unsigned fragsInjected;		/* Not used by fragutils */
+	unsigned fragsDiscarded;
+	unsigned fragsAllocated;
 };
 
+void fragUseStats(struct FragTable* ft, struct fragStats* stats);
 void fragGetStats(
 	struct FragTable* ft, struct timespec* now, struct fragStats* stats);
+void fragPrintStats(struct fragStats* sft);

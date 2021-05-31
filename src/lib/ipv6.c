@@ -75,7 +75,8 @@ unsigned ipv6AddressHash(void const* data, unsigned len)
 #define PAFTER(x) (void*)x + (sizeof(*x))
 
 int ipv6HandleFragment(
-	struct FragTable* ft, void const* data, unsigned len, unsigned* hash)
+	struct FragTable* ft, void const* data, unsigned len, unsigned* hash,
+	injectFragFn_t injectFragFn)
 {
 	struct timespec now;
 	clock_gettime(CLOCK_MONOTONIC, &now);
@@ -113,11 +114,16 @@ int ipv6HandleFragment(
 		struct Item* storedFragments = fragGetStored(ft, &now, &key);
 		if (storedFragments != NULL) {
 			unsigned cnt = 0;
-			for (struct Item* i = storedFragments; i != NULL; i = i->next)
+			for (struct Item* i = storedFragments; i != NULL; i = i->next) {
 				cnt++;
-			printf("Dropped %u stored fragments\n", cnt);
+				if (injectFragFn != NULL)
+					injectFragFn(i->data, i->len);
+			}
+			if (injectFragFn != NULL)
+				printf("Re-injected %u stored fragments\n", cnt);
+			else
+				printf("Dropped %u stored fragments\n", cnt);
 			itemFree(storedFragments);
-			return -1;	/* NYI */
 		}
 		return 0;				/* First fragment handled. Hash stored. */
 	}

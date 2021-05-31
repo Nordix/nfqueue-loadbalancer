@@ -9,7 +9,6 @@
 #include <fcntl.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
-#include <linux/if_tun.h>
 #include <net/if.h>
 
 int tun_alloc(char const* dev, int flags) {
