@@ -30,7 +30,7 @@ for very short times.
 ## TTL and GC
 
 The prefered operation of `nfqlb` is to *never* explicitly remove
-fragments from the table. All fragment times out.
+fragments from the table. All fragments times out.
 
 Buckets have a Time-To-Live (ttl) and a time when they are last
 refered (timeRefered). When
@@ -41,8 +41,8 @@ now - timeRefered > ttl
 
 the bucket is "stale". It's data is outdated and it may be re-used.
 When a bucket is refered (insert or lookup) a check is made of the
-bucket, and it's linked buckets, and any stale bucket are re-claimed. A
-Garbace Collect (GC) on refer of sorts.
+bucket, and it's linked buckets, and any stale buckets are re-claimed. A
+Garbage Collect (GC) on refer of sorts.
 
 This means that over time stale allocated buckets will be accumulated
 at places in the table.
@@ -57,9 +57,12 @@ feel uncertain but fortunately it can be simulated.
 
 ## Configuration
 
-The important parameters are `ttl` (ft_ttl), the table size (ft_size)
-and the size of the pool for extra "ctBucket" on hash collisions
-(ft_buckets).
+The important parameters are;
+
+* **ft_ttl** - Time to Live, but really *"maximum time between fragments of the same packet"*
+* **ft_size** - The hash table size
+* **ft_buckets** - Extra "ctBucket" on hash collisions
+
 
 First we must decide a `ttl`. Ttl is really *"maximum time between
 fragments of the same packet"*. Since fragments of the same packets
@@ -68,10 +71,10 @@ set fairly low. In this example we set `ttl=200ms`. This is the time
 in Linux for the first re-transmit of TCP packets so at least someone
 thinks packets should not take more time.
 
-Then we must estimate a continuous rate of fragmented packets (packets
-that is, not fragments) that we must handle. This is not possible in
-most cases I think, so the rate is taken out of thin air, we pick
-`rate=10000pkt/S` in this example.
+Then we must decide a continuous rate of fragmented packets (packets
+that is, not fragments) that we must handle. This metric is probably
+not available so a rough estimate must do. We pick `rate=10000pkt/S`
+in this example.
 
 If hashing was perfect this would give a table size of;
 ```
@@ -92,9 +95,24 @@ The value of `C` can be found with simulations;
 make -j8 -C src test_progs
 alias ct=/tmp/$USER/nfqlb/lib/test/ct-test
 ct -h
-ct --repeat=8 --parallel=8 --duration=300 --rate=10000 --ft_ttl=200 --ft_size=2000 --ft_buckets=2000 
+ct --repeat=1 --duration=300 --rate=10000 --ft_ttl=200 --ft_size=2000 --ft_buckets=2000
+{
+  "ttlMillis":     200,
+  "size":          2000,
+  "active":        2002,
+  "collisions":    1892035,
+  "inserts":       3000180,
+  "rejected":      25668,
+  "lookups":       0,
+  "objGC":         2972510,
+  "bucketsMax":    2000,
+  "bucketsPeak":   2000,
+  "bucketsStale":  1977,
+  "percentLoss":   0.9
+}
 ```
 
-Here we run 8 simulations of 10000pkt/S rate each for a simulated time
-of 300s (5m). With C=1 we get ~1% packet loss. The simulation run
-takes less than 1s.
+Here we run a simulation of 10000pkt/S rate for a simulated time of
+300s (5m). With C=1 we get ~1% packet loss. A reasonable value may be
+C=2. The simulation itself takes less than 1s.
+
