@@ -11,7 +11,7 @@ locally. If not, route it to another load-balancer.
 
 Now we have made sure that all fragments from a particular source ends
 up in the same load-balancer. Here we do the L4 hashing, including
-ports, and store the hash value in a hash-table with key
+ports, and store the hash value in a [hash-table](fragtrack.md) with key
 `<src,dst,frag-id>`. Subsequent fragments will have the same `frag-id`
 and we retrieve the stored hash value.
 

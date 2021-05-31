@@ -24,9 +24,9 @@ load-balancer) is lost/added is *not* a part of
 
 
 Hashing and fragment handling is done in the same way as the Google
-load-balancer; [Maglev](maglev.md).  The `nfqlb` is scalable. Since
-the configuration is the same for all nfqlb's it does not matter which
-instance that receives a packet.
+load-balancer; [Maglev](maglev.md). `nfqlb` is stateless and since
+the configuration is the same for all instances it does not matter where
+packets are received. This makes `nfqlb` scalable.
 
 
 The forwarding of packets is done by normal Linux routing, `nfqlb lb`
