@@ -113,16 +113,12 @@ int ipv6HandleFragment(
 		 * re-injected */
 		struct Item* storedFragments = fragGetStored(ft, &now, &key);
 		if (storedFragments != NULL) {
-			unsigned cnt = 0;
-			for (struct Item* i = storedFragments; i != NULL; i = i->next) {
-				cnt++;
-				if (injectFragFn != NULL)
+			if (injectFragFn != NULL) {
+				struct Item* i;
+				for (i = storedFragments; i != NULL; i = i->next) {
 					injectFragFn(i->data, i->len);
+				}
 			}
-			if (injectFragFn != NULL)
-				printf("Re-injected %u stored fragments\n", cnt);
-			else
-				printf("Dropped %u stored fragments\n", cnt);
 			itemFree(storedFragments);
 		}
 		return 0;				/* First fragment handled. Hash stored. */

@@ -30,15 +30,13 @@ first fragment arrives.
    load-balance the first fragment. We also initiate a re-inject of
    the stored fragments.
 
-4. The stored fragments are injected to the kernel with a `tun`
-   device. They are (again) redirected to user-space by the nfqueue
-   but this time we have a stored hash and the fragments are
-   load-balanced.
+4. The stored fragments are injected to the kernel.  They are (again)
+   redirected to user-space by the nfqueue but this time we have a
+   stored hash and the fragments are load-balanced.
 
 
-The NFQUEUE does not support stored packets to be re-injected, so some
-other mechanism must be used for fragments, e.g. a raw socket or a tap
-device.
+The NFQUEUE does not support stored packets to be re-injected, so we
+use a [tun](https://en.wikipedia.org/wiki/TUN/TAP) device.
 
 
 

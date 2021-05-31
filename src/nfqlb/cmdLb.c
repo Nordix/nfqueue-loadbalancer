@@ -213,7 +213,7 @@ static int cmdLb(int argc, char **argv)
 		atoi(ft_size),		/* table size */
 		atoi(ft_buckets),	/* Extra buckets for hash collisions */
 		atoi(ft_frag),		/* Max stored fragments */
-		mtu + 100,			/* MTU + some extras */
+		mtu,				/* MTU + some extras */
 		atoi(ft_ttl));		/* Fragment TTL in milli seconds */
 	fragUseStats(ft, sft);
 	printf(
