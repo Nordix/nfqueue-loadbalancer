@@ -31,28 +31,20 @@ static void initShm(
 
 static int cmdInit(int argc, char **argv)
 {
-	char const* targetShm = defaultTargetShm;
+	char const* shm = defaultTargetShm;
 	char const* M = "997";
 	char const* N = "32";
-	char const* lbM = "499";
-	char const* lbN = "16";
-	char const* lbShm = NULL;
-	char const* targetOffset = "100";
-	char const* lbOffset = "200";
+	char const* offset = "100";
 	char const* ownFw = NULL;
 	struct Option options[] = {
 		{"help", NULL, 0,
 		 "init [options]\n"
 		 "  Initiate shared mem structures"},
 		{"ownfw", &ownFw, REQUIRED, "Own FW mark (not offset adjusted)"},
-		{"tshm", &targetShm, 0, "Target shared memory"},
-		{"toffset", &targetOffset, 0, "Target FW offset"},
+		{"shm", &shm, 0, "Target shared memory"},
+		{"offset", &offset, 0, "FW offset"},
 		{"N", &N, 0, "Maglev max targets"},
 		{"M", &M, 0, "Maglev lookup table size"},
-		{"lbN", &lbN, 0, "LB-tier; Maglev max targets"},
-		{"lbM", &lbM, 0, "LB-tier; Maglev lookup table size"},
-		{"lbshm", &lbShm, 0, "Lb shared memory"},
-		{"lboffset", &lbOffset, 0, "Lb FW offset"},
 		{0, 0, 0, 0}
 	};
 	(void)parseOptionsOrDie(argc, argv, options);
@@ -67,39 +59,9 @@ static int cmdInit(int argc, char **argv)
 	if (n > MAX_N)
 		n = MAX_N;
 	initShm(
-		targetShm, atoi(ownFw), atoi(targetOffset), m, n);
+		shm, atoi(ownFw), atoi(offset), m, n);
 
-	if (lbShm != NULL) {
-		m = atoi(lbM);
-		p = primeBelow(m > MAX_M ? MAX_M : m);
-		if (p != m) {
-			printf("lbM adjusted; %u -> %u\n", m, p);
-			m = p;
-		}
-		n = atoi(lbN);
-		if (n > MAX_N)
-			n = MAX_N;
-		initShm(
-			lbShm, atoi(ownFw), atoi(lbOffset), m, n);
-	}
 	return 0;
-}
-
-static void showShm(char const* name)
-{
-	struct SharedData* s;
-	s = mapSharedDataOrDie(name, sizeof(*s), O_RDONLY);
-	printf("Shm: %s\n", name);
-	printf("  Fw: own=%d, offset=%d\n", s->ownFwmark, s->fwOffset);
-	printf("  Maglev: M=%d, N=%d\n", s->magd.M, s->magd.N);
-	printf("   Lookup:");
-	for (int i = 0; i < 25; i++)
-		printf(" %d", s->magd.lookup[i]);
-	printf("...\n");
-	printf("   Active:");
-	for (int i = 0; i < s->magd.N; i++)
-		printf(" %u", s->magd.active[i]);
-	printf("\n");
 }
 
 static int cmdPrimeBelow(int argc, char **argv)
@@ -120,20 +82,28 @@ static int cmdPrimeBelow(int argc, char **argv)
 
 static int cmdShow(int argc, char **argv)
 {
-	char const* targetShm = defaultTargetShm;
-	char const* lbShm = NULL;
+	char const* shm = defaultTargetShm;
 	struct Option options[] = {
 		{"help", NULL, 0,
 		 "show [options]\n"
 		 "  Show shared mem structures"},
-		{"tshm", &targetShm, 0, "Target shared memory"},
-		{"lbshm", &lbShm, 0, "Lb shared memory"},
+		{"shm", &shm, 0, "Shared memory"},
 		{0, 0, 0, 0}
 	};
 	(void)parseOptionsOrDie(argc, argv, options);
-	if (lbShm != NULL)
-		showShm(lbShm);
-	showShm(targetShm);
+	struct SharedData* s;
+	s = mapSharedDataOrDie(shm, sizeof(*s), O_RDONLY);
+	printf("Shm: %s\n", shm);
+	printf("  Fw: own=%d, offset=%d\n", s->ownFwmark, s->fwOffset);
+	printf("  Maglev: M=%d, N=%d\n", s->magd.M, s->magd.N);
+	printf("   Lookup:");
+	for (int i = 0; i < 25; i++)
+		printf(" %d", s->magd.lookup[i]);
+	printf("...\n");
+	printf("   Active:");
+	for (int i = 0; i < s->magd.N; i++)
+		printf(" %u", s->magd.active[i]);
+	printf("\n");
 	return 0;
 }
 
