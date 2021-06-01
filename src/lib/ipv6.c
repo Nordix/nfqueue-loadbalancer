@@ -9,51 +9,6 @@
 #include <netinet/icmp6.h>
 #include <pthread.h>
 
-static unsigned
-ipv6TcpUdpHash(struct ip6_hdr const* h, uint32_t const* ports)
-{
-	int32_t hashData[9];
-	memcpy(hashData, &h->ip6_src, 32);
-	hashData[8] = *ports;
-	return HASH((uint8_t const*)hashData, sizeof(hashData));
-}
-static unsigned
-ipv6IcmpHash(struct ip6_hdr const* h, struct icmp6_hdr const* ih)
-{
-	int32_t hashData[9];
-	memcpy(hashData, &h->ip6_src, 32);
-	hashData[8] = ih->icmp6_id;
-	return HASH((uint8_t const*)hashData, sizeof(hashData));
-}
-
-unsigned ipv6Hash(void const* data, unsigned len)
-{
-	struct ip6_hdr* hdr = (struct ip6_hdr*)data;
-	unsigned hash = 0;
-	switch (hdr->ip6_nxt) {
-	case IPPROTO_TCP:
-	case IPPROTO_UDP:
-		hash = ipv6TcpUdpHash(hdr, data + 40);
-		break;
-	case IPPROTO_ICMPV6:
-		hash = ipv6IcmpHash(hdr, data + 40);
-		break;
-	case IPPROTO_SCTP:
-	default:;
-	}
-	return hash;
-}
-unsigned ipv6AddressHash(void const* data, unsigned len)
-{
-	struct ip6_hdr const* hdr = data;
-	return HASH((uint8_t const*)&hdr->ip6_src, 32);
-}
-
-/* ----------------------------------------------------------------------
-   Fragmentation handling
- */
-
-
 #define PAFTER(x) (void*)x + (sizeof(*x))
 
 int ipv6HandleFragment(
