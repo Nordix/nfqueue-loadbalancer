@@ -1,0 +1,101 @@
+#! /bin/sh
+
+export PATH="/bin:/sbin:/usr/bin:/usr/sbin"
+. /etc/profile
+
+die() {
+    echo "$@"
+    exit 1
+}
+
+hostname | grep -Eq 'vm-[0-9]+$' || die "Invalid hostname [$(hostname)]"
+i=$(hostname | cut -d- -f2 | sed -re 's,^0+,,')
+
+vm() {
+	return 0
+}
+
+router() {
+	local toffset=100
+	local lboffset=200
+	test -n "$__nvm" || __nvm=4
+
+	// Create the tun device
+	local mtu=1500
+	local tap=nfqlb0
+	ip tuntap add mode tun name $tap || die "create $tap"
+	ip link set dev $tap up arp off mtu $mtu || die "up $tap"
+
+	local n t
+	for n in $(seq 1 $__nvm); do
+		t=$((n + toffset))
+		ip rule add fwmark $t table $t
+		ip -6 rule add fwmark $t table $t
+		ip route add default via 192.168.1.$n table $t
+		ip -6 route add default via 1000::1:192.168.1.$n table $t
+	done
+	if test "$SYN_ONLY" = "yes"; then
+		for iptables in iptables ip6tables; do
+			$iptables -t raw -F		# Remove any NOTRACK rules
+			$iptables -t mangle -N VIP
+			$iptables -t mangle -N VIPOUT
+			$iptables -t mangle -N ESTABLISHED
+			$iptables -t mangle -A VIP -m conntrack --ctstate ESTABLISHED -j ESTABLISHED
+			$iptables -t mangle -A ESTABLISHED -j CONNMARK --restore-mark
+			$iptables -t mangle -A ESTABLISHED -j ACCEPT
+			$iptables -t mangle -A VIP -j NFQUEUE --queue-num 2
+			$iptables -t mangle -A VIPOUT -m conntrack --ctstate NEW -j CONNMARK --save-mark
+		done
+		# Add VIPs
+		iptables -t mangle -A PREROUTING -i eth2 -d 10.0.0.0/24 -j VIP
+		iptables -t mangle -A POSTROUTING -d 10.0.0.0/24 -j VIPOUT
+		ip6tables -t mangle -A PREROUTING -i eth2 -d 1000::/112 -j VIP
+		ip6tables -t mangle -A POSTROUTING -d 1000::/112 -j VIPOUT
+	else
+		for iptables in iptables ip6tables; do
+			$iptables -t mangle -N VIP
+			$iptables -t mangle -A VIP -j NFQUEUE --queue-num 2
+		done
+		# Add VIPs
+		iptables -t mangle -A PREROUTING -i eth2 -d 10.0.0.0/24 -j VIP
+		ip6tables -t mangle -A PREROUTING -i eth2 -d 1000::/112 -j VIP
+		iptables -t mangle -A PREROUTING -i $tap -d 10.0.0.0/24 -j VIP
+		ip6tables -t mangle -A PREROUTING -i $tap -d 1000::/112 -j VIP
+	fi
+
+	local net=2
+	test "$TOPOLOGY" = "evil_tester" && net=3
+	if test -n "$__nrouters"; then
+		local endrouter=$((__nrouters + 200))
+		for n in $(seq 201 $endrouter); do
+			t=$((n - 200 + lboffset))
+			ip rule add fwmark $t table $t
+			ip -6 rule add fwmark $t table $t
+			ip route add default via 192.168.$net.$n table $t
+			ip -6 route add default via 1000::1:192.168.$net.$n table $t
+		done
+	fi
+	ethtool -K eth1 gro off gso off tso off
+	ethtool -K eth2 gro off gso off tso off
+
+	local ownfw=$((i - 200))
+	# Target tier. ownfw is not used on LBs
+	nfqlb init --shm=nfqlb --ownfw=0 --offset=$toffset --M=900 --N=20
+	# LB tier
+	nfqlb init --shm=nfqlbLb --ownfw=$ownfw --offset=$lboffset --M=400 --N=10
+
+	nfqlb lb --lbshm=nfqlbLb --tun=$tap $LBOPT > /var/log/nfqlb.log 2>&1 &
+}
+
+tester() {
+	return 0
+}
+
+case $(hostname) in
+	vm-0*)
+		vm;;
+	vm-20*)
+		router;;
+	vm-22*)
+		tester;;
+esac
