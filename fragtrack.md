@@ -64,17 +64,16 @@ The important parameters are;
 * **ft_buckets** - Extra "ctBucket" on hash collisions
 
 
-First we must decide a `ttl`. Ttl is really *"maximum time between
-fragments of the same packet"*. Since fragments of the same packets
-are normally (always?) sent as a burst from the source the ttl can be
-set fairly low. In this example we set `ttl=200ms`. This is the time
-in Linux for the first re-transmit of TCP packets so at least someone
+First we must decide a `ttl`. Since fragments of the same packets are
+normally (always?) sent as a burst from the source, the ttl can be set
+fairly low. In this example we set `ttl=200ms`. This is the time in
+Linux for the first re-transmit of TCP packets so at least someone
 thinks packets should not take more time.
 
-Then we must decide a continuous rate of fragmented packets (packets
-that is, not fragments) that we must handle. This metric is probably
-not available so a rough estimate must do. We pick `rate=10000pkt/S`
-in this example.
+Then we must decide a continuous rate of fragmented packets that we
+must handle (*packets* that is, not fragments). This metric is
+probably not available so a rough estimate must do. We pick
+`rate=10000pkt/S` in this example.
 
 If hashing was perfect this would give a table size of;
 ```
@@ -90,7 +89,7 @@ ft_size = rate * ft_ttl * C
 ft_buckets = ft_size
 ```
 
-The value of `C` can be found with simulations;
+A good value of `C` can be found with simulations;
 ```
 make -j8 -C src test_progs
 alias ct=/tmp/$USER/nfqlb/lib/test/ct-test
