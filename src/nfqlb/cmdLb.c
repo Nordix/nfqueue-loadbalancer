@@ -15,6 +15,16 @@
 #include <netinet/ip.h>
 #include <netinet/ip6.h>
 #include <unistd.h>
+#include <time.h>
+
+typedef void (*injectFragFn_t)(void const* data, unsigned len);
+int ipv6HandleFragment(
+	struct FragTable* ft, void const* data, unsigned len, unsigned* hash,
+	injectFragFn_t injectFragFn);
+int ipv4HandleFragment(
+	struct FragTable* ft, void const* data, unsigned len, unsigned* hash,
+	injectFragFn_t injectFragFn);
+
 
 static struct FragTable* ft;
 static struct SharedData* st;
@@ -25,7 +35,6 @@ struct fragStats* sft;
 #define CNTINC(x) __atomic_add_fetch(&(x),1,__ATOMIC_RELAXED)
 
 #ifdef VERBOSE
-#include "time.h"
 #include "limiter.h"
 #define D(x)
 #define Dx(x) x
@@ -224,4 +233,123 @@ static int cmdLb(int argc, char **argv)
 
 __attribute__ ((__constructor__)) static void addCommands(void) {
 	addCmd("lb", cmdLb);
+}
+
+
+int ipv4HandleFragment(
+	struct FragTable* ft, void const* data, unsigned len, unsigned* hash,
+	injectFragFn_t injectFragFn)
+{
+	struct timespec now;
+	clock_gettime(CLOCK_MONOTONIC, &now);
+
+	// Construct the key
+	struct ctKey key = {0};
+	struct iphdr* hdr = (struct iphdr*)data;
+	key.src.s6_addr16[5] = 0xffff;
+	key.src.s6_addr32[3] = hdr->saddr;
+	key.dst.s6_addr16[5] = 0xffff;
+	key.dst.s6_addr32[3] = hdr->daddr;
+	key.id = hdr->id;
+
+	// Check offset to see if this is the first fragment
+	if ((ntohs(hdr->frag_off) & IP_OFFMASK) == 0) {
+		// First fragment. contains the protocol header.
+		switch (hdr->protocol) {
+		case IPPROTO_TCP:		/* (should not happen?) */
+		case IPPROTO_UDP:
+			*hash = ipv4TcpUdpHash(data, len);
+			break;
+		case IPPROTO_ICMP:
+			*hash = ipv4IcmpHash(data, len);
+			break;
+		case IPPROTO_SCTP:
+		default:
+			*hash = 0;
+		}
+		if (fragInsertFirst(ft, &now, &key, *hash) != 0) {
+			return -1;
+		}
+
+		/* Check if we have any stored fragments that should be
+		 * re-injected */
+		struct Item* storedFragments = fragGetStored(ft, &now, &key);
+		if (storedFragments != NULL) {
+			if (injectFragFn != NULL) {
+				struct Item* i;
+				for (i = storedFragments; i != NULL; i = i->next) {
+					injectFragFn(i->data, i->len);
+				}
+			}
+			itemFree(storedFragments);
+		}
+		return 0;				/* First fragment handled. Hash stored. */
+	}
+
+	/*
+	  Not the first fragment. Get the hash if possible or store this
+	  fragment if not.
+	*/
+
+	return fragGetHashOrStore(ft, &now, &key, hash, data, len);
+}
+
+#define PAFTER(x) (void*)x + (sizeof(*x))
+
+int ipv6HandleFragment(
+	struct FragTable* ft, void const* data, unsigned len, unsigned* hash,
+	injectFragFn_t injectFragFn)
+{
+	struct timespec now;
+	clock_gettime(CLOCK_MONOTONIC, &now);
+
+	// Construct the key
+	struct ctKey key;
+	struct ip6_hdr* hdr = (struct ip6_hdr*)data;
+	struct ip6_frag* fh = (struct ip6_frag*)(data + 40);
+	key.dst = hdr->ip6_dst;
+	key.src = hdr->ip6_src;
+	key.id = fh->ip6f_ident;
+
+	// Check offset to see if this is the first fragment
+	uint16_t fragOffset = (fh->ip6f_offlg & IP6F_OFF_MASK) >> 3;
+	if (fragOffset == 0) {
+		// First fragment. contains the protocol header.
+		switch (fh->ip6f_nxt) {
+		case IPPROTO_TCP:		/* (should not happen?) */
+		case IPPROTO_UDP:
+			*hash = ipv6TcpUdpHash(hdr, PAFTER(fh));
+			break;
+		case IPPROTO_ICMPV6:
+			*hash = ipv6IcmpHash(hdr, PAFTER(fh));
+			break;
+		case IPPROTO_SCTP:
+		default:
+			*hash = 0;
+		}
+		if (fragInsertFirst(ft, &now, &key, *hash) != 0) {
+			return -1;
+		}
+
+		/* Check if we have any stored fragments that should be
+		 * re-injected */
+		struct Item* storedFragments = fragGetStored(ft, &now, &key);
+		if (storedFragments != NULL) {
+			if (injectFragFn != NULL) {
+				struct Item* i;
+				for (i = storedFragments; i != NULL; i = i->next) {
+					injectFragFn(i->data, i->len);
+				}
+			}
+			itemFree(storedFragments);
+		}
+		return 0;				/* First fragment handled. Hash stored. */
+	}
+
+	/*
+	  Not the first fragment. Get the hash if possible or store this
+	  fragment if not.
+	*/
+
+	return fragGetHashOrStore(ft, &now, &key, hash, data, len);
 }
