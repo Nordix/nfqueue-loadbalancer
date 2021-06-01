@@ -4,11 +4,51 @@
 */
 
 #include "cmd.h"
+#include <die.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <getopt.h>
 
+#ifndef MAX_COMMANDS
+#define MAX_COMMANDS 20
+#endif
+
+struct Cmd {
+	char const* name;
+	int (*fn)(int argc, char* argv[]);
+};
+static struct Cmd cmd[MAX_COMMANDS + 1] = {{NULL, NULL}};
+void addCmd(char const* name, int (*fn)(int argc, char* argv[]))
+{
+	struct Cmd* c = cmd;
+	while (c->name != NULL) c++;
+	if (c - cmd < MAX_COMMANDS) {
+		c->name = name;
+		c->fn = fn;
+	}
+}
+
+int handleCmd(int argc, char *argv[])
+{
+	if (argc < 2 || strcmp(argv[1], "-h") == 0 || strcmp(argv[1], "--help") == 0) {
+		printf("Usage: %s <command> [opt...]\nCommands:\n", argv[0]);
+		for (struct Cmd const* c = cmd; c->name != NULL; c++) {
+			printf("  %s\n", c->name);
+		}
+		return EXIT_SUCCESS;
+	}
+
+	argc--;
+	argv++;
+	for (struct Cmd* c = cmd; c->fn != NULL; c++) {
+		if (strcmp(*argv, c->name) == 0)
+			return c->fn(argc, argv);
+	}
+
+	fprintf(stderr, "Unknown command [%s]\n", *argv);
+	return EXIT_FAILURE;
+}
 
 static int verifyRequiredOptions(
 	struct option const* long_options, unsigned required, unsigned got)

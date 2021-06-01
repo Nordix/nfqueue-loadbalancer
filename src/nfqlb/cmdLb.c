@@ -7,11 +7,11 @@
 #include <iputils.h>
 #include <shmem.h>
 #include <cmd.h>
+#include <die.h>
 #include <tuntap.h>
 
 #include <stdlib.h>
 #include <stdio.h>
-#include <netinet/if_ether.h>
 #include <netinet/ip.h>
 #include <netinet/ip6.h>
 #include <unistd.h>

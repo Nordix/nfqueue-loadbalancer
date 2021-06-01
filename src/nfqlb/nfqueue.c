@@ -5,7 +5,6 @@
    libnetfilter_queue-1.0.3/examples/nf-queue.c
 */
 
-#include <arpa/inet.h>
 #include <libmnl/libmnl.h>
 #include <linux/netfilter.h>
 #include <libnetfilter_queue/libnetfilter_queue.h>

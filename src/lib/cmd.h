@@ -4,10 +4,8 @@
    Copyright (c) 2021 Nordix Foundation
 */
 
-// addCmd should be defined in main.c
 void addCmd(char const* name, int (*fn)(int argc, char* argv[]));
-
-void die(char const* fmt, ...)__attribute__ ((__noreturn__));
+int handleCmd(int argc, char *argv[]);
 
 struct Option {
 	char const* const name;

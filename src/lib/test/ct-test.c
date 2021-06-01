@@ -5,6 +5,7 @@
 
 #include "conntrack.h"
 #include <cmd.h>
+#include <die.h>
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>

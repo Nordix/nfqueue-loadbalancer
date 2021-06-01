@@ -5,42 +5,11 @@
 
 #include "iputils.h"
 #include "hash.h"
-#include <stdio.h>
 #include <time.h>
-#include <arpa/inet.h>
 #include <netinet/ip_icmp.h>
-#include <netinet/ether.h>
 
 #define Dx(x) x
 #define D(x)
-
-char const* protocolString(unsigned p)
-{
-	static char buf[8];
-	switch (p) {
-	case IPPROTO_ICMP: return "ICMP";
-	case IPPROTO_TCP: return "TCP";
-	case IPPROTO_UDP: return "UDP";
-	case IPPROTO_ICMPV6: return "ICMPV6";
-	default:
-		sprintf(buf, "%u", p);
-	}
-	return buf;
-}
-
-void ipv4Print(unsigned len, uint8_t const* pkt)
-{
-	struct iphdr* hdr = (struct iphdr*)pkt;
-	char src[16], dst[16];
-	char const* frag = "";
-	if (ntohs(hdr->frag_off) & (IP_OFFMASK|IP_MF))
-		frag = "frag";
-	printf(
-		"  IPv4: %s -> %s, %s %s\n",
-		inet_ntop(AF_INET, &hdr->saddr, src, sizeof(src)),
-		inet_ntop(AF_INET, &hdr->daddr, dst, sizeof(dst)),
-		protocolString(hdr->protocol), frag);
-}
 
 unsigned ipv4TcpUdpHash(void const* data, unsigned len)
 {
@@ -135,27 +104,5 @@ int ipv4HandleFragment(
 	*/
 
 	return fragGetHashOrStore(ft, &now, &key, hash, data, len);
-}
-
-void framePrint(unsigned len, uint8_t const* pkt)
-{
-	if (len < sizeof(struct ethhdr)) {
-		printf("Short packet %u\n", len);
-		return;
-	}
-	struct ethhdr const* eth = (struct ethhdr const*)pkt;
-	pkt += sizeof(struct ethhdr);
-	len -= sizeof(struct ethhdr);
-	uint16_t proto = htons(eth->h_proto);
-	printf("%s -> %s; 0x%04x\n", macToString(eth->h_source), macToString(eth->h_dest), proto);
-	switch (proto) {
-	case ETH_P_IP:
-		ipv4Print(len, pkt);
-		break;
-	case ETH_P_IPV6:
-		ipv6Print(len, pkt);
-		break;
-	default:;
-	}
 }
 
