@@ -84,6 +84,30 @@ cmd_lb() {
 }
 ##
 
+##  mkrelease <version>
+##    Create a release archive
+cmd_mkrelease() {
+	test -n "$1" || die "No version"
+	echo "$1" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-.+|$)' \
+		|| die "Incorrect version (semver) [$1]"
+	local ver=$1
+	make -C $dir/src clean
+	cmd_libnfqueue_download
+	__force=yes
+	cmd_libnfqueue_unpack
+	cmd_libnfqueue_build
+	make -C $dir/src -j8 static || die make
+	mkdir -p $tmp/nfqlb-$ver/bin $tmp/nfqlb-$ver/lib $tmp/nfqlb-$ver/include
+	local O=/tmp/$USER/nfqlb
+	cp $O/nfqlb/nfqlb $tmp/nfqlb-$ver/bin
+	cp $O/lib/libnfqlb.a $tmp/nfqlb-$ver/lib
+	cp $dir/src/lib/*.h $tmp/nfqlb-$ver/include
+	tar -C $tmp -cf /tmp/nfqlb-$ver.tar nfqlb-$ver
+	xz /tmp/nfqlb-$ver.tar
+	echo "Created [/tmp/nfqlb-$ver.tar]"
+}
+##
+
 ##  libnfqueue_download
 ##  libnfqueue_unpack [--force] [--dest=]
 ##  libnfqueue_build [--dest=]
