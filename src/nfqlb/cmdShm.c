@@ -10,8 +10,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-char const* const defaultLbShm = "nfqueueLb";
-char const* const defaultTargetShm = "nfqueueTarget";
+char const* const defaultTargetShm = "nfqlb";
 
 static void maglevInit(struct MagData* m)
 {
@@ -31,7 +30,7 @@ static void initShm(char const* name, int ownFw, int fwOffset)
 static int cmdInit(int argc, char **argv)
 {
 	char const* targetShm = defaultTargetShm;
-	char const* lbShm = defaultLbShm;
+	char const* lbShm = NULL;
 	char const* targetOffset = NULL;
 	char const* lbOffset = NULL;
 	char const* ownFw = NULL;
@@ -49,8 +48,9 @@ static int cmdInit(int argc, char **argv)
 	(void)parseOptionsOrDie(argc, argv, options);
 	initShm(
 		targetShm, atoi(ownFw), targetOffset == NULL ? 100:atoi(targetOffset));
-	initShm(
-		lbShm, atoi(ownFw), lbOffset == NULL ? 200:atoi(targetOffset));
+	if (lbShm != NULL)
+		initShm(
+			lbShm, atoi(ownFw), lbOffset == NULL ? 200:atoi(targetOffset));
 	return 0;
 }
 
@@ -74,7 +74,7 @@ static void showShm(char const* name)
 static int cmdShow(int argc, char **argv)
 {
 	char const* targetShm = defaultTargetShm;
-	char const* lbShm = defaultLbShm;
+	char const* lbShm = NULL;
 	struct Option options[] = {
 		{"help", NULL, 0,
 		 "show [options]\n"
@@ -84,7 +84,8 @@ static int cmdShow(int argc, char **argv)
 		{0, 0, 0, 0}
 	};
 	(void)parseOptionsOrDie(argc, argv, options);
-	showShm(lbShm);
+	if (lbShm != NULL)
+		showShm(lbShm);
 	showShm(targetShm);
 	return 0;
 }

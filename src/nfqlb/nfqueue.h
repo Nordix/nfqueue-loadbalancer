@@ -8,7 +8,6 @@ struct SharedData {
         struct MagData magd;
 };
 
-extern char const* const defaultLbShm;
 extern char const* const defaultTargetShm;
 
 typedef int (*packetHandleFn_t)(

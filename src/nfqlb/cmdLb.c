@@ -19,7 +19,7 @@
 
 static struct FragTable* ft;
 static struct SharedData* st;
-static struct SharedData* slb;
+static struct SharedData* slb = NULL;
 static int tun_fd = -1;
 struct fragStats* sft;
 
@@ -45,11 +45,13 @@ static int handleIpv4(void* payload, unsigned plen)
 
 	if (ntohs(hdr->frag_off) & (IP_OFFMASK|IP_MF)) {
 		// Make an addres-hash and check if we shall forward to the LB tier
-		hash = ipv4AddressHash(payload, plen);
-		int fw = slb->magd.lookup[hash % slb->magd.M];
-		if (fw >= 0 && fw != slb->ownFwmark) {
-			Dx(printf("IPv4 fragment to LB tier. fw=%d\n", fw));
-			return fw + slb->fwOffset; /* To the LB tier */
+		if (slb != NULL) {
+			hash = ipv4AddressHash(payload, plen);
+			int fw = slb->magd.lookup[hash % slb->magd.M];
+			if (fw >= 0 && fw != slb->ownFwmark) {
+				Dx(printf("IPv4 fragment to LB tier. fw=%d\n", fw));
+				return fw + slb->fwOffset; /* To the LB tier */
+			}
 		}
 
 		// We shall handle the frament here
@@ -89,11 +91,13 @@ static int handleIpv6(void* payload, unsigned plen)
 	if (hdr->ip6_nxt == IPPROTO_FRAGMENT) {
 
 		// Make an addres-hash and check if we shall forward to the LB tier
-		hash = ipv6AddressHash(payload, plen);
-		int fw = slb->magd.lookup[hash % slb->magd.M];
-		if (fw >= 0 && fw != slb->ownFwmark) {
-			Dx(printf("IPv6 fragment to LB tier. fw=%d\n", fw));
-			return fw + slb->fwOffset; /* To the LB tier */
+		if (slb != NULL) {
+			hash = ipv6AddressHash(payload, plen);
+			int fw = slb->magd.lookup[hash % slb->magd.M];
+			if (fw >= 0 && fw != slb->ownFwmark) {
+				Dx(printf("IPv6 fragment to LB tier. fw=%d\n", fw));
+				return fw + slb->fwOffset; /* To the LB tier */
+			}
 		}
 
 		// We shall handle the frament here
@@ -134,20 +138,20 @@ static int packetHandleFn(
 static int cmdLb(int argc, char **argv)
 {
 	char const* targetShm = defaultTargetShm;
-	char const* lbShm = defaultLbShm;
+	char const* lbShm = NULL;
 	char const* ftShm = "ftshm";
 	char const* qnum = "2";
 	char const* ft_size = "500";
 	char const* ft_buckets = "500";
 	char const* ft_frag = "100";
 	char const* ft_ttl = "200";
-	char const* dev;
+	char const* mtuOpt = "1500";
 	char const* tun = NULL;
 	struct Option options[] = {
 		{"help", NULL, 0,
 		 "lb [options]\n"
 		 "  Load-balance"},
-		{"dev", &dev, REQUIRED, "Ingress device"},
+		{"mtu", &mtuOpt, 0, "MTU. At least the mtu of the ingress device"},
 		{"tun", &tun, 0, "Tun device for re-inject fragments"},
 		{"tshm", &targetShm, 0, "Target shared memory"},
 		{"lbshm", &lbShm, 0, "Lb shared memory"},
@@ -161,7 +165,8 @@ static int cmdLb(int argc, char **argv)
 	};
 	(void)parseOptionsOrDie(argc, argv, options);
 	st = mapSharedDataOrDie(targetShm,sizeof(*st), O_RDONLY);
-	slb = mapSharedDataOrDie(lbShm,sizeof(*slb), O_RDONLY);
+	if (lbShm != NULL)
+		slb = mapSharedDataOrDie(lbShm,sizeof(*slb), O_RDONLY);
 	// Create and re-map the stats struct
 	sft = calloc(1, sizeof(*sft));
 	createSharedDataOrDie(ftShm, sft, sizeof(*sft));
@@ -169,9 +174,9 @@ static int cmdLb(int argc, char **argv)
 	sft = mapSharedDataOrDie(ftShm, sizeof(*sft), O_RDWR);
 
 	// Get MTU from the ingress device
-	int mtu = get_mtu(dev);
+	int mtu = atoi(mtuOpt);
 	if (mtu < 576)
-		die("Could not get a valid MTU from dev [%s]\n", dev);
+		die("Invalid MTU; %d\n", mtu);
 
 	/* Open the "tun" device if specified. Check that the mtu is at
 	 * least as large as for the ingress device */
