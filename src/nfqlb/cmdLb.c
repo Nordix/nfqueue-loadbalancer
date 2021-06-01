@@ -17,57 +17,25 @@
 #include <unistd.h>
 #include <time.h>
 
-typedef void (*injectFragFn_t)(void const* data, unsigned len);
-int ipv6HandleFragment(
-	struct FragTable* ft, void const* data, unsigned len, unsigned* hash,
-	injectFragFn_t injectFragFn);
-int ipv4HandleFragment(
-	struct FragTable* ft, void const* data, unsigned len, unsigned* hash,
-	injectFragFn_t injectFragFn);
-
-
 static struct FragTable* ft;
 static struct SharedData* st;
 static struct SharedData* slb;
 static int tun_fd = -1;
 struct fragStats* sft;
 
-#define CNTINC(x) __atomic_add_fetch(&(x),1,__ATOMIC_RELAXED)
-
 #ifdef VERBOSE
-#include "limiter.h"
 #define D(x)
 #define Dx(x) x
-static void printFragStats(struct timespec* now)
-{
-	struct fragStats stats;
-	fragGetStats(ft, now, &stats);
-	fragPrintStats(&stats);
-}
-static void printIpv6FragStats(void)
-{
-	struct timespec now;
-	clock_gettime(CLOCK_MONOTONIC, &now);
-
-	static struct limiter* l = NULL;
-	if (l == NULL)
-		l = limiterCreate(100, 1100);
-	if (limiterGo(&now, l))
-		printFragStats(&now);
-}
 #else
 #define D(x)
 #define Dx(x)
 #endif
 
-static void injectFragFn(void const* data, unsigned len)
-{
-	int rc = write(tun_fd, data, len);
-	if (rc == len)
-		CNTINC(sft->fragsInjected);
-	Dx(printf("Injected frag, len=%u, rc=%d\n", len, rc));
-}
 
+int ipv6HandleFragment(
+	struct FragTable* ft, void const* data, unsigned len, unsigned* hash);
+int ipv4HandleFragment(
+	struct FragTable* ft, void const* data, unsigned len, unsigned* hash);
 
 
 static int handleIpv4(void* payload, unsigned plen)
@@ -85,7 +53,7 @@ static int handleIpv4(void* payload, unsigned plen)
 		}
 
 		// We shall handle the frament here
-		int rc = ipv4HandleFragment(ft, payload, plen, &hash, injectFragFn);
+		int rc = ipv4HandleFragment(ft, payload, plen, &hash);
 		if (rc != 0) {
 			Dx(printf("IPv4 fragment dropped or stored, rc=%d\n", rc));
 			return -1;
@@ -129,16 +97,14 @@ static int handleIpv6(void* payload, unsigned plen)
 		}
 
 		// We shall handle the frament here
-		int rc = ipv6HandleFragment(ft, payload, plen, &hash, injectFragFn);
+		int rc = ipv6HandleFragment(ft, payload, plen, &hash);
 		if (rc != 0) {
 			Dx(printf("IPv6 fragment dropped or stored, rc=%d\n", rc));
-			Dx(printIpv6FragStats());
 			return -1;
 		}
 		Dx(printf(
 			   "Handle IPv6 frag locally hash=%u, fwmark=%u\n",
 			   hash, st->magd.lookup[hash % st->magd.M] + st->fwOffset));
-		Dx(printIpv6FragStats());
 	} else {
 		hash = ipv6Hash(payload, plen);
 	}
@@ -236,9 +202,24 @@ __attribute__ ((__constructor__)) static void addCommands(void) {
 }
 
 
+static void injectFrag(void const* data, unsigned len)
+{
+#ifdef VERBOSE
+	if (tun_fd >= 0) {
+		int rc = write(tun_fd, data, len);
+		printf("Frag injected, len=%u, rc=%d\n", len, rc);
+	} else {
+		printf("Frag dropped, len=%u\n", len);
+	}
+#else
+	if (tun_fd >= 0)
+		write(tun_fd, data, len);
+#endif
+}
+
+
 int ipv4HandleFragment(
-	struct FragTable* ft, void const* data, unsigned len, unsigned* hash,
-	injectFragFn_t injectFragFn)
+	struct FragTable* ft, void const* data, unsigned len, unsigned* hash)
 {
 	struct timespec now;
 	clock_gettime(CLOCK_MONOTONIC, &now);
@@ -275,11 +256,9 @@ int ipv4HandleFragment(
 		 * re-injected */
 		struct Item* storedFragments = fragGetStored(ft, &now, &key);
 		if (storedFragments != NULL) {
-			if (injectFragFn != NULL) {
-				struct Item* i;
-				for (i = storedFragments; i != NULL; i = i->next) {
-					injectFragFn(i->data, i->len);
-				}
+			struct Item* i;
+			for (i = storedFragments; i != NULL; i = i->next) {
+				injectFrag(i->data, i->len);
 			}
 			itemFree(storedFragments);
 		}
@@ -297,8 +276,7 @@ int ipv4HandleFragment(
 #define PAFTER(x) (void*)x + (sizeof(*x))
 
 int ipv6HandleFragment(
-	struct FragTable* ft, void const* data, unsigned len, unsigned* hash,
-	injectFragFn_t injectFragFn)
+	struct FragTable* ft, void const* data, unsigned len, unsigned* hash)
 {
 	struct timespec now;
 	clock_gettime(CLOCK_MONOTONIC, &now);
@@ -335,11 +313,9 @@ int ipv6HandleFragment(
 		 * re-injected */
 		struct Item* storedFragments = fragGetStored(ft, &now, &key);
 		if (storedFragments != NULL) {
-			if (injectFragFn != NULL) {
-				struct Item* i;
-				for (i = storedFragments; i != NULL; i = i->next) {
-					injectFragFn(i->data, i->len);
-				}
+			struct Item* i;
+			for (i = storedFragments; i != NULL; i = i->next) {
+				injectFrag(i->data, i->len);
 			}
 			itemFree(storedFragments);
 		}

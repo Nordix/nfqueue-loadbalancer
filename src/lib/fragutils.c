@@ -154,12 +154,15 @@ static void* bucketPoolAllocate(void* user_ref)
 	if (i == NULL)
 		return NULL;
 	CNTINC(ft->fstats->bucketsAllocated);
+	CNTINC(ft->fstats->bucketsUsed);
 	return i->data;
 }
 static void bucketPoolFree(void* user_ref, void* b)
 {
 	struct Item* item = ITEM_OF(b);
 	itemFree(item);
+	struct FragTable* ft = user_ref;
+	CNTDEC(ft->fstats->bucketsUsed);
 }
 
 /* ----------------------------------------------------------------------
@@ -360,16 +363,16 @@ void fragPrintStats(struct fragStats* sft)
 		"  \"mtu\":              %u,\n"
 		"  \"bucketsMax\":       %u,\n"
 		"  \"bucketsAllocated\": %u,\n"
+		"  \"bucketsUsed\":      %u,\n"
 		"  \"fragsMax\":         %u,\n"
-		"  \"fragsInjected\":    %u,\n"
-		"  \"fragsAllocated\":   %u\n"
+		"  \"fragsAllocated\":   %u,\n"
 		"  \"fragsDiscarded\":   %u\n"
 		"}\n",
 		sft->ctstats.size, (unsigned)(sft->ctstats.ttlNanos/1000000),
 		sft->ctstats.collisions, sft->ctstats.inserts,
 		sft->ctstats.rejectedInserts, sft->ctstats.lookups, sft->ctstats.objGC,
-		sft->mtu, sft->bucketsMax, sft->bucketsAllocated,
-		sft->fragsMax, sft->fragsInjected, sft->fragsAllocated,
+		sft->mtu, sft->bucketsMax, sft->bucketsAllocated, sft->bucketsUsed,
+		sft->fragsMax, sft->fragsAllocated,
 		sft->fragsDiscarded);
 }
 

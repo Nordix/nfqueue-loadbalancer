@@ -33,13 +33,9 @@
   With this we can make a rough estimate of that hsize is needed for a
   *sustained* rate of fragmented packets;
 
-    hsize = rate * ttl * 5, maxBuckets = hsize / 2
+    hsize = rate * ttl * 2, maxBuckets = hsize
 
-  For ttl=0.2 S, rate=200 pkt/S we get hsize=200, maxBuckets=100
-  (with ttl=0.2 we get hsize = rate)
-
-  The constant "5" is more or less taken out of thin air, but this can
-  actually be simulated and 5 seem OK, a bit high even
+  For ttl=0.2 S, rate=1000 pkt/S we get hsize=200, maxBuckets=200
 
   Fragments out-of-order should be extremely rare. A conservative
   value for maxFragments may be ok. Even 0 (zero) if we don't care.
@@ -66,10 +62,9 @@
   will most often be re-used eventually, and in case of high load,
   more frequently.
 
-  However a full GC is trigged by reading the fragmentation stats. So
-  it may be prudent to do so from time to time. A reason may be for
-  metrics or for an alarm on over-use of stored fragments which may
-  indicate a DoS attack.
+  However a full GC is trigged by reading the fragmentation stats. A
+  reason may be for metrics or for an alarm on over-use of stored
+  fragments which may indicate a DoS attack.
 
 */
 struct FragTable;
@@ -133,8 +128,8 @@ struct fragStats {
 	unsigned mtu;
 	unsigned bucketsMax;
 	unsigned bucketsAllocated;
+	unsigned bucketsUsed;
 	unsigned fragsMax;
-	unsigned fragsInjected;		/* Not used by fragutils */
 	unsigned fragsDiscarded;
 	unsigned fragsAllocated;
 };
