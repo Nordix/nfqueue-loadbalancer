@@ -56,7 +56,16 @@ make -C src -j8
 ```
 Linked with `-lmnl -lnetfilter_queue` so you must install those.
 
-
+Static binary;
+```
+./nfqlb.sh libnfqueue_download
+./nfqlb.sh libnfqueue_unpack
+./nfqlb.sh libnfqueue_build
+make -C src clean
+make -C src -j8 static
+strip /tmp/$USER/nfqlb/nfqlb/nfqlb
+file /tmp/$USER/nfqlb/nfqlb/nfqlb
+```
 
 ## Try it locally
 
