@@ -11,6 +11,7 @@
 #include <stdio.h>
 
 #ifdef SANITY_CHECK
+#include <assert.h>
 #else
 #define assert(x)
 #endif

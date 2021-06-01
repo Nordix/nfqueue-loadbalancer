@@ -104,6 +104,7 @@ cmd_include_check_file() {
 	echo $f | grep -q "$dir/src" || die "File must be in src/"
 	local i target
 	for i in $(grep '^#include <.*>' $f | sed -E 's,^#include <(.*)>,\1,'); do
+		echo $i | grep -q assert && continue
 		sed -i -e "s,^#include <$i>,//#include <$i>," $f
 		target=all
 		echo $f | grep -q test && target=test_progs
