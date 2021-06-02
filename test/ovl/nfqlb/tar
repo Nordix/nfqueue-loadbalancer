@@ -20,7 +20,7 @@ cp -R $dir/default/* $tmp
 
 src=$(readlink -f ../../../src)
 make -C $src clean > /dev/null
-make -C $src -j8 X=$tmp/bin/nfqlb static > /dev/null || die make
+make -C $src -j8 X=$tmp/bin/nfqlb > /dev/null || die make
 
 for x in mconnect ctraffic; do
 	f=$GOPATH/src/github.com/Nordix/$x/image/$x
