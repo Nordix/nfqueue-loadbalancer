@@ -84,15 +84,20 @@ test_start() {
 	export TOPOLOGY=evil_tester
 	export xcluster_TOPOLOGY=$TOPOLOGY
 	. $($XCLUSTER ovld network-topology)/$TOPOLOGY/Envsettings
-	xcluster_start network-topology iptools tap-scrambler nfqlb
+	xcluster_start network-topology iptools nfqlb $@
 	otcr nfqueue_activate_all
 }
 
 test_basic() {
 	tlog "=== nfqlb: Basic test"
 	test_start
+	otc 221 "ping --vip=1000::"
+	otc 221 "ping --vip=10.0.0.0"
+	otc 221 "mconnect_udp --vip=10.0.0.0:5001"
 	otc 221 "mconnect --vip=[1000::]:5001"
 	otc 221 "mconnect --vip=10.0.0.0:5001"
+	otc 221 "mconnect_udp --vip=[1000::]:5001"
+	otc 221 "mconnect_udp --vip=10.0.0.0:5001"
 	xcluster_stop
 }
 test_udp() {

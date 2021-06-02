@@ -53,6 +53,22 @@ cmd_tcase_mconnect() {
 	do_mconnect $__vip -srccidr $srccidr
 }
 
+cmd_tcase_mconnect_udp() {
+	test -n "$__vip" || __vip="[1000::]:5001"
+	tcase "Mconnect with UDP to; $__vip"
+	local srccidr=2000::/112
+	echo $__vip | grep -Fq '[' || srccidr=50.0.0.0/16
+	do_mconnect $__vip -srccidr $srccidr -udp
+}
+cmd_tcase_ping() {
+	test -n "$__vip" || __vip="1000::"
+	tcase "Ping to; $__vip"
+	local i
+	for i in $(seq 1 40); do
+		ping -c1 -W1 $__vip || tdie ping
+	done
+}
+
 cmd_tcase_udp() {
 	test -n "$__vip" || __vip="[1000::]:6003"
 	tcase "Test UDP traffic to; $__vip"

@@ -22,6 +22,25 @@ src=$(readlink -f ../../../src)
 make -C $src clean > /dev/null
 make -C $src -j8 X=$tmp/bin/nfqlb static > /dev/null || die make
 
+for x in mconnect ctraffic; do
+	f=$GOPATH/src/github.com/Nordix/$x/image/$x
+	if test -x $f; then
+		log "Using local [$x]"
+		cp $f $tmp/bin
+	else
+		ar=$ARCHIVE/$x.xz
+		if test -r $ar; then
+			unpack=xz
+		else
+			ar=$ARCHIVE/$x.gz			
+			test -r $ar || die "Not found [$x]"
+			unpack=gzip
+		fi
+		$unpack -dc $ar > $tmp/bin/$x
+		chmod a+x $tmp/bin/$x
+	fi
+done
+
 $XCLUSTER install_prog --dest=$tmp jq
 
 cd $tmp

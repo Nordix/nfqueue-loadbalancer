@@ -44,7 +44,7 @@ ip route add default via 192.168.1.1 table 1
 * [Fragment handling](fragments.md) - How fragmented packets are handled
 * [Improved TCP performance](syn-only.md) - For TCP only `SYN` packets may be load-balanced
 * [Fragment tracking](fragtrack.md) - With another hash table
-
+* [Testing](test/README.md) - Unit, function and performance testing
 
 
 ## Build
@@ -55,6 +55,9 @@ make -C src -j8
 ./nfqlb.sh build_image    # Build the test docker image
 ```
 Linked with `-lmnl -lnetfilter_queue` so you must install those.
+```
+sudo apt install -y libmnl-dev libnetfilter-queue-dev
+```
 
 Static binary;
 ```

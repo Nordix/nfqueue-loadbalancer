@@ -7,7 +7,8 @@ Function tests for the
 
 ```
 #export __nrouters=1
-# Start;
+test -n "$log" || log=/tmp/$USER/xcluster-test.log
+# Start without any tests;
 ./nfqlb.sh test start > $log
 # Fast TCP test ipv4 and ipv6
 ./nfqlb.sh test > $log
