@@ -32,7 +32,7 @@ SRC := $(wildcard nfqlb/*.c)
 LIB_SRC := $(wildcard lib/*.c)
 OBJ := $(SRC:%.c=$(O)/%.o)
 LIB_OBJ := $(LIB_SRC:%.c=$(O)/%.o)
-NFQD := $(O)/libnetfilter_queue-1.0.5/sys/usr/local
+NFQD := $(O)/libnetfilter_queue-1.0.3/sys/usr/local
 
 $(O)/%.o : %.c
 	$(CC) -c $(CFLAGS) -pthread -Wall -Ilib $< -o $@
