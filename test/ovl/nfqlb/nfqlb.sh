@@ -84,8 +84,11 @@ test_start() {
 	export TOPOLOGY=evil_tester
 	export xcluster_TOPOLOGY=$TOPOLOGY
 	. $($XCLUSTER ovld network-topology)/$TOPOLOGY/Envsettings
-	xcluster_start network-topology iptools nfqlb $@
+	local OVLS
+	test "$__fragrev" = "yes" && OVLS=tap-scrambler
+	xcluster_start network-topology iptools nfqlb $OVLS $@
 	otcr nfqueue_activate_all
+	test "$__fragrev" = "yes" && otc 222 fragrev
 }
 
 test_basic() {
@@ -110,6 +113,25 @@ test_udp() {
 	test "$__verbose" = "yes" && otcr nfqlb_stats
 	xcluster_stop
 }
+
+#  rexec [--expand=x|y] <cmd>
+#	 Exec command on routers in xterms.
+cmd_rexec() {
+	test -n "$1" || die "No cmd"
+	test -n "$__nrouters" || __nrouters=2
+	local rsh='ssh -q -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no'
+	local i geometry
+	for i in $(seq 1 $__nrouters); do
+		if test "$__expand" = "x"; then
+			geometry=$($XCLUSTER geometry $i 1)
+		else
+			geometry=$($XCLUSTER geometry 1 $i)
+		fi
+		XXTERM=XCLUSTER xterm -T "Router $i $1" -bg '#400' $geometry -e \
+			$rsh root@192.168.0.$((200 + i)) -- $1 &
+	done
+}
+
 
 . $($XCLUSTER ovld test)/default/usr/lib/xctest
 indent=''

@@ -69,6 +69,12 @@ cmd_tcase_ping() {
 	done
 }
 
+cmd_tcase_fragrev() {
+	which tap-scrambler_test > /dev/null || die "No tap-scrambler_test"
+	tap-scrambler_test tcase_tap
+	tap-scrambler fragrev --tap=tap2 > /var/log/tap-scrambler.log 2>&1 &
+}
+
 cmd_tcase_udp() {
 	test -n "$__vip" || __vip="[1000::]:6003"
 	tcase "Test UDP traffic to; $__vip"
