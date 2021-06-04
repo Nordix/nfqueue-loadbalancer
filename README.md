@@ -120,5 +120,5 @@ addresses for the VIP and targets in the `nfqlb.sh lb` command. But
 that is left as an exercise for the reader :smiley:
 
 You can also test with [xcluster](https://github.com/Nordix/xcluster)
-in [ovl/load-balancer](https://github.com/Nordix/xcluster/tree/master/ovl/load-balancer).
+using the [function tests](test/README.md).
 

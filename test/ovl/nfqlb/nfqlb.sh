@@ -51,6 +51,7 @@ cmd_env() {
 ##   test [--xterm] [test...] > logfile
 ##     Exec tests
 ##
+##   Tests;
 cmd_test() {
 	if test "$__list" = "yes"; then
         grep '^test_' $me | cut -d'(' -f1 | sed -e 's,test_,,'
@@ -77,6 +78,7 @@ cmd_test() {
 
 }
 
+##     [--fragrev] start
 test_start() {
 	export __image=$XCLUSTER_HOME/hd.img
 	echo "$XOVLS" | grep -q private-reg && unset XOVLS
@@ -91,6 +93,7 @@ test_start() {
 	test "$__fragrev" = "yes" && otc 222 fragrev
 }
 
+##     basic
 test_basic() {
 	tlog "=== nfqlb: Basic test"
 	test_start
@@ -103,16 +106,18 @@ test_basic() {
 	otc 221 "mconnect_udp --vip=10.0.0.0:5001"
 	xcluster_stop
 }
+##     [--verbose] udp
 test_udp() {
 	tlog "=== nfqlb: UDP test"
 	test_start
-	test -n "$__vip" || __vip="[1000::]:6003"
+	test -n "$__vip" || __vip="[1000::]:5003"
 	#export xcluster_LBOPT="--ft_size=500 --ft_buckets=500 --ft_frag=100"
 	#__copt="-monitor -psize 2048 -rate 1000 -nconn 40 -timeout 20s"
 	otc 221 "udp --copt='$__copt' --vip=$__vip --verbose=$__verbose"
 	test "$__verbose" = "yes" && otcr nfqlb_stats
 	xcluster_stop
 }
+##
 
 #  rexec [--expand=x|y] <cmd>
 #	 Exec command on routers in xterms.

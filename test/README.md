@@ -19,6 +19,20 @@ Test programs are in `src/lib/test`. Any file with the pattern
 `*-test.c` will be compiled and executed on `make test`. Currently
 simple `assert`s are used.
 
+### Dependency injection
+
+The [dependency injection](https://en.wikipedia.org/wiki/Dependency_injection)
+pattern is used to inject the current time, example;
+
+```c
+void* ctLookup(
+    struct ct* ct, struct timespec* now, struct ctKey const* key);
+```
+
+This makes it possible to test anything down to nano-second level and
+to do long virtual time simulations in really short real-time.
+
+
 ### Simulations
 
 This is a special case of unit tests used to find a
