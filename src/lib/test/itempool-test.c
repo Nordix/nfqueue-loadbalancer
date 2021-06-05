@@ -45,6 +45,15 @@ cmdItempoolBasic(int argc, char* argv[])
 	struct ItemPool* ipool;
 	struct ItemPoolStats const* stats;
 
+	// Zero size
+	ipool = itemPoolCreate(0, 256, itemInitFn);
+	assert(ipool != NULL);
+	assert(nitems == 0);
+	item = itemAllocate(ipool);
+	assert(item == NULL);
+	itemPoolDestroy(ipool, itemDestroyFn);
+
+	//
 	ipool = itemPoolCreate(4, 256, itemInitFn);
 	assert(ipool != NULL);
 	assert(nitems == 4);

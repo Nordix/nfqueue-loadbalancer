@@ -183,7 +183,7 @@ static void initMutex(struct Item* item)
 	MUTEX_INIT(&f->mutex);
 }
 
-struct FragTable* fragInit(
+struct FragTable* fragTableCreate(
 	unsigned hsize,
 	unsigned maxBuckets,
 	unsigned maxFragments,
@@ -211,6 +211,36 @@ struct FragTable* fragInit(
 	assert(ft->ct != NULL);
 	return ft;
 }
+
+// https://stackoverflow.com/questions/5617925/maximum-values-for-time-t-struct-timespec/
+// Assuming time_t is an integer, not a float
+#include <limits.h>
+#define MAXTIME ((((time_t) 1 << (sizeof(time_t) * CHAR_BIT - 2)) - 1) * 2 + 1)
+
+void fragTableDestroy(struct FragTable* ft)
+{
+	struct timespec now;
+	now.tv_sec = MAXTIME;
+	struct fragStats stats;
+	//printf("now.tv_sec = %ld\n", now.tv_sec);
+	fragGetStats(ft, &now, &stats);
+#ifdef SANITY_CHECK
+	assert(stats.ctstats.active == 0);
+	struct ItemPoolStats const* istat;
+	istat = itemPoolStats(ft->fragDataPool);
+	assert(istat->nFree == istat->size);
+	istat = itemPoolStats(ft->fragmentPool);
+	assert(istat->nFree == istat->size);
+	istat = itemPoolStats(ft->bucketPool);
+	assert(istat->nFree == istat->size);
+#endif
+	ctDestroy(ft->ct);
+	itemPoolDestroy(ft->fragDataPool, NULL);
+	itemPoolDestroy(ft->fragmentPool, NULL);
+	itemPoolDestroy(ft->bucketPool, NULL);
+	free(ft);
+}
+
 void fragUseStats(struct FragTable* ft, struct fragStats* stats)
 {
 	*stats = *ft->fstats;
@@ -263,13 +293,13 @@ int fragGetHash(
 	struct FragData* f = ctLookup(ft->ct, now, key);
 	if (f == NULL)
 		return -1;
-	if (ATOMIC_LOAD(f->state) != FragData_hashValid) {
+	if (ATOMIC_LOAD(f->state) == FragData_hashValid) {
+		*hash = f->hash;
 		fragDataUnlock(NULL, f);
-		return -1;
+		return 0;
 	}
-	*hash = f->hash;
 	fragDataUnlock(NULL, f);
-	return 0;
+	return -1;
 }
 
 int fragGetHashOrStore(

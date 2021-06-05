@@ -57,7 +57,7 @@ cmdFragutilsBasic(int argc, char* argv[])
 	struct FragTable* ft;
 
 	// Init and check stats
-	ft = fragInit(2, 3, 4, 1500, 100);
+	ft = fragTableCreate(2, 3, 4, 1500, 100);
 	fragGetStats(ft, &now, &a);
 	memset(&b, 0, sizeof(b));
 	b.ctstats.ttlNanos = 100*MS;
@@ -245,6 +245,8 @@ cmdFragutilsBasic(int argc, char* argv[])
 	assert(item == NULL);
 	fragGetStats(ft, &now, &b);
 	assert(statsCmp(&a, &b) == 0);
+
+	fragTableDestroy(ft);
 
 	printf("==== fragutils-test OK\n");
 	return 0;

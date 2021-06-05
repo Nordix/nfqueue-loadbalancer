@@ -189,7 +189,7 @@ static int cmdLb(int argc, char **argv)
 			die("Tun mtu too small; %d < %d\n", tun_mtu, mtu);
 	}
 
-	ft = fragInit(
+	ft = fragTableCreate(
 		atoi(ft_size),		/* table size */
 		atoi(ft_buckets),	/* Extra buckets for hash collisions */
 		atoi(ft_frag),		/* Max stored fragments */

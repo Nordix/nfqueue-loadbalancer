@@ -68,12 +68,14 @@
 
 */
 struct FragTable;
-struct FragTable* fragInit(
+struct FragTable* fragTableCreate(
 	unsigned hsize,				/* Hash-table size */
 	unsigned maxBuckets,		/* on top of hsize */
 	unsigned maxFragments,		/* Max non-first fragments to store */
 	unsigned mtu,				/* Max size of stored fragments */
 	unsigned ttlMillis);		/* Timeout for fragments */
+
+void fragTableDestroy(struct FragTable* ft);
 
 /*
   Inserts the first fragment and stores the passed hash to be used for
