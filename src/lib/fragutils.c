@@ -22,6 +22,8 @@
 #define REFDEC(x) __atomic_sub_fetch(&(x),1,__ATOMIC_SEQ_CST)
 #define CNTINC(x) __atomic_add_fetch(&(x),1,__ATOMIC_RELAXED)
 #define CNTDEC(x) __atomic_sub_fetch(&(x),1,__ATOMIC_RELAXED)
+#define ATOMIC_LOAD(x) __atomic_load_n(&(x),__ATOMIC_RELAXED)
+#define ATOMIC_STORE(x,v) __atomic_store_n(&(x),v,__ATOMIC_RELAXED)
 #define MUTEX(x) pthread_mutex_t x
 #define LOCK(x) pthread_mutex_lock(x)
 #define UNLOCK(x) pthread_mutex_unlock(x)
@@ -50,10 +52,15 @@ struct FragTable {
   thread while the ctLookup() caller is using it. So, a
   reference-counter is used.
 */
+enum FragDataState {
+	FragData_hashValid,
+	FragData_storingFragments,
+	FragData_poisoned
+};
 struct FragData {
 	int referenceCounter;
 	MUTEX(mutex);
-	int firstFragmentSeen;		/* Meaning the hash is valid */
+	enum FragDataState state;
 	unsigned hash;
 	struct Item* storedFragments;
 };
@@ -102,7 +109,7 @@ static struct FragData* fragDataLookup(
 			return NULL;
 		f = (struct FragData*) i->data;
 		f->referenceCounter = 1; /* Only the CT refer the object */
-		f->firstFragmentSeen = 0;
+		f->state = FragData_storingFragments;
 		f->storedFragments = NULL;
 
 		switch (ctInsert(ft->ct, now, key, f)) {
@@ -222,8 +229,17 @@ int fragInsertFirst(
 	// Lock here to avoid a race with fragGetHashOrStore()
 	struct Item* storedFrags;
 	LOCK(&f->mutex);
+	if (f->state != FragData_storingFragments) {
+		/* This entry is poisoned (or we have got multiple first
+		 * fragments) */
+		UNLOCK(&f->mutex);
+		if (storedFragments != NULL)
+			*storedFragments = NULL;
+		fragDataUnlock(NULL, f);
+		return -1;
+	}
 	f->hash = hash;
-	f->firstFragmentSeen = 1;
+	ATOMIC_STORE(f->state, FragData_hashValid);
 	storedFrags = f->storedFragments;
 	f->storedFragments = NULL;
 	UNLOCK(&f->mutex);
@@ -232,7 +248,7 @@ int fragInsertFirst(
 	if (storedFragments != NULL) {
 		*storedFragments = storedFrags;
 	} else {
-		for (struct Item* i = f->storedFragments; i != NULL; i = i->next)
+		for (struct Item* i = storedFrags; i != NULL; i = i->next)
 			CNTINC(ft->fstats->fragsDiscarded);
 		itemFree(storedFrags);
 	}
@@ -245,7 +261,10 @@ int fragGetHash(
 	struct ctKey* key, unsigned* hash)
 {
 	struct FragData* f = ctLookup(ft->ct, now, key);
-	if (f == NULL || !f->firstFragmentSeen) {
+	if (f == NULL)
+		return -1;
+	if (ATOMIC_LOAD(f->state) != FragData_hashValid) {
+		fragDataUnlock(NULL, f);
 		return -1;
 	}
 	*hash = f->hash;
@@ -262,10 +281,16 @@ int fragGetHashOrStore(
 	if (f == NULL) {
 		return -1;				/* Out of buckets */
 	}
-	if (f->firstFragmentSeen) {
+	/* No lock here! We will re-check with the lock later */
+	switch (ATOMIC_LOAD(f->state)) {
+	case FragData_hashValid:
 		*hash = f->hash;
 		fragDataUnlock(NULL, f);
-		return 0;				/* OK return */
+		return 0;				/* OK return (the normal case) */
+	case FragData_poisoned:
+		fragDataUnlock(NULL, f);
+		return -1;
+	default:;
 	}
 
 	/*
@@ -274,12 +299,25 @@ int fragGetHashOrStore(
 	struct ItemPoolStats const* stats = itemPoolStats(ft->fragmentPool);
 	if (len > stats->itemSize) {
 		fragDataUnlock(NULL, f);
-		return -1;				/* Fragment > MTU ?? */
+		return -1;				/* Fragment > MTU ?? Should not happen */
 	}
 
 	struct Item* item = itemAllocate(ft->fragmentPool);
 	if (item == NULL) {
+		/* We have lost a fragment. Poison the entry and discard any
+		 * stored fragments. */
+		struct Item* storedFrags;
+		LOCK(&f->mutex);
+		ATOMIC_STORE(f->state, FragData_poisoned);
+		storedFrags = f->storedFragments;
+		f->storedFragments = NULL;
+		UNLOCK(&f->mutex);
 		fragDataUnlock(NULL, f);
+
+		for (struct Item* i = storedFrags; i != NULL; i = i->next)
+			CNTINC(ft->fstats->fragsDiscarded);
+		itemFree(storedFrags);
+
 		return -1;				/* Out of fragment space */
 	}
 
@@ -288,25 +326,40 @@ int fragGetHashOrStore(
 
 	int rc;
 	LOCK(&f->mutex);
-	if (f->firstFragmentSeen) {
+	/*
+	  Re-check the state with the lock. Races should be very rare but
+	  they *can* happen.
+	 */
+	/* We don't have to use ATOMIC_LOAD when we have the lock */
+	switch (f->state) {
+	case FragData_hashValid:
 		/*
-		 The first-fragment has arrived in another thread while we
-		 were working.  This race should be rare. Do NOT keep the
-		 mutex for longer than needed.
+		  The first-fragment has arrived in another thread while we
+		  were working.
 		*/
+		*hash = f->hash;
 		rc = 0;
-	} else {
+		break;
+	case FragData_poisoned:
+		/*
+		  Something bad has happened in another thread while we were
+		  working.
+		*/
+		rc = -1;
+		break;
+	default:
+		/* Store the fragment */
 		item->next = f->storedFragments;
 		f->storedFragments = item;
-		CNTINC(ft->fstats->fragsAllocated);
 		rc = 1;
 	}
 	UNLOCK(&f->mutex);
 
-	if (rc == 0) {
-		*hash = f->hash;
+	if (rc != 1) {
 		// Release no-longer-needed Item outside the lock
 		itemFree(item);
+	} else {
+		CNTINC(ft->fstats->fragsAllocated);
 	}
 
 	fragDataUnlock(NULL, f);

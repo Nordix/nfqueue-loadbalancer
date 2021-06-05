@@ -175,7 +175,76 @@ cmdFragutilsBasic(int argc, char* argv[])
 	itemFree(item);
 	fragGetStats(ft, &now, &b);
 	assert(statsCmp(&a, &b) == 0);
-	
+
+	// Clear the table
+	now.tv_nsec += 150 * MS;
+	a.ctstats.active = 0;
+	a.ctstats.objGC++;
+	fragGetStats(ft, &now, &b);
+	assert(statsCmp(&a, &b) == 0);
+
+	// Add fragments until we run out of space and make sure stored
+	// fragments are discarded and that no new fragments are stored.
+	fragGetStats(ft, &now, &a);
+	a.ctstats.active++;
+	a.ctstats.lookups++;
+	a.ctstats.inserts++;
+	a.fragsAllocated++;
+	rc = fragGetHashOrStore(ft, &now, &key, &hash, &key, sizeof(key));
+	assert(rc == 1);
+	fragGetStats(ft, &now, &b);
+	assert(statsCmp(&a, &b) == 0);
+
+	fragGetStats(ft, &now, &a);
+	a.ctstats.lookups++;
+	a.fragsAllocated++;
+	rc = fragGetHashOrStore(ft, &now, &key, &hash, &key, sizeof(key));
+	assert(rc == 1);
+	fragGetStats(ft, &now, &b);
+	assert(statsCmp(&a, &b) == 0);
+
+	fragGetStats(ft, &now, &a);
+	a.ctstats.lookups++;
+	a.fragsAllocated++;
+	rc = fragGetHashOrStore(ft, &now, &key, &hash, &key, sizeof(key));
+	assert(rc == 1);
+	fragGetStats(ft, &now, &b);
+	assert(statsCmp(&a, &b) == 0);
+
+	fragGetStats(ft, &now, &a);
+	a.ctstats.lookups++;
+	a.fragsAllocated++;
+	rc = fragGetHashOrStore(ft, &now, &key, &hash, &key, sizeof(key));
+	assert(rc == 1);
+	fragGetStats(ft, &now, &b);
+	assert(statsCmp(&a, &b) == 0);
+
+	// Now the frag store is full
+
+	fragGetStats(ft, &now, &a);
+	a.ctstats.lookups++;
+	a.fragsDiscarded += 4;
+	rc = fragGetHashOrStore(ft, &now, &key, &hash, &key, sizeof(key));
+	assert(rc == -1);
+	fragGetStats(ft, &now, &b);
+	assert(statsCmp(&a, &b) == 0);
+
+	// Try to store more fragments once we have lost one should fail
+	fragGetStats(ft, &now, &a);
+	a.ctstats.lookups++;
+	rc = fragGetHashOrStore(ft, &now, &key, &hash, &key, sizeof(key));
+	assert(rc == -1);
+	fragGetStats(ft, &now, &b);
+	assert(statsCmp(&a, &b) == 0);
+
+	// Also try to add first-fragment should fail
+	fragGetStats(ft, &now, &a);
+	a.ctstats.lookups++;
+	rc = fragInsertFirst(ft, &now, &key, 444, &item);
+	assert(rc == -1);
+	assert(item == NULL);
+	fragGetStats(ft, &now, &b);
+	assert(statsCmp(&a, &b) == 0);
 
 	printf("==== fragutils-test OK\n");
 	return 0;
