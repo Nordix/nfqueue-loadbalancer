@@ -1,3 +1,4 @@
+#pragma once
 /*
   Please see;
   https://www.kernel.org/doc/Documentation/networking/tuntap.txt

@@ -111,7 +111,10 @@ unsigned ipv6Hash(
 }
 unsigned ipv6AddressHash(void const* data, unsigned len)
 {
+	// Including the flow-label
 	struct ip6_hdr const* hdr = data;
-	return HASH((uint8_t const*)&hdr->ip6_src, 32);
+	uint32_t hdata[9];
+	memcpy(hdata, &hdr->ip6_src, 32);
+	hdata[8] = ntohl(hdr->ip6_flow) & 0xfffff;
+	return HASH(hdata, sizeof(hdata));
 }
-
