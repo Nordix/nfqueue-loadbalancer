@@ -4,6 +4,7 @@
 */
 
 #include "nfqueue.h"
+#include <fragutils.h>
 #include <iputils.h>
 #include <shmem.h>
 #include <cmd.h>
@@ -32,21 +33,22 @@ struct fragStats* sft;
 #endif
 
 
-int ipv6HandleFragment(
-	struct FragTable* ft, void const* data, unsigned len, unsigned* hash);
-int ipv4HandleFragment(
+static int ipv6HandleFragment(
+	struct FragTable* ft, void const* data, unsigned len,
+	struct ip6_frag const* fh, unsigned* hash);
+static int ipv4HandleFragment(
 	struct FragTable* ft, void const* data, unsigned len, unsigned* hash);
 
 
-static int handleIpv4(void* payload, unsigned plen)
+static int handleIpv4(void* data, unsigned len)
 {
-	struct iphdr* hdr = (struct iphdr*)payload;
+	struct iphdr* hdr = (struct iphdr*)data;
 	unsigned hash = 0;
 
 	if (ntohs(hdr->frag_off) & (IP_OFFMASK|IP_MF)) {
 		// Make an addres-hash and check if we shall forward to the LB tier
 		if (slb != NULL) {
-			hash = ipv4AddressHash(payload, plen);
+			hash = ipv4AddressHash(data, len);
 			int fw = slb->magd.lookup[hash % slb->magd.M];
 			if (fw >= 0 && fw != slb->ownFwmark) {
 				Dx(printf("IPv4 fragment to LB tier. fw=%d\n", fw));
@@ -55,44 +57,46 @@ static int handleIpv4(void* payload, unsigned plen)
 		}
 
 		// We shall handle the frament here
-		int rc = ipv4HandleFragment(ft, payload, plen, &hash);
+		int rc = ipv4HandleFragment(ft, data, len, &hash);
 		if (rc != 0) {
-			Dx(printf("IPv4 fragment dropped or stored, rc=%d\n", rc));
+			Dx(printf("IPv4 fragment %s\n", rc > 0 ? "stored":"dropped"));
 			return -1;
 		}
 		Dx(printf(
 			   "Handle IPv4 frag locally hash=%u, fwmark=%u\n",
 			   hash, st->magd.lookup[hash % st->magd.M] + st->fwOffset));
 	} else {
-		switch (hdr->protocol) {
-		case IPPROTO_TCP:
-		case IPPROTO_UDP:
-			hash = ipv4TcpUdpHash(payload, plen);
-			break;
-		case IPPROTO_ICMP:
-			hash = ipv4IcmpHash(payload, plen);
-			break;
-		case IPPROTO_SCTP:
-		default:;
-		}
+		hash = ipv4Hash(data, len);
 	}
 	return st->magd.lookup[hash % st->magd.M] + st->fwOffset;
 }
 
-static int handleIpv6(void* payload, unsigned plen)
+static int handleIpv6(void const* data, unsigned len)
 {
 	unsigned hash;
 
-	struct ip6_hdr* hdr = (struct ip6_hdr*)payload;
 	/*
-	  TODO; the next-header does NOT have to be the fragment-header!!
-	  See; https://datatracker.ietf.org/doc/html/rfc2460#section-4.1
+	  Find the fragment header or the upper-layer header
+	  https://datatracker.ietf.org/doc/html/rfc2460#section-4.1
 	 */
-	if (hdr->ip6_nxt == IPPROTO_FRAGMENT) {
+	struct ip6_hdr* ip6hdr = (struct ip6_hdr*)data;
+	uint8_t htype = ip6hdr->ip6_nxt;
+	void const* hdr = data + sizeof(struct ip6_hdr);
+	while (ipv6IsExtensionHeader(htype)) {
+		if (htype == IPPROTO_FRAGMENT)
+			break;
+		struct ip6_ext const* xh = hdr;
+		htype = xh->ip6e_nxt;
+		hdr = hdr + (xh->ip6e_len * 8);
+		// TODO: Check that we don't step outside the packet!
+	}
 
-		// Make an addres-hash and check if we shall forward to the LB tier
+	if (htype == IPPROTO_FRAGMENT) {
+
+		// Do we have an lb-tier?
 		if (slb != NULL) {
-			hash = ipv6AddressHash(payload, plen);
+			// Make an addres-hash and check if we shall forward to the LB tier
+			hash = ipv6AddressHash(data, len);
 			int fw = slb->magd.lookup[hash % slb->magd.M];
 			if (fw >= 0 && fw != slb->ownFwmark) {
 				Dx(printf("IPv6 fragment to LB tier. fw=%d\n", fw));
@@ -101,16 +105,16 @@ static int handleIpv6(void* payload, unsigned plen)
 		}
 
 		// We shall handle the frament here
-		int rc = ipv6HandleFragment(ft, payload, plen, &hash);
+		int rc = ipv6HandleFragment(ft, data, len, hdr, &hash);
 		if (rc != 0) {
-			Dx(printf("IPv6 fragment dropped or stored, rc=%d\n", rc));
+			Dx(printf("IPv6 fragment %s\n", rc > 0 ? "stored":"dropped"));
 			return -1;
 		}
 		Dx(printf(
 			   "Handle IPv6 frag locally hash=%u, fwmark=%u\n",
 			   hash, st->magd.lookup[hash % st->magd.M] + st->fwOffset));
 	} else {
-		hash = ipv6Hash(payload, plen);
+		hash = ipv6Hash(data, len, htype, hdr);
 	}
 	return st->magd.lookup[hash % st->magd.M] + st->fwOffset;
 }
@@ -223,7 +227,7 @@ static void injectFrag(void const* data, unsigned len)
 }
 
 
-int ipv4HandleFragment(
+static int ipv4HandleFragment(
 	struct FragTable* ft, void const* data, unsigned len, unsigned* hash)
 {
 	struct timespec now;
@@ -241,18 +245,8 @@ int ipv4HandleFragment(
 	// Check offset to see if this is the first fragment
 	if ((ntohs(hdr->frag_off) & IP_OFFMASK) == 0) {
 		// First fragment. contains the protocol header.
-		switch (hdr->protocol) {
-		case IPPROTO_TCP:		/* (should not happen?) */
-		case IPPROTO_UDP:
-			*hash = ipv4TcpUdpHash(data, len);
-			break;
-		case IPPROTO_ICMP:
-			*hash = ipv4IcmpHash(data, len);
-			break;
-		case IPPROTO_SCTP:
-		default:
-			*hash = 0;
-		}
+		*hash = ipv4Hash(data, len);
+
 		struct Item* storedFragments;
 		if (fragInsertFirst(ft, &now, &key, *hash, &storedFragments) != 0) {
 			itemFree(storedFragments);
@@ -281,36 +275,33 @@ int ipv4HandleFragment(
 
 #define PAFTER(x) (void*)x + (sizeof(*x))
 
-int ipv6HandleFragment(
-	struct FragTable* ft, void const* data, unsigned len, unsigned* hash)
+static int ipv6HandleFragment(
+	struct FragTable* ft, void const* data, unsigned len,
+	struct ip6_frag const* fh, unsigned* hash)
 {
 	struct timespec now;
 	clock_gettime(CLOCK_MONOTONIC, &now);
 
 	// Construct the key
 	struct ctKey key;
-	struct ip6_hdr* hdr = (struct ip6_hdr*)data;
-	struct ip6_frag* fh = (struct ip6_frag*)(data + 40);
-	key.dst = hdr->ip6_dst;
-	key.src = hdr->ip6_src;
+	struct ip6_hdr* ip6hdr = (struct ip6_hdr*)data;
+	key.dst = ip6hdr->ip6_dst;
+	key.src = ip6hdr->ip6_src;
 	key.id = fh->ip6f_ident;
 
 	// Check offset to see if this is the first fragment
 	uint16_t fragOffset = (fh->ip6f_offlg & IP6F_OFF_MASK) >> 3;
 	if (fragOffset == 0) {
-		// First fragment. contains the protocol header.
-		switch (fh->ip6f_nxt) {
-		case IPPROTO_TCP:		/* (should not happen?) */
-		case IPPROTO_UDP:
-			*hash = ipv6TcpUdpHash(hdr, PAFTER(fh));
-			break;
-		case IPPROTO_ICMPV6:
-			*hash = ipv6IcmpHash(hdr, PAFTER(fh));
-			break;
-		case IPPROTO_SCTP:
-		default:
-			*hash = 0;
+		/* First fragment. Find the upper layer header. */
+		uint8_t htype = ip6hdr->ip6_nxt;
+		void const* hdr = data + sizeof(struct ip6_hdr);
+		while (ipv6IsExtensionHeader(htype)) {
+			struct ip6_ext const* xh = hdr;
+			htype = xh->ip6e_nxt;
+			hdr = hdr + (xh->ip6e_len * 8);
 		}
+		*hash = ipv6Hash(data, len, htype, hdr);
+
 		struct Item* storedFragments;
 		if (fragInsertFirst(ft, &now, &key, *hash, &storedFragments) != 0) {
 			itemFree(storedFragments);

@@ -9,7 +9,7 @@
 #include <netinet/ip6.h>
 #include <netinet/icmp6.h>
 
-unsigned ipv4TcpUdpHash(void const* data, unsigned len)
+static unsigned ipv4TcpUdpHash(void const* data, unsigned len)
 {
 	// We hash on addresses and ports
 	struct iphdr* hdr = (struct iphdr*)data;
@@ -19,7 +19,7 @@ unsigned ipv4TcpUdpHash(void const* data, unsigned len)
 	hashData[2] = *((uint32_t*)data + hdr->ihl);
 	return HASH((uint8_t const*)hashData, sizeof(hashData));
 }
-unsigned ipv4IcmpHash(void const* data, unsigned len)
+static unsigned ipv4IcmpHash(void const* data, unsigned len)
 {
 	struct iphdr* hdr = (struct iphdr*)data;
 	struct icmphdr* ihdr = (struct icmphdr*)((uint32_t*)data + hdr->ihl);
@@ -39,6 +39,21 @@ unsigned ipv4IcmpHash(void const* data, unsigned len)
 	}
 	return HASH((uint8_t const*)hashData, sizeof(hashData));
 }
+unsigned ipv4Hash(void const* data, unsigned len)
+{
+	struct iphdr* hdr = (struct iphdr*)data;
+	switch (hdr->protocol) {
+	case IPPROTO_TCP:
+	case IPPROTO_UDP:
+		return ipv4TcpUdpHash(data, len);
+	case IPPROTO_ICMP:
+		return ipv4IcmpHash(data, len);
+	case IPPROTO_SCTP:
+		break;
+	default:;
+	}
+	return ipv4AddressHash(data, len);
+}
 
 unsigned ipv4AddressHash(void const* data, unsigned len)
 {
@@ -47,7 +62,21 @@ unsigned ipv4AddressHash(void const* data, unsigned len)
 }
 
 
-unsigned
+
+int ipv6IsExtensionHeader(unsigned hdr)
+{
+	switch (hdr) {
+	case IPPROTO_HOPOPTS:
+	case IPPROTO_ROUTING:
+	case IPPROTO_FRAGMENT:
+	case IPPROTO_DSTOPTS:
+		return 1;
+	}
+	// We can't handle AH or ESP headers
+	return 0;
+}
+
+static unsigned
 ipv6TcpUdpHash(struct ip6_hdr const* h, uint32_t const* ports)
 {
 	int32_t hashData[9];
@@ -55,7 +84,7 @@ ipv6TcpUdpHash(struct ip6_hdr const* h, uint32_t const* ports)
 	hashData[8] = *ports;
 	return HASH((uint8_t const*)hashData, sizeof(hashData));
 }
-unsigned
+static unsigned
 ipv6IcmpHash(struct ip6_hdr const* h, struct icmp6_hdr const* ih)
 {
 	int32_t hashData[9];
@@ -64,22 +93,21 @@ ipv6IcmpHash(struct ip6_hdr const* h, struct icmp6_hdr const* ih)
 	return HASH((uint8_t const*)hashData, sizeof(hashData));
 }
 
-unsigned ipv6Hash(void const* data, unsigned len)
+unsigned ipv6Hash(
+	void const* data, unsigned len, unsigned htype, void const* hdr)
 {
-	struct ip6_hdr* hdr = (struct ip6_hdr*)data;
-	unsigned hash = 0;
-	switch (hdr->ip6_nxt) {
+	struct ip6_hdr* ip6hdr = (struct ip6_hdr*)data;
+	switch (htype) {
 	case IPPROTO_TCP:
 	case IPPROTO_UDP:
-		hash = ipv6TcpUdpHash(hdr, data + 40);
-		break;
+		return ipv6TcpUdpHash(ip6hdr, hdr);
 	case IPPROTO_ICMPV6:
-		hash = ipv6IcmpHash(hdr, data + 40);
-		break;
+		return ipv6IcmpHash(ip6hdr, hdr);
 	case IPPROTO_SCTP:
+		break;
 	default:;
 	}
-	return hash;
+	return ipv6AddressHash(data, len);
 }
 unsigned ipv6AddressHash(void const* data, unsigned len)
 {
