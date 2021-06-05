@@ -213,36 +213,31 @@ void fragUseStats(struct FragTable* ft, struct fragStats* stats)
 
 int fragInsertFirst(
 	struct FragTable* ft, struct timespec* now,
-	struct ctKey* key, unsigned hash)
+	struct ctKey* key, unsigned hash, struct Item** storedFragments)
 {
 	struct FragData* f = fragDataLookup(ft, now, key);
 	if (f == NULL) {
 		return -1;				/* Out of buckets */
 	}
 	// Lock here to avoid a race with fragGetHashOrStore()
+	struct Item* storedFrags;
 	LOCK(&f->mutex);
 	f->hash = hash;
 	f->firstFragmentSeen = 1;
-	UNLOCK(&f->mutex);
-	fragDataUnlock(NULL, f);
-	return 0;					/* OK return */
-}
-
-struct Item* fragGetStored(
-	struct FragTable* ft, struct timespec* now, struct ctKey* key)
-{
-	struct FragData* f = ctLookup(ft->ct, now, key);
-	if (f == NULL)
-		return NULL;
-
-	struct Item* storedFragments;
-	LOCK(&f->mutex);
-	storedFragments = f->storedFragments;
+	storedFrags = f->storedFragments;
 	f->storedFragments = NULL;
 	UNLOCK(&f->mutex);
-
 	fragDataUnlock(NULL, f);
-	return storedFragments;
+
+	if (storedFragments != NULL) {
+		*storedFragments = storedFrags;
+	} else {
+		for (struct Item* i = f->storedFragments; i != NULL; i = i->next)
+			CNTINC(ft->fstats->fragsDiscarded);
+		itemFree(storedFrags);
+	}
+
+	return 0;					/* OK return */
 }
 
 int fragGetHash(

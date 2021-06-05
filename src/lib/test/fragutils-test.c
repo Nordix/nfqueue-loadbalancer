@@ -80,7 +80,7 @@ cmdFragutilsBasic(int argc, char* argv[])
 	a.ctstats.lookups++;
 	a.ctstats.inserts++;
 	a.ctstats.active++;
-	rc = fragInsertFirst(ft, &now, &key, 5);
+	rc = fragInsertFirst(ft, &now, &key, 5, NULL);
 	assert(rc == 0);
 	fragGetStats(ft, &now, &b);
 	assert(statsCmp(&a, &b) == 0);
@@ -167,7 +167,7 @@ cmdFragutilsBasic(int argc, char* argv[])
 	// Get and release the stored fragments
 	fragGetStats(ft, &now, &a);
 	a.ctstats.lookups++;
-	item = fragGetStored(ft, &now, &key);
+	rc = fragInsertFirst(ft, &now, &key, 444, &item);
 	assert(item != NULL);
 	assert(numItems(item) == 3);
 	fragGetStats(ft, &now, &b);

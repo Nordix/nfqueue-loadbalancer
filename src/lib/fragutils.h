@@ -77,14 +77,15 @@ struct FragTable* fragInit(
 
 /*
   Inserts the first fragment and stores the passed hash to be used for
-  sub-sequent fragments.
+  sub-sequent fragments. The caller must call itemFree() on returned
+  stored fragment Items. 
   return:
    0 - Hash stored
   -1 - Failed to store hash
 */
 int fragInsertFirst(
 	struct FragTable* ft, struct timespec* now,
-	struct ctKey* key, unsigned hash);
+	struct ctKey* key, unsigned hash, struct Item** storedFragments);
 
 /*
   Called for non-first fragments.
@@ -109,16 +110,6 @@ int fragGetHash(
 	struct FragTable* ft, struct timespec* now,
 	struct ctKey* key, unsigned* hash);
 
-
-/*
-  Get stored fragments. The caller must call itemFree() on returned
-  fragment Items. It is sufficient to call this function once after
-  fragInsertFirst().
-  return:
-  Fragment Items ot NULL.
-*/
-struct Item* fragGetStored(
-	struct FragTable* ft, struct timespec* now, struct ctKey* key);
 
 
 struct fragStats {

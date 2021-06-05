@@ -253,13 +253,14 @@ int ipv4HandleFragment(
 		default:
 			*hash = 0;
 		}
-		if (fragInsertFirst(ft, &now, &key, *hash) != 0) {
+		struct Item* storedFragments;
+		if (fragInsertFirst(ft, &now, &key, *hash, &storedFragments) != 0) {
+			itemFree(storedFragments);
 			return -1;
 		}
 
 		/* Check if we have any stored fragments that should be
 		 * re-injected */
-		struct Item* storedFragments = fragGetStored(ft, &now, &key);
 		if (storedFragments != NULL) {
 			struct Item* i;
 			for (i = storedFragments; i != NULL; i = i->next) {
@@ -310,13 +311,14 @@ int ipv6HandleFragment(
 		default:
 			*hash = 0;
 		}
-		if (fragInsertFirst(ft, &now, &key, *hash) != 0) {
+		struct Item* storedFragments;
+		if (fragInsertFirst(ft, &now, &key, *hash, &storedFragments) != 0) {
+			itemFree(storedFragments);
 			return -1;
 		}
 
 		/* Check if we have any stored fragments that should be
 		 * re-injected */
-		struct Item* storedFragments = fragGetStored(ft, &now, &key);
 		if (storedFragments != NULL) {
 			struct Item* i;
 			for (i = storedFragments; i != NULL; i = i->next) {
