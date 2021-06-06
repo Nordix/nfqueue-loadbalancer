@@ -49,30 +49,7 @@ ip route add default via 192.168.1.1 table 1
 * [Testing](test/README.md) - Unit, function and performance testing
 
 
-## Build
-
-```
-make -C src help
-make -C src -j8
-./nfqlb.sh build_image    # Build the test docker image
-```
-Linked with `-lmnl -lnetfilter_queue` so you must install those.
-```
-sudo apt install -y libmnl-dev libnetfilter-queue-dev
-```
-
-Static binary;
-```
-./nfqlb.sh libnfqueue_download
-./nfqlb.sh libnfqueue_unpack
-./nfqlb.sh libnfqueue_build
-make -C src clean
-make -C src -j8 static
-strip /tmp/$USER/nfqlb/nfqlb/nfqlb
-file /tmp/$USER/nfqlb/nfqlb/nfqlb
-```
-
-## Try it locally
+## Try it
 
 You must have some targets. We use docker containers, but anything
 with an ip-address (not loopback) will do.
@@ -93,15 +70,12 @@ it is better to use another container. Build the test container and
 enter. You must use `--privileged` for network configuration.
 
 ```
-./nfqlb.sh build_image
-docker run --privileged -it --rm nordixorg/nfqlb:latest /bin/bash
-# Or;
 docker run --privileged -it --rm registry.nordix.org/cloud-native/nfqlb:latest /bin/sh
 ```
 
-Use the `nfqlb.sh lb` script to setup load-balancing and check the
-setup. Later you can make your own setup and/or check the `nfqlb.sh`
-script.
+Use the `nfqlb.sh lb` script to setup load-balancing and then check
+the setup. Later you can make your own setup and/or check the
+`nfqlb.sh` script.
 
 In the test container;
 ```
@@ -121,8 +95,35 @@ also (of course) and do Direct Server Return (DSR). This will however
 require a different setup. But the setup in this example *can* be used
 for IPv6. You must setup ipv6 support in `docker` and use ipv6
 addresses for the VIP and targets in the `nfqlb.sh lb` command. But
-that is left as an exercise for the reader :smiley:
+that is left as an exercise for the reader.
+
 
 You can also test with [xcluster](https://github.com/Nordix/xcluster)
 using the [function tests](test/README.md).
 
+
+
+## Build
+
+```
+make -C src help
+make -C src -j8
+./nfqlb.sh build_image    # Build the test docker image
+
+```
+Linked with `-lmnl -lnetfilter_queue` so you must install those.
+```
+sudo apt install -y libmnl-dev libnetfilter-queue-dev
+```
+
+Static binary;
+```
+./nfqlb.sh libnfqueue_download
+./nfqlb.sh libnfqueue_unpack
+./nfqlb.sh libnfqueue_build
+make -C src clean
+make -C src -j8 static
+strip /tmp/$USER/nfqlb/nfqlb/nfqlb
+file /tmp/$USER/nfqlb/nfqlb/nfqlb
+./nfqlb.sh build_alpine_image   # Will build a static binary
+```

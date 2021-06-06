@@ -5,8 +5,6 @@
 ##   Help scriptlets for;
 ##   https://github.com/Nordix/nfqueue-loadbalancer/
 ##
-## Commands;
-##
 
 prg=$(basename $0)
 dir=$(dirname $0); dir=$(readlink -f $dir)
@@ -33,29 +31,117 @@ dbg() {
 	test -n "$__verbose" && echo "$prg: $*" >&2
 }
 
-#  env
-#    Print environment.
-#
-cmd_env() {
-	test "$cmd" = "env" && set | grep -E '^(__.*|ARCHIVE)='
+
+## Maintenance Commands;
+##
+
+##   include_check
+##     Remove any unnecessary #include's in c-files
+cmd_include_check() {
+	local f
+	cd $dir
+	for f in $(find src -name '*.c'); do
+		echo $f
+		cmd_include_check_file $f > /dev/null 2>&1
+	done
+	for f in $(find src -name '*.c'); do
+		sed -i "/\/\/#include/d" $f
+	done
+}
+cmd_include_check_file() {
+	test -n "$1" || die "No file"
+	test -r "$1" || die "Not readable [$1]"
+	local f=$(readlink -f $1)
+	echo $f | grep -q "$dir/src" || die "File must be in src/"
+	local i target
+	for i in $(grep '^#include <.*>' $f | sed -E 's,^#include <(.*)>,\1,'); do
+		echo $i | grep -q assert && continue
+		sed -i -e "s,^#include <$i>,//#include <$i>," $f
+		target=all
+		echo $f | grep -q test && target=test_progs
+		echo $target
+		if ! make -C $dir/src CFLAGS=-Werror $target; then
+			sed -i -e "s,^//#include <$i>,#include <$i>," $f
+		fi
+	done
 }
 
-##  start_image
-##    The start-point for the test container. Don't call manually!
+##   add_pragma_once
+##     Add "#pragma once" in header files if needed
+cmd_add_pragma_once() {
+	local f
+	for f in $(find src -name '*.h'); do
+		grep -q '^#pragma once' $f && continue
+		sed -i '1s/^/#pragma once\n/' $f
+		echo $f
+	done
+}
+
+##   update_license
+##     Check and update license notes
+cmd_update_license() {
+	local Y=$(date +%Y)
+	if ! grep -q "Copyright $Y Nordix foundation" LICENSE; then
+		echo "Copyright incorrect in; LICENSE"
+		grep "Copyright.*Nordix" LICENSE
+	fi
+	local f
+	for f in $(find src -name '*.[c|h]'); do
+		if ! grep -q 'SPDX-License-Identifier:' $f; then
+			echo "No SPDX-License-Identifier in; $f" >&2
+			continue
+		fi
+		grep -q 'SPDX-License-Identifier: Apache-2.0' $f && continue
+		sed -i -e 's,SPDX-License-Identifier: .*,SPDX-License-Identifier: Apache-2.0,' $f
+		echo "SPDX-License-Identifier: updated in; $f"
+	done
+	for f in $(find src -name '*.[c|h]'); do
+		grep -q 'SPDX-License-Identifier:' $f || continue
+		if ! grep -q "Copyright .*$Y Nordix Foundation" $f; then
+			echo "Copyright incorrect in; $f"
+		fi
+	done
+}
+##   mkrelease [--force] <version>
+##     Create a release archive
+cmd_mkrelease() {
+	test -n "$1" || die "No version"
+	echo "$1" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-.+|$)' \
+		|| die "Incorrect version (semver) [$1]"
+	local ver=$1
+	make -C $dir/src clean
+	cmd_libnfqueue_download
+	__force=yes
+	cmd_libnfqueue_unpack
+	cmd_libnfqueue_build
+	make -C $dir/src -j8 static || die make
+	mkdir -p $tmp/nfqlb-$ver/bin $tmp/nfqlb-$ver/lib $tmp/nfqlb-$ver/include
+	local O=/tmp/$USER/nfqlb
+	cp $O/nfqlb/nfqlb $tmp/nfqlb-$ver/bin
+	cp $O/lib/libnfqlb.a $tmp/nfqlb-$ver/lib
+	cp $dir/src/lib/*.h $tmp/nfqlb-$ver/include
+	tar -C $tmp -cf /tmp/nfqlb-$ver.tar nfqlb-$ver
+	xz /tmp/nfqlb-$ver.tar
+	echo "Created [/tmp/nfqlb-$ver.tar]"
+}
+
+##
+## Test/example Commands;
+##
+
+#  start_image
+#    The start-point for the test container. Don't call manually!
 cmd_start_image() {
 	test -x $dir/nfqlb_start && exec $dir/nfqlb_start
 	exec tail -f /dev/null			# Block
 }
 
-##  lb --vip=<virtual-ip> <targets...>
+##   lb --vip=<virtual-ip> <targets...>
+##     NOTE: Should normally be executed in a container.
+##     Setup load-balancing to targets. Examples;
 ##
-##    NOTE: Should normally be executed in a container.  fwoffset=100
-##          for targets is assumed (default).
-##
-##    Setup load-balancing to targets. Examples;
-##
-##      lb --vip=10.0.0.0/32 172.17.0.4 172.17.0.5 172.17.0.6
-##      lb --vip=1000::/128 2000::4 2000::5 2000::6
+##       lb --vip=10.0.0.0/32 172.17.0.4 172.17.0.5 172.17.0.6
+##       lb --vip=1000::/128 2000::4 2000::5 2000::6
 cmd_lb() {
 	test -n "$__vip" || die "No VIP address"
 	local iptables=iptables
@@ -82,37 +168,16 @@ cmd_lb() {
 	nfqlb activate $(seq 1 $ntargets)
 	nfqlb lb >> /var/log/nfqlb.log 2>&1 &
 }
+
+##
+## Build Commands;
 ##
 
-##  mkrelease <version>
-##    Create a release archive
-cmd_mkrelease() {
-	test -n "$1" || die "No version"
-	echo "$1" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-.+|$)' \
-		|| die "Incorrect version (semver) [$1]"
-	local ver=$1
-	make -C $dir/src clean
-	cmd_libnfqueue_download
-	__force=yes
-	cmd_libnfqueue_unpack
-	cmd_libnfqueue_build
-	make -C $dir/src -j8 static || die make
-	mkdir -p $tmp/nfqlb-$ver/bin $tmp/nfqlb-$ver/lib $tmp/nfqlb-$ver/include
-	local O=/tmp/$USER/nfqlb
-	cp $O/nfqlb/nfqlb $tmp/nfqlb-$ver/bin
-	cp $O/lib/libnfqlb.a $tmp/nfqlb-$ver/lib
-	cp $dir/src/lib/*.h $tmp/nfqlb-$ver/include
-	tar -C $tmp -cf /tmp/nfqlb-$ver.tar nfqlb-$ver
-	xz /tmp/nfqlb-$ver.tar
-	echo "Created [/tmp/nfqlb-$ver.tar]"
-}
-##
-
-##  libnfqueue_download
-##  libnfqueue_unpack [--force] [--dest=]
-##  libnfqueue_build [--dest=]
-##    Build libnetfilter_queue locally. This is required for "make -j8 static"
-##    on Ubuntu since no static lib is included in the dev package.
+##   libnfqueue_download
+##   libnfqueue_unpack [--force] [--dest=]
+##   libnfqueue_build [--dest=]
+##     Build libnetfilter_queue locally. This is required for "make -j8 static"
+##     on Ubuntu since no static lib is included in the dev package.
 libnfqueue_ver=1.0.3
 libnfqueue_ar=libnetfilter_queue-${libnfqueue_ver}.tar.bz2
 libnfqueue_url=https://www.netfilter.org/projects/libnetfilter_queue/files/$libnfqueue_ar
@@ -146,80 +211,10 @@ cmd_libnfqueue_build() {
 	make -j8 || die make
 	make DESTDIR=$d/sys install || die "make install"
 }
-##
 
-##  include_check
-##    Remove any unnecessary #include's in c-files
-cmd_include_check() {
-	local f
-	cd $dir
-	for f in $(find src -name '*.c'); do
-		echo $f
-		cmd_include_check_file $f > /dev/null 2>&1
-	done
-	for f in $(find src -name '*.c'); do
-		sed -i "/\/\/#include/d" $f
-	done
-}
-cmd_include_check_file() {
-	test -n "$1" || die "No file"
-	test -r "$1" || die "Not readable [$1]"
-	local f=$(readlink -f $1)
-	echo $f | grep -q "$dir/src" || die "File must be in src/"
-	local i target
-	for i in $(grep '^#include <.*>' $f | sed -E 's,^#include <(.*)>,\1,'); do
-		echo $i | grep -q assert && continue
-		sed -i -e "s,^#include <$i>,//#include <$i>," $f
-		target=all
-		echo $f | grep -q test && target=test_progs
-		echo $target
-		if ! make -C $dir/src CFLAGS=-Werror $target; then
-			sed -i -e "s,^//#include <$i>,#include <$i>," $f
-		fi
-	done
-}
-
-##  add_pragma_once
-##    Add "#pragma once" in header files if needed
-cmd_add_pragma_once() {
-	local f
-	for f in $(find src -name '*.h'); do
-		grep -q '^#pragma once' $f && continue
-		sed -i '1s/^/#pragma once\n/' $f
-		echo $f
-	done
-}
-
-##  update_license
-##    Check and update license notes
-cmd_update_license() {
-	local Y=$(date +%Y)
-	if ! grep -q "Copyright $Y Nordix foundation" LICENSE; then
-		echo "Copyright incorrect in; LICENSE"
-		grep "Copyright.*Nordix" LICENSE
-	fi
-	local f
-	for f in $(find src -name '*.[c|h]'); do
-		if ! grep -q 'SPDX-License-Identifier:' $f; then
-			echo "No SPDX-License-Identifier in; $f" >&2
-			continue
-		fi
-		grep -q 'SPDX-License-Identifier: Apache-2.0' $f && continue
-		sed -i -e 's,SPDX-License-Identifier: .*,SPDX-License-Identifier: Apache-2.0,' $f
-		echo "SPDX-License-Identifier: updated in; $f"
-	done
-	for f in $(find src -name '*.[c|h]'); do
-		grep -q 'SPDX-License-Identifier:' $f || continue
-		if ! grep -q "Copyright .*$Y Nordix Foundation" $f; then
-			echo "Copyright incorrect in; $f"
-		fi
-	done
-}
-##
-
-##  build_alpine_image
-##  build_image
-##    Build a docker image for test
+##   build_alpine_image
+##   build_image
+##     Build a docker images for test
 cmd_build_image() {
 	cd $dir
 	local d=$dir/image/opt/nfqlb/bin
