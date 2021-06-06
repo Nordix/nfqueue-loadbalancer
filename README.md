@@ -51,6 +51,8 @@ ip route add default via 192.168.1.1 table 1
 
 ## Try it
 
+Try it on your own machine using Docker containers.
+
 You must have some targets. We use docker containers, but anything
 with an ip-address (not loopback) will do.
 
@@ -65,9 +67,10 @@ done
 nc <addr> 8888   # Test connectivity
 ```
 
-You *can* setup load-balancing in your main network name-space but
-it is better to use another container. Build the test container and
-enter. You must use `--privileged` for network configuration.
+You *can* setup load-balancing in your main network name-space but it
+is better to use another container when testing. Start the test
+container and enter. You must use `--privileged` for network
+configuration.
 
 ```
 docker run --privileged -it --rm registry.nordix.org/cloud-native/nfqlb:latest /bin/sh
@@ -81,8 +84,10 @@ In the test container;
 ```
 PATH=$PATH:/opt/nfqlb/bin
 nfqlb.sh lb --vip=10.0.0.0/32 <your container targets here...>
+
 # Check load-balancing;
 for n in $(seq 1 20); do echo | nc 10.0.0.0 8888; done
+
 # Check some things
 iptables -t nat -S    # OUTPUT chain for local origin, forwarding is not setup
 iptables -t mangle -S # The VIP is routed to user-space
