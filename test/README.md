@@ -71,3 +71,65 @@ log=/tmp/$USER/xcluster-test.log
 ./nfqlb.sh test > $log
 ```
 
+
+## Performance test
+
+We want to measure the impact on throughput, latency and packet loss
+caused by the nfqueue. So we compare direct traffic and traffic
+through the `nfqlb` to one single target.
+
+The easiest way, and probably a quite good one, is to use the Docker
+image we used in the example. We set our `docker0` device in main
+netns as the one target and run `iperf` directly and to the VIP
+address;
+
+```
+# Start an iperf server in main netns
+iperf -s -V
+# In another shell;
+./nfqlb.sh build_image    # Build the test docker image
+docker run --privileged -it --rm nordixorg/nfqlb:latest /bin/bash
+# In the container;
+PATH=$PATH:/opt/nfqlb/bin
+nfqlb.sh lb --vip=10.0.0.0/32 172.17.0.1
+iperf -c 172.17.0.1
+iperf -c 10.0.0.0
+```
+
+The measurements from the very first test without any optimizations
+was actually not that bad;
+
+
+```
+$ iperf -c 172.17.0.1
+------------------------------------------------------------
+Client connecting to 172.17.0.1, TCP port 5001
+TCP window size: 1.22 MByte (default)
+------------------------------------------------------------
+[  3] local 172.17.0.3 port 45058 connected with 172.17.0.1 port 5001
+[ ID] Interval       Transfer     Bandwidth
+[  3]  0.0-10.0 sec  58.2 GBytes  50.0 Gbits/sec
+$ iperf -c 10.0.0.0
+------------------------------------------------------------
+Client connecting to 10.0.0.0, TCP port 5001
+TCP window size: 1.97 MByte (default)
+------------------------------------------------------------
+[  3] local 172.17.0.3 port 57446 connected with 10.0.0.0 port 5001
+[ ID] Interval       Transfer     Bandwidth
+[  3]  0.0-10.1 sec  40.9 GBytes  34.7 Gbits/sec
+$ cat /proc/net/netfilter/nfnetlink_queue
+#   Q    pid   inQ cp cprng Qdrop usrdrop    idseq  ?
+    2     43     0  2 65531     0   12846   975255  1
+```
+
+Direct traffic `50.0 Gbits/sec`, through nfqlb `34.7 Gbits/sec`. The
+biggest problem seem to be "user dropped".
+
+
+Iperf3 is not used since it's [not intended for use with load-balancers](https://github.com/esnet/iperf/issues/823).
+
+
+### Links
+
+* https://home.regit.org/netfilter-en/using-nfqueue-and-libnetfilter_queue/comment-page-1/
+

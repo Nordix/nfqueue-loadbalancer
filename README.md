@@ -1,8 +1,10 @@
 # Nordix/nfqueue-loadbalancer
 
-A load-balancer based on the `NFQUEUE` iptables target. The `-j
-NFQUEUE` target directs packets to a user-space program. The
-program can analyze the packet and set `fwmark` and `verdict`.
+A load-balancer based on the
+[NFQUEUE](https://home.regit.org/netfilter-en/using-nfqueue-and-libnetfilter_queue/comment-page-1/)
+iptables target. The `-j NFQUEUE` target directs packets to a
+user-space program. The program can analyze the packet and set
+`fwmark` and `verdict`.
 
 <img src="nfqueue.svg" alt="NFQUEUQE packet path" width="75%" />
 
