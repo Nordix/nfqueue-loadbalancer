@@ -87,8 +87,7 @@ address;
 # Start an iperf server in main netns
 iperf -s -V
 # In another shell;
-./nfqlb.sh build_image    # Build the test docker image
-docker run --privileged -it --rm nordixorg/nfqlb:latest /bin/bash
+docker run --privileged -it --rm registry.nordix.org/cloud-native/nfqlb:latest /bin/sh
 # In the container;
 PATH=$PATH:/opt/nfqlb/bin
 nfqlb.sh lb --vip=10.0.0.0/32 172.17.0.1
@@ -96,40 +95,42 @@ iperf -c 172.17.0.1
 iperf -c 10.0.0.0
 ```
 
-The measurements from the very first test without any optimizations
-was actually not that bad;
+Or use the `nfqlb_performance.sh` script. Measurements without any
+optimizations was actually not that bad;
 
 
 ```
-$ iperf -c 172.17.0.1
+$ ./nfqlb_performance.sh tcp
+1. Start iperf servers
+2. Rebuild and restart test container
+3. Start LB
+4. Iperf direct
 ------------------------------------------------------------
 Client connecting to 172.17.0.1, TCP port 5001
-TCP window size: 1.22 MByte (default)
+TCP window size: 85.0 KByte (default)
 ------------------------------------------------------------
-[  3] local 172.17.0.3 port 45058 connected with 172.17.0.1 port 5001
+[  1] local 172.17.0.3 port 46774 connected with 172.17.0.1 port 5001
 [ ID] Interval       Transfer     Bandwidth
-[  3]  0.0-10.0 sec  58.2 GBytes  50.0 Gbits/sec
-$ iperf -c 10.0.0.0
+[  1] 0.00-10.00 sec  57.1 GBytes  49.0 Gbits/sec
+5. Nfnetlink_queue stats
+  Q  port inq cp   rng  Qdrop  Udrop      Seq
+  2    59   0  2 65531      0      0        0
+6. Iperf VIP
 ------------------------------------------------------------
 Client connecting to 10.0.0.0, TCP port 5001
-TCP window size: 1.97 MByte (default)
+TCP window size: 85.0 KByte (default)
 ------------------------------------------------------------
-[  3] local 172.17.0.3 port 57446 connected with 10.0.0.0 port 5001
+[  1] local 172.17.0.3 port 59166 connected with 10.0.0.0 port 5001
 [ ID] Interval       Transfer     Bandwidth
-[  3]  0.0-10.1 sec  40.9 GBytes  34.7 Gbits/sec
-$ cat /proc/net/netfilter/nfnetlink_queue
-#   Q    pid   inQ cp cprng Qdrop usrdrop    idseq  ?
-    2     43     0  2 65531     0   12846   975255  1
+[  1] 0.00-10.00 sec  38.4 GBytes  33.0 Gbits/sec
+7. Nfnetlink_queue stats
+  Q  port inq cp   rng  Qdrop  Udrop      Seq
+  2    59   0  2 65531      0  10533   794991
 ```
 
-Direct traffic `50.0 Gbits/sec`, through nfqlb `34.7 Gbits/sec`. The
+Direct traffic `49.0 Gbits/sec`, through nfqlb `33.9 Gbits/sec`. The
 biggest problem seem to be "user dropped".
 
 
 Iperf3 is not used since it's [not intended for use with load-balancers](https://github.com/esnet/iperf/issues/823).
-
-
-### Links
-
-* https://home.regit.org/netfilter-en/using-nfqueue-and-libnetfilter_queue/comment-page-1/
 
