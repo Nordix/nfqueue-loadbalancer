@@ -95,6 +95,8 @@ enter. You must use `--privileged` for network configuration.
 ```
 ./nfqlb.sh build_image
 docker run --privileged -it --rm nordixorg/nfqlb:latest /bin/bash
+# Or;
+docker run --privileged -it --rm registry.nordix.org/cloud-native/nfqlb:latest /bin/sh
 ```
 
 Use the `nfqlb.sh lb` script to setup load-balancing and check the

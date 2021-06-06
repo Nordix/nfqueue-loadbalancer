@@ -217,6 +217,7 @@ cmd_update_license() {
 }
 ##
 
+##  build_alpine_image
 ##  build_image
 ##    Build a docker image for test
 cmd_build_image() {
@@ -224,10 +225,23 @@ cmd_build_image() {
 	local d=$dir/image/opt/nfqlb/bin
 	mkdir -p $d
 	cp $me $d
-	make -C src X=$d/nfqlb
+	make -C src clean > /dev/null
+	make -C src X=$d/nfqlb || die make
 	strip $d/nfqlb
 	docker build -t nordixorg/nfqlb:latest .
 }
+cmd_build_alpine_image() {
+	cd $dir
+	local img=registry.nordix.org/cloud-native/nfqlb
+	local d=$dir/image/opt/nfqlb/bin
+	mkdir -p $d
+	cp $me $d
+	make -C src clean > /dev/null
+	make -C src -j8 static X=$d/nfqlb || die make
+	strip $d/nfqlb
+	docker build -t $img:latest -f Dockerfile.alpine .
+}
+
 ##
 
 
