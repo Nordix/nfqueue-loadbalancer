@@ -2,7 +2,7 @@
 
 Unit tests are just local programs, function tests uses
 [xcluster](https://github.com/Nordix/xcluster) and performance tests uses
-real HW.
+a Docker container.
 
 ## Unit tests
 
@@ -83,22 +83,22 @@ image we used in the example. We set our `docker0` device in main
 netns as the one target and run `iperf` directly and to the VIP
 address;
 
+Manual test;
 ```
 # Start an iperf server in main netns
 iperf -s -V
 # In another shell;
 docker run --privileged -it --rm registry.nordix.org/cloud-native/nfqlb:latest /bin/sh
+# (check the address of your Docker network, usually on dev "docker0")
 # In the container;
 PATH=$PATH:/opt/nfqlb/bin
-nfqlb.sh lb --vip=10.0.0.0/32 172.17.0.1
-iperf -c 172.17.0.1
+docker0adr=172.17.0.1
+nfqlb.sh lb --vip=10.0.0.0/32 $docker0adr
+iperf -c $docker0adr
 iperf -c 10.0.0.0
 ```
 
-Or use the `nfqlb_performance.sh` script. Measurements without any
-optimizations was actually not that bad;
-
-
+Automatic test using the `nfqlb_performance.sh` script;
 ```
 $ ./nfqlb_performance.sh tcp
 1. Start iperf servers
@@ -109,28 +109,25 @@ $ ./nfqlb_performance.sh tcp
 Client connecting to 172.17.0.1, TCP port 5001
 TCP window size: 85.0 KByte (default)
 ------------------------------------------------------------
-[  1] local 172.17.0.3 port 46774 connected with 172.17.0.1 port 5001
+[  1] local 172.17.0.3 port 33920 connected with 172.17.0.1 port 5001
 [ ID] Interval       Transfer     Bandwidth
-[  1] 0.00-10.00 sec  57.1 GBytes  49.0 Gbits/sec
+[  1] 0.00-10.00 sec  52.5 GBytes  45.1 Gbits/sec
 5. Nfnetlink_queue stats
   Q  port inq cp   rng  Qdrop  Udrop      Seq
-  2    59   0  2 65531      0      0        0
+  2    59   0  2  1280      0      0        0
 6. Iperf VIP
 ------------------------------------------------------------
 Client connecting to 10.0.0.0, TCP port 5001
 TCP window size: 85.0 KByte (default)
 ------------------------------------------------------------
-[  1] local 172.17.0.3 port 59166 connected with 10.0.0.0 port 5001
+[  1] local 172.17.0.3 port 42630 connected with 10.0.0.0 port 5001
 [ ID] Interval       Transfer     Bandwidth
-[  1] 0.00-10.00 sec  38.4 GBytes  33.0 Gbits/sec
+[  1] 0.00-10.00 sec  54.0 GBytes  46.4 Gbits/sec
 7. Nfnetlink_queue stats
   Q  port inq cp   rng  Qdrop  Udrop      Seq
-  2    59   0  2 65531      0  10533   794991
+  2    59   0  2  1280      0      0  1224340
+8. Stop the container
 ```
-
-Direct traffic `49.0 Gbits/sec`, through nfqlb `33.9 Gbits/sec`. The
-biggest problem seem to be "user dropped".
-
 
 Iperf3 is not used since it's [not intended for use with load-balancers](https://github.com/esnet/iperf/issues/823).
 
