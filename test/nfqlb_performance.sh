@@ -49,11 +49,13 @@ cmd_start_iperf_server() {
 	fi
 }
 
-##   start_test_image
-##     Re-build test image and re-start the test container
+##   start_test_image [--rebuild]
+##     Re-start the test container. Re-build if specified.
 cmd_start_test_image() {
 	docker stop -t 1 nfqlb > /dev/null 2>&1
-	$nfqlbsh build_alpine_image || die
+	if test "$__rebuild" = "yes"; then
+		$nfqlbsh build_alpine_image || die
+	fi
 	docker run --privileged --name=nfqlb -d --rm registry.nordix.org/cloud-native/nfqlb:latest
 }
 
@@ -98,7 +100,7 @@ format_stats() {
 ##
 ## Test Commands;
 
-##   tcp [--no-stop]
+##   tcp [--rebuild] [--no-stop]
 cmd_tcp() {
 	echo "1. Start iperf servers"
 	cmd_start_iperf_server > /dev/null 2>&1
