@@ -163,7 +163,8 @@ cmd_lb() {
 
 	$iptables -t mangle -A OUTPUT -d $__vip -j NFQUEUE --queue-num 2
 
-	PATH=$PATH:/opt/nfqlb/bin
+	test -n "$__path" || __path=/opt/nfqlb/bin
+	PATH=$PATH:$__path
 	nfqlb show > /dev/null 2>&1 || nfqlb init --ownfw=1
 	nfqlb activate $(seq 1 $ntargets)
 	nfqlb lb >> /var/log/nfqlb.log 2>&1 &
