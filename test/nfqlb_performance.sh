@@ -40,22 +40,19 @@ cmd_start_iperf_server() {
 	if netstat -putln 2> /dev/null | grep 5001 | grep -q tcp6; then
 		log "Iperf tcp6 already started"
 	else
-		iperf --server -P 8 --daemon --ipv6_domain || die
+		iperf --server --daemon --ipv6_domain || die
 	fi
 	if netstat -putln 2> /dev/null | grep 5001 | grep -q udp6; then
 		log "Iperf udp6 already started"
 	else
-		iperf --server -P 8 --daemon --ipv6_domain --udp || die
+		iperf --server --daemon --ipv6_domain --udp || die
 	fi
 }
 
-##   start_test_image [--rebuild]
+##   start_test_image
 ##     Re-start the test container. Re-build if specified.
 cmd_start_test_image() {
 	docker stop -t 1 nfqlb > /dev/null 2>&1
-	if test "$__rebuild" = "yes"; then
-		$nfqlbsh build_alpine_image || die
-	fi
 	docker run --privileged --name=nfqlb -d --rm registry.nordix.org/cloud-native/nfqlb:latest
 }
 
@@ -68,7 +65,7 @@ cmd_docker_address() {
 cmd_start_lb() {
 	test -n "$__adr" || __adr=$(cmd_docker_address)
 	test -n "$__vip" || __vip=10.0.0.0/32
-	docker exec --detach nfqlb /opt/nfqlb/bin/nfqlb.sh lb --vip=$__vip $__adr
+	docker exec --detach nfqlb /opt/nfqlb/bin/nfqlb.sh lb --queue=$__queue --vip=$__vip $__adr
 }
 
 ##   iperf <params...>
@@ -79,22 +76,25 @@ cmd_iperf() {
 ##   qstats
 cmd_qstats() {
 	local sfile=/proc/net/netfilter/nfnetlink_queue
-	echo "  Q  port inq cp   rng  Qdrop  Udrop      Seq"
+	echo "  Q       port inq cp   rng  Qdrop  Udrop      Seq"
 	docker exec nfqlb cat $sfile | format_stats
 }
 format_stats() {
-	local s=$(cat | tr -s ' ' :)
-	# Q port(pid) inQ cpmode range Qdroped usrDropped lastSeq 1
-	local Q=$(echo $s | cut -d: -f2)
-	local port=$(echo $s | cut -d: -f3)
-	local inQ=$(echo $s | cut -d: -f4)
-	local cp=$(echo $s | cut -d: -f5)
-	local rng=$(echo $s | cut -d: -f6)
-	local Qdrop=$(echo $s | cut -d: -f7)
-	local Udrop=$(echo $s | cut -d: -f8)
-	local seq=$(echo $s | cut -d: -f9)
-	printf "%3u %5u %3u  %u %5u %6u %6u %8u\n"\
-		$Q $port $inQ $cp $rng $Qdrop $Udrop $seq
+	local line s
+	while read line; do
+		s=$(echo $line | tr -s ' ' :)
+		# Q port(pid) inQ cpmode range Qdroped usrDropped lastSeq 1
+		local Q=$(echo $s | cut -d: -f1)
+		local port=$(echo $s | cut -d: -f2)
+		local inQ=$(echo $s | cut -d: -f3)
+		local cp=$(echo $s | cut -d: -f4)
+		local rng=$(echo $s | cut -d: -f5)
+		local Qdrop=$(echo $s | cut -d: -f6)
+		local Udrop=$(echo $s | cut -d: -f7)
+		local seq=$(echo $s | cut -d: -f8)
+		printf "%3u %10u %3u  %u %5u %6u %6u %8u\n"\
+			$Q $port $inQ $cp $rng $Qdrop $Udrop $seq
+	done
 }
 
 ##
@@ -102,23 +102,30 @@ format_stats() {
 
 ##   tcp [--rebuild] [--no-stop]
 cmd_tcp() {
-	echo "1. Start iperf servers"
+	local i=0
+	i=$((i+1)); echo "$i. Start iperf servers"
 	cmd_start_iperf_server > /dev/null 2>&1
-	echo "2. Rebuild and restart test container"
+	if test "$__rebuild" = "yes"; then
+		i=$((i+1)); echo "$i. Rebuild the test container"
+		$nfqlbsh build_alpine_image > /dev/null || die
+	fi
+	i=$((i+1)); echo "$i. Start the test container"
 	cmd_start_test_image > /dev/null
-	echo "3. Start LB"
+	i=$((i+1)); echo "$i. Start LB"
 	cmd_start_lb
-	echo "4. Iperf direct"
-	cmd_iperf -c $(cmd_docker_address)
-	echo "5. Nfnetlink_queue stats"
+	i=$((i+1)); echo "$i. Iperf direct"
+	cmd_iperf -c $(cmd_docker_address) $@
+	i=$((i+1)); echo "$i. Nfnetlink_queue stats"
 	cmd_qstats
-	echo "6. Iperf VIP"
+	i=$((i+1)); echo "$i. Re-start iperf servers"
+	cmd_start_iperf_server > /dev/null 2>&1
+	i=$((i+1)); echo "$i. Iperf VIP"
 	local vip=$(echo $__vip | cut -d/ -f1)
-	cmd_iperf -c $vip
-	echo "7. Nfnetlink_queue stats"
+	cmd_iperf -c $vip $@
+	i=$((i+1)); echo "$i. Nfnetlink_queue stats"
 	cmd_qstats
 	if test "$__no_stop" != "yes"; then
-		echo "8. Stop the container"
+		echo "$i. Stop the container"
 		docker stop -t 1 nfqlb > /dev/null 2>&1
 	fi
 }

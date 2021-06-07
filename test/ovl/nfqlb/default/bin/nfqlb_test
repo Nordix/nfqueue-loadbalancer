@@ -103,20 +103,22 @@ cmd_tcase_nfqlb_stats() {
 	cat /proc/net/netfilter/nfnetlink_queue | format_stats >&2
 }
 format_stats() {
-	local s=$(cat | tr -s ' ' :)
-	# Q port(pid) inQ cpmode range Qdroped usrDropped lastSeq 1
-	local Q=$(echo $s | cut -d: -f2)
-	local port=$(echo $s | cut -d: -f3)
-	local inQ=$(echo $s | cut -d: -f4)
-	local cp=$(echo $s | cut -d: -f5)
-	local rng=$(echo $s | cut -d: -f6)
-	local Qdrop=$(echo $s | cut -d: -f7)
-	local Udrop=$(echo $s | cut -d: -f8)
-	local seq=$(echo $s | cut -d: -f9)
-	printf "%3u %5u %3u  %u %5u %6u %6u %8u\n"\
-		$Q $port $inQ $cp $rng $Qdrop $Udrop $seq
+	local line s
+	while read line; do
+		s=$(echo $line | tr -s ' ' :)
+		# Q port(pid) inQ cpmode range Qdroped usrDropped lastSeq 1
+		local Q=$(echo $s | cut -d: -f1)
+		local port=$(echo $s | cut -d: -f2)
+		local inQ=$(echo $s | cut -d: -f3)
+		local cp=$(echo $s | cut -d: -f4)
+		local rng=$(echo $s | cut -d: -f5)
+		local Qdrop=$(echo $s | cut -d: -f6)
+		local Udrop=$(echo $s | cut -d: -f7)
+		local seq=$(echo $s | cut -d: -f8)
+		printf "%3u %10u %3u  %u %5u %6u %6u %8u\n"\
+			$Q $port $inQ $cp $rng $Qdrop $Udrop $seq
+	done
 }
-
 
 . /etc/profile
 . /usr/lib/xctest

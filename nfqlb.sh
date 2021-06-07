@@ -136,7 +136,7 @@ cmd_start_image() {
 	exec tail -f /dev/null			# Block
 }
 
-##   lb --vip=<virtual-ip> <targets...>
+##   lb [--queue=] --vip=<virtual-ip> <targets...>
 ##     NOTE: Should normally be executed in a container.
 ##     Setup load-balancing to targets. Examples;
 ##
@@ -161,13 +161,18 @@ cmd_lb() {
 	done
 	test $ntargets -eq 0 && return 0
 
-	$iptables -t mangle -A OUTPUT -d $__vip -j NFQUEUE --queue-num 2
+	test -n "$__queue" || __queue=2
+	if echo $__queue | grep -q :; then
+		$iptables -t mangle -A OUTPUT -d $__vip -j NFQUEUE --queue-balance $__queue
+	else
+		$iptables -t mangle -A OUTPUT -d $__vip -j NFQUEUE --queue-num $__queue
+	fi
 
 	test -n "$__path" || __path=/opt/nfqlb/bin
 	PATH=$PATH:$__path
 	nfqlb show > /dev/null 2>&1 || nfqlb init --ownfw=1
 	nfqlb activate $(seq 1 $ntargets)
-	nfqlb lb >> /var/log/nfqlb.log 2>&1 &
+	nfqlb lb --qlength=128 --queue=$__queue >> /var/log/nfqlb.log 2>&1 &
 }
 ##   stop_lb --vip=<virtual-ip> <targets...>
 ##     Stop load-balancing.

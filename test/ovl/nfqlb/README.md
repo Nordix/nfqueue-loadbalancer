@@ -33,3 +33,14 @@ you *must* setup `xcluster` in a
 [netns](https://github.com/Nordix/xcluster/blob/master/doc/netns.md)
 for more demanding tests.
 
+
+### UDP test with fragmentation
+
+```
+./nfqlb.sh test --verbose udp > $log
+# Fragments are reversed
+./nfqlb.sh test --verbose --fragrev udp > $log
+./nfqlb.sh test --verbose --fragrev --vip=10.0.0.0:5001 udp > $log
+# Multi queue;
+xcluster_LBOPT="--queue=0:3" ./nfqlb.sh test --verbose --fragrev udp > $log
+```

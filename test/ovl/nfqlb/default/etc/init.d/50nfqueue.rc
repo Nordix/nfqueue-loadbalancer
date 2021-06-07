@@ -20,7 +20,14 @@ router() {
 	local lboffset=200
 	test -n "$__nvm" || __nvm=4
 
-	// Create the tun device
+	local queue=2
+	if echo $LBOPT | grep -qE -- '--queue=[0-9]+'; then
+		queue=$(echo $LBOPT | grep -oE -- '--queue=[0-9]+:[0-9]+' | cut -d= -f2)
+		test -n "$queue" || \
+			queue=$(echo $LBOPT | grep -oE -- '--queue=[0-9]+' | cut -d= -f2)
+	fi
+	
+	# Create the tun device
 	local mtu=1500
 	local tap=nfqlb0
 	ip tuntap add mode tun name $tap || die "create $tap"
@@ -54,7 +61,11 @@ router() {
 	else
 		for iptables in iptables ip6tables; do
 			$iptables -t mangle -N VIP
-			$iptables -t mangle -A VIP -j NFQUEUE --queue-num 2
+			if echo $queue | grep -q :; then
+				$iptables -t mangle -A VIP -j NFQUEUE --queue-balance $queue
+			else
+				$iptables -t mangle -A VIP -j NFQUEUE --queue-num $queue
+			fi
 		done
 		# Add VIPs
 		iptables -t mangle -A PREROUTING -i eth2 -d 10.0.0.0/24 -j VIP

@@ -132,6 +132,29 @@ TCP window size: 85.0 KByte (default)
 Iperf3 is not used since it's [not intended for use with load-balancers](https://github.com/esnet/iperf/issues/823).
 
 
+### Parallel and multi-queue
+
+You can start `iperf` with parallel connections:
+```
+./nfqlb_performance.sh tcp -P8
+```
+
+Now direct traffic uses all cores (I have 8) and the throughput
+becomes ~80 Gbits/sec. But via `nfqlb` the throughput stays at ~40
+Gbits/sec. This because only a single thread handles packets in
+`nfqlb`. To use multi-queue (and multi-thread) is supported but does
+not help since `iperf` uses the same addresses for all connections and
+they belongs to the same "flow" and goes to the same queue.
+
+```
+./nfqlb_performance.sh tcp --queue=0:3 -P8
+```
+
+If you have a cpu monitor running you can see that one core get 100%
+load.
+
+
+
 ### On HW
 
 Warning: To run `nfqlb.sh lb` in main netns may interfere with your
