@@ -142,6 +142,7 @@ network setup.
 iperf -s -V
 # On the local machine
 make -C src -j8
+#sudo ip -6 ro add default via fd01::2
 sudo ./nfqlb.sh lb --path=/tmp/$USER/nfqlb/nfqlb --vip=2000::1/128 fd01::2
 iperf -V -c fd01::2      # direct
 iperf -V -c 2000::1      # via nfqlb

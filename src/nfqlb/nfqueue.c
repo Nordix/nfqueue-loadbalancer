@@ -10,10 +10,9 @@
 #include <linux/netfilter.h>
 #include <libnetfilter_queue/libnetfilter_queue.h>
 /* only for NFQA_CT, not needed otherwise: */
-#include <linux/netfilter/nfnetlink_conntrack.h>
+//#include <linux/netfilter/nfnetlink_conntrack.h>
 #include <stdlib.h>
 
-static struct mnl_socket *nl;
 static packetHandleFn_t handlePacket;
 
 
@@ -33,7 +32,9 @@ nfq_hdr_put(char *buf, int type, uint32_t queue_num)
 }
 
 static void
-nfq_send_verdict(int queue_num, uint32_t id, uint32_t mark, uint32_t verdict)
+nfq_send_verdict(
+	struct mnl_socket *nl, int queue_num, uint32_t id,
+	uint32_t mark, uint32_t verdict)
 {
 	char buf[MNL_SOCKET_BUFFER_SIZE];
 	struct nlmsghdr *nlh;
@@ -87,9 +88,9 @@ static int queue_cb(const struct nlmsghdr *nlh, void *data)
 	uint8_t *payload = mnl_attr_get_payload(attr[NFQA_PAYLOAD]);
 	int fwmark = handlePacket(ntohs(ph->hw_protocol), payload, plen);
 	if (fwmark < 0) 
-		nfq_send_verdict(ntohs(nfg->res_id), id, 0, NF_DROP);
+		nfq_send_verdict(data, ntohs(nfg->res_id), id, 0, NF_DROP);
 	else
-		nfq_send_verdict(ntohs(nfg->res_id), id, fwmark, NF_ACCEPT);
+		nfq_send_verdict(data, ntohs(nfg->res_id), id, fwmark, NF_ACCEPT);
 
 	return MNL_CB_OK;
 }
@@ -102,6 +103,7 @@ int nfqueueRun(unsigned int queue_num, packetHandleFn_t packetHandleFn)
 	unsigned int portid;
 	int ret;
 	struct nlmsghdr *nlh;
+	struct mnl_socket *nl;
 
 	handlePacket = packetHandleFn;
 
@@ -180,7 +182,7 @@ int nfqueueRun(unsigned int queue_num, packetHandleFn_t packetHandleFn)
 			exit(EXIT_FAILURE);
 		}
 
-		ret = mnl_cb_run(buf, ret, 0, portid, queue_cb, NULL);
+		ret = mnl_cb_run(buf, ret, 0, portid, queue_cb, nl);
 		if (ret < 0){
 			perror("mnl_cb_run");
 			exit(EXIT_FAILURE);
