@@ -12,6 +12,6 @@ extern char const* const defaultTargetShm;
 
 typedef int (*packetHandleFn_t)(
 	unsigned short proto, void* payload, unsigned plen);
-
-int nfqueueRun(unsigned int queue_num, packetHandleFn_t packetHandleFn);
+void nfqueueInit(packetHandleFn_t packetHandleFn, unsigned _queue_length);
+int nfqueueRun(unsigned int queue_num); /* Will not return */
 

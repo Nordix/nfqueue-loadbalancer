@@ -13,7 +13,14 @@
 //#include <linux/netfilter/nfnetlink_conntrack.h>
 #include <stdlib.h>
 
-static packetHandleFn_t handlePacket;
+static packetHandleFn_t handlePacket = NULL;
+static unsigned queue_length = 8;
+
+void nfqueueInit(packetHandleFn_t packetHandleFn, unsigned _queue_length)
+{
+	handlePacket = packetHandleFn;
+	queue_length = _queue_length;
+}
 
 
 static struct nlmsghdr *
@@ -95,7 +102,7 @@ static int queue_cb(const struct nlmsghdr *nlh, void *data)
 	return MNL_CB_OK;
 }
 
-int nfqueueRun(unsigned int queue_num, packetHandleFn_t packetHandleFn)
+int nfqueueRun(unsigned int queue_num)
 {
 	char *buf;
 	/* largest copied packet payload, plus netlink data overhead: */
@@ -105,7 +112,8 @@ int nfqueueRun(unsigned int queue_num, packetHandleFn_t packetHandleFn)
 	struct nlmsghdr *nlh;
 	struct mnl_socket *nl;
 
-	handlePacket = packetHandleFn;
+	if (handlePacket == NULL)
+		exit(EXIT_FAILURE);
 
 	nl = mnl_socket_open(NETLINK_NETFILTER);
 	if (nl == NULL) {
@@ -118,7 +126,6 @@ int nfqueueRun(unsigned int queue_num, packetHandleFn_t packetHandleFn)
 		exit(EXIT_FAILURE);
 	}
 	portid = mnl_socket_get_portid(nl);
-
 	buf = malloc(sizeof_buf);
 	if (!buf) {
 		perror("allocate receive buffer");
@@ -162,7 +169,7 @@ int nfqueueRun(unsigned int queue_num, packetHandleFn_t packetHandleFn)
 	}
 
 	nlh = nfq_hdr_put(buf, NFQNL_MSG_CONFIG, queue_num);
-	nfq_nlmsg_cfg_put_qmaxlen(nlh, 32);
+	nfq_nlmsg_cfg_put_qmaxlen(nlh, queue_length);
 	if (mnl_socket_sendto(nl, nlh, nlh->nlmsg_len) < 0) {
 		perror("mnl_socket_send");
 		exit(EXIT_FAILURE);
@@ -170,8 +177,7 @@ int nfqueueRun(unsigned int queue_num, packetHandleFn_t packetHandleFn)
 
 	/* ENOBUFS is signalled to userspace when packets were lost
 	 * on kernel side.  In most cases, userspace isn't interested
-	 * in this information, so turn it off.
-	 */
+	 * in this information, so turn it off. */
 	ret = 1;
 	mnl_socket_setsockopt(nl, NETLINK_NO_ENOBUFS, &ret, sizeof(int));
 
@@ -181,7 +187,6 @@ int nfqueueRun(unsigned int queue_num, packetHandleFn_t packetHandleFn)
 			perror("mnl_socket_recvfrom");
 			exit(EXIT_FAILURE);
 		}
-
 		ret = mnl_cb_run(buf, ret, 0, portid, queue_cb, nl);
 		if (ret < 0){
 			perror("mnl_cb_run");
@@ -189,6 +194,7 @@ int nfqueueRun(unsigned int queue_num, packetHandleFn_t packetHandleFn)
 		}
 	}
 
+	/* We will never get here */
 	mnl_socket_close(nl);
 	return 0;
 }

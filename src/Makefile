@@ -45,7 +45,7 @@ static: LDFLAGS := -static -L$(NFQD)/lib -Wl,--whole-archive -lpthread -Wl,--no-
 static: CFLAGS := -I$(NFQD)/include
 
 $(X): $(LIB) $(OBJ)
-	$(CC) -o $(X) $(OBJ) $(LDFLAGS) -L$(O)/lib -lnetfilter_queue -lnfqlb -lrt -lmnl
+	$(CC) -o $(X) $(OBJ) $(LDFLAGS) -pthread -L$(O)/lib -lnetfilter_queue -lnfqlb -lrt -lmnl
 $(OBJ): | $(DIRS)
 $(LIB): $(LIB_OBJ)
 	@rm -f $(LIB)

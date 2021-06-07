@@ -17,6 +17,8 @@
 #include <netinet/ip6.h>
 #include <unistd.h>
 #include <time.h>
+#include <string.h>
+#include <pthread.h>
 
 static struct FragTable* ft;
 static struct SharedData* st;
@@ -139,12 +141,19 @@ static int packetHandleFn(
 	return fw;
 }
 
+static void *packetHandleThread(void* Q)
+{
+	nfqueueRun((intptr_t)Q);
+	return NULL;
+}
+
 static int cmdLb(int argc, char **argv)
 {
 	char const* targetShm = defaultTargetShm;
 	char const* lbShm = NULL;
 	char const* ftShm = "ftshm";
 	char const* qnum = "2";
+	char const* qlen = "64";
 	char const* ft_size = "500";
 	char const* ft_buckets = "500";
 	char const* ft_frag = "100";
@@ -159,7 +168,8 @@ static int cmdLb(int argc, char **argv)
 		{"tun", &tun, 0, "Tun device for re-inject fragments"},
 		{"tshm", &targetShm, 0, "Target shared memory"},
 		{"lbshm", &lbShm, 0, "Lb shared memory"},
-		{"queue", &qnum, 0, "NF-queue to listen to (default 2)"},
+		{"queue", &qnum, 0, "NF-queues to listen to (default 2)"},
+		{"qlength", &qlen, 0, "Lenght of queues (default 64)"},
 		{"ft_shm", &ftShm, 0, "Frag table; shared memory stats"},
 		{"ft_size", &ft_size, 0, "Frag table; size"},
 		{"ft_buckets", &ft_buckets, 0, "Frag table; extra buckets"},
@@ -203,7 +213,28 @@ static int cmdLb(int argc, char **argv)
 	printf(
 		"FragTable; size=%d, buckets=%d, frag=%d, mtu=%d, ttl=%d\n",
 		atoi(ft_size),atoi(ft_buckets),atoi(ft_frag),mtu,atoi(ft_ttl));
-	return nfqueueRun(atoi(qnum), packetHandleFn);
+
+	nfqueueInit(packetHandleFn, atoi(qlen));
+
+	/*
+	  The qnum may be a range like "0:3" in which case we go
+	  multi-threading and listen to all queues in the range;
+	 */
+	unsigned Q = atoi(qnum);
+	if (strchr(qnum, ':') != NULL) {
+		unsigned first, last;
+		if (sscanf(qnum, "%u:%u", &first, &last) != 2)
+			die("queue invalid [%s]\n", qnum);
+		if (first > last)
+			die("queue invalid [%s]\n", qnum);
+		for (Q = first; Q < last; Q++) {
+			pthread_t tid;
+			if (pthread_create(&tid, NULL, packetHandleThread, (void*)(intptr_t)Q) != 0)
+				die("Failed pthread_create for Q=%u\n", Q);
+		}
+		Q = last;				/* Last will go to the main thread */
+	}
+	return nfqueueRun(Q);
 }
 
 __attribute__ ((__constructor__)) static void addCommands(void) {
@@ -272,8 +303,6 @@ static int ipv4HandleFragment(
 
 	return fragGetHashOrStore(ft, &now, &key, hash, data, len);
 }
-
-#define PAFTER(x) (void*)x + (sizeof(*x))
 
 static int ipv6HandleFragment(
 	struct FragTable* ft, void const* data, unsigned len,
