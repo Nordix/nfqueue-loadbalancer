@@ -131,3 +131,23 @@ TCP window size: 85.0 KByte (default)
 
 Iperf3 is not used since it's [not intended for use with load-balancers](https://github.com/esnet/iperf/issues/823).
 
+
+### On HW
+
+Warning: To run `nfqlb.sh lb` in main netns may interfere with your
+network setup.
+
+```
+# On the remote machine (fd01::2);
+iperf -s -V
+# On the local machine
+make -C src -j8
+sudo ./nfqlb.sh lb --path=/tmp/$USER/nfqlb/nfqlb --vip=2000::1/128 fd01::2
+iperf -V -c fd01::2      # direct
+iperf -V -c 2000::1      # via nfqlb
+sudo ./nfqlb.sh stop_lb --path=/tmp/$USER/nfqlb/nfqlb --vip=2000::1/128 fd01::2
+```
+Note: You *must* have a default route even though it's not used.
+
+Test on a 1G interface shows ~800 Mbits/sec both with and without `nfqlb`.
+

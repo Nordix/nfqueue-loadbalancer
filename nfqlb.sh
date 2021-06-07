@@ -169,6 +169,32 @@ cmd_lb() {
 	nfqlb activate $(seq 1 $ntargets)
 	nfqlb lb >> /var/log/nfqlb.log 2>&1 &
 }
+##   stop_lb --vip=<virtual-ip> <targets...>
+##     Stop load-balancing.
+##     NOTE: must be invoked with the same parameters as "lb".
+cmd_stop_lb() {
+	test -n "$__vip" || die "No VIP address"
+	killall nfqlb
+	rm -f /dev/shm/ftshm /dev/shm/nfqlb
+	local iptables=iptables
+	local ip=ip
+	if echo $__vip | grep -q :; then
+		iptables=ip6tables
+		ip="ip -6"
+	fi
+	local n fw ntargets=0
+	for n in $@; do
+		ntargets=$((ntargets + 1))
+		fw=$((ntargets + 100))
+		$ip rule del fwmark $fw table $fw
+		$ip route del default via $n table $fw
+		$iptables -t nat -D OUTPUT -m mark --mark $fw \
+			-j DNAT --to-destination $n
+	done
+
+	$iptables -t mangle -D OUTPUT -d $__vip -j NFQUEUE --queue-num 2
+}
+
 
 ##
 ## Build Commands;
