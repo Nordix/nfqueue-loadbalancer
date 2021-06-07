@@ -2,7 +2,7 @@
 ##
 ## nfqlb_performance.sh --
 ##
-##   Perfoemance test scriptlets for;
+##   Performance test scriptlets for;
 ##   https://github.com/Nordix/nfqueue-loadbalancer/
 ##
 
@@ -31,6 +31,8 @@ log() {
 dbg() {
 	test -n "$__verbose" && echo "$prg: $*" >&2
 }
+
+## Low-level Commands;
 
 ##   start_iperf_server
 ##     In the current netns. Both tcp6 and udp6
@@ -89,10 +91,14 @@ format_stats() {
 	local Qdrop=$(echo $s | cut -d: -f7)
 	local Udrop=$(echo $s | cut -d: -f8)
 	local seq=$(echo $s | cut -d: -f9)
-	printf "%3u %5u %3u  %u %4u %6u %6u %8u\n"\
+	printf "%3u %5u %3u  %u %5u %6u %6u %8u\n"\
 		$Q $port $inQ $cp $rng $Qdrop $Udrop $seq
 }
 
+##
+## Test Commands;
+
+##   tcp [--no-stop]
 cmd_tcp() {
 	echo "1. Start iperf servers"
 	cmd_start_iperf_server > /dev/null 2>&1
@@ -109,7 +115,12 @@ cmd_tcp() {
 	cmd_iperf -c $vip
 	echo "7. Nfnetlink_queue stats"
 	cmd_qstats
+	if test "$__no_stop" != "yes"; then
+		echo "8. Stop the container"
+		docker stop -t 1 nfqlb > /dev/null 2>&1
+	fi
 }
+##
 
 # Get the command
 cmd=$1

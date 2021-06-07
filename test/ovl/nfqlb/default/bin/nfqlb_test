@@ -99,6 +99,22 @@ cmd_tcase_udp() {
 cmd_tcase_nfqlb_stats() {
 	tcase "nfqlb fragment stats"
 	nfqlb stats >&2
+	echo "  Q  port inq cp   rng  Qdrop  Udrop      Seq" >&2
+	cat /proc/net/netfilter/nfnetlink_queue | format_stats >&2
+}
+format_stats() {
+	local s=$(cat | tr -s ' ' :)
+	# Q port(pid) inQ cpmode range Qdroped usrDropped lastSeq 1
+	local Q=$(echo $s | cut -d: -f2)
+	local port=$(echo $s | cut -d: -f3)
+	local inQ=$(echo $s | cut -d: -f4)
+	local cp=$(echo $s | cut -d: -f5)
+	local rng=$(echo $s | cut -d: -f6)
+	local Qdrop=$(echo $s | cut -d: -f7)
+	local Udrop=$(echo $s | cut -d: -f8)
+	local seq=$(echo $s | cut -d: -f9)
+	printf "%3u %5u %3u  %u %5u %6u %6u %8u\n"\
+		$Q $port $inQ $cp $rng $Qdrop $Udrop $seq
 }
 
 

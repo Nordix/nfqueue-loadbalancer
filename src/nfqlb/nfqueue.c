@@ -3,6 +3,7 @@
 /* ----------------------------------------------------------------------
    The NFQUEUE code is taken from the example in;
    libnetfilter_queue-1.0.3/examples/nf-queue.c
+   http://www.netfilter.org/projects/libnetfilter_queue/doxygen/
 */
 
 #include <libmnl/libmnl.h>
@@ -36,12 +37,12 @@ nfq_send_verdict(int queue_num, uint32_t id, uint32_t mark, uint32_t verdict)
 {
 	char buf[MNL_SOCKET_BUFFER_SIZE];
 	struct nlmsghdr *nlh;
-	struct nlattr *nest;
 
 	nlh = nfq_hdr_put(buf, NFQNL_MSG_VERDICT, queue_num);
 	nfq_nlmsg_verdict_put(nlh, id, verdict);
 	nfq_nlmsg_verdict_put_mark(nlh, mark);
-
+#if 0
+	struct nlattr *nest;
 	/* example to set the connmark. First, start NFQA_CT section: */
 	nest = mnl_attr_nest_start(nlh, NFQA_CT);
 
@@ -51,7 +52,7 @@ nfq_send_verdict(int queue_num, uint32_t id, uint32_t mark, uint32_t verdict)
 
 	/* end conntrack section */
 	mnl_attr_nest_end(nlh, nest);
-
+#endif
 	if (mnl_socket_sendto(nl, nlh, nlh->nlmsg_len) < 0) {
 		perror("mnl_socket_send");
 		exit(EXIT_FAILURE);
@@ -96,8 +97,8 @@ static int queue_cb(const struct nlmsghdr *nlh, void *data)
 int nfqueueRun(unsigned int queue_num, packetHandleFn_t packetHandleFn)
 {
 	char *buf;
-	/* largest possible packet payload, plus netlink data overhead: */
-	size_t sizeof_buf = 0xffff + (MNL_SOCKET_BUFFER_SIZE/2);
+	/* largest copied packet payload, plus netlink data overhead: */
+	size_t sizeof_buf = 1280 + (MNL_SOCKET_BUFFER_SIZE/2);
 	unsigned int portid;
 	int ret;
 	struct nlmsghdr *nlh;
@@ -148,11 +149,18 @@ int nfqueueRun(unsigned int queue_num, packetHandleFn_t packetHandleFn)
 	}
 
 	nlh = nfq_hdr_put(buf, NFQNL_MSG_CONFIG, queue_num);
-	nfq_nlmsg_cfg_put_params(nlh, NFQNL_COPY_PACKET, 0xffff);
+	nfq_nlmsg_cfg_put_params(nlh, NFQNL_COPY_PACKET, 1280);
 
 	mnl_attr_put_u32(nlh, NFQA_CFG_FLAGS, htonl(NFQA_CFG_F_GSO));
 	mnl_attr_put_u32(nlh, NFQA_CFG_MASK, htonl(NFQA_CFG_F_GSO));
 
+	if (mnl_socket_sendto(nl, nlh, nlh->nlmsg_len) < 0) {
+		perror("mnl_socket_send");
+		exit(EXIT_FAILURE);
+	}
+
+	nlh = nfq_hdr_put(buf, NFQNL_MSG_CONFIG, queue_num);
+	nfq_nlmsg_cfg_put_qmaxlen(nlh, 32);
 	if (mnl_socket_sendto(nl, nlh, nlh->nlmsg_len) < 0) {
 		perror("mnl_socket_send");
 		exit(EXIT_FAILURE);
