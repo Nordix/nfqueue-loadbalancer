@@ -147,7 +147,7 @@ cmd_test() {
 	cmd_start_test_image > /dev/null
 	i=$((i+1)); echo "$i. Start LB"
 	cmd_start_lb
-	i=$((i+1)); echo "$i. Iperf direct"
+	i=$((i+1)); echo "$i. Iperf direct (-c $(cmd_docker_address) $@)"
 	s=$(cmd_cpu_sample)
 	cmd_iperf -c $(cmd_docker_address) $@
 	i=$((i+1)); echo "$i. CPU usage $(cmd_cpu_usage_since $s)"
@@ -155,17 +155,30 @@ cmd_test() {
 	cmd_qstats
 	i=$((i+1)); echo "$i. Re-start iperf servers"
 	cmd_start_iperf_server > /dev/null 2>&1
-	i=$((i+1)); echo "$i. Iperf VIP"
 	local vip=$(echo $__vip | cut -d/ -f1)
+	i=$((i+1)); echo "$i. Iperf VIP (-c $vip $@)"
 	cmd_iperf -c $vip $@
 	i=$((i+1)); echo "$i. CPU usage $(cmd_cpu_usage_since $s)"
 	i=$((i+1)); echo "$i. Nfnetlink_queue stats"
 	cmd_qstats
+	if test "$__fragstats" = "yes"; then
+		i=$((i+1)); echo "$i. Get frag stats"
+		docker exec nfqlb /opt/nfqlb/bin/nfqlb stats
+	fi
 	if test "$__no_stop" != "yes"; then
 		echo "$i. Stop the container"
 		docker stop -t 1 nfqlb > /dev/null 2>&1
 	fi
 }
+#   test_report [iperf options...]
+cmd_test_report() {
+	echo "# Nfqlb test report - iperf $@"
+	echo '```'
+	cmd_test $@
+	echo '```'
+}
+
+
 ##
 
 # Get the command

@@ -79,9 +79,11 @@ caused by the nfqueue. So we compare direct traffic and traffic
 through the `nfqlb` to one single target.
 
 The easiest way, and probably a quite good one, is to use the Docker
-image we used in the example. We set our `docker0` device in main
+container we used in the example. We set our `docker0` device in main
 netns as the one target and run `iperf` directly and to the VIP
-address;
+address. A problem is that the example container uses DNAT
+so [fragment tests are not
+possible](https://github.com/Nordix/nfqueue-loadbalancer/blob/master/fragments.md#the-unwanted-re-assembly-problem).
 
 Manual test;
 ```
@@ -141,7 +143,7 @@ would also be lower on a more powerful machine than my Dell ultrabook.
 
 ### Parallel and multi-queue
 
-You can start `iperf` with parallel connections:
+You can start `iperf` with parallel connections ([report](report-P8.md)):
 ```
 ./nfqlb_performance.sh test -P8
 ```
@@ -151,7 +153,8 @@ becomes ~80 Gbits/sec. But via `nfqlb` the throughput stays at ~40
 Gbits/sec. This because only a single thread handles packets in
 `nfqlb`. To use multi-queue (and multi-thread) is supported but does
 not help since `iperf` uses the same addresses for all connections and
-they belongs to the same "flow" and goes to the same queue.
+they belongs to the same "flow" and goes to the same queue and we get
+`user drops` ([report](report-P8-mqueue.md)).
 
 ```
 ./nfqlb_performance.sh test --queue=0:3 -P8
@@ -160,6 +163,21 @@ they belongs to the same "flow" and goes to the same queue.
 If you have a cpu monitor running you can see that one core get 100%
 load.
 
+### UDP
+
+It is not simple to test UPD bandwidth with `iperf`. Basically you
+have to set the bandwidth using the `-b` flag and check what happens
+([report](report-udp2G.md));
+
+```
+./nfqlb_performance.sh test -b2G -u
+```
+
+If we try `-b4G` we can notice that direct access stays at ~3G while
+traffic through `nfqlb` stays around ~2G ([report](report-udp4G.md)).
+
+The difference compared to TCP feels too large. We must probably find
+another tool for testing UDP bandwidth.
 
 
 ### On HW
