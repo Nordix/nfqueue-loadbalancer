@@ -99,7 +99,7 @@ cmd_tcase_udp() {
 cmd_tcase_nfqlb_stats() {
 	tcase "nfqlb fragment stats"
 	nfqlb stats >&2
-	echo "  Q  port inq cp   rng  Qdrop  Udrop      Seq" >&2
+	echo "  Q       port inq cp   rng  Qdrop  Udrop      Seq" >&2
 	cat /proc/net/netfilter/nfnetlink_queue | format_stats >&2
 }
 format_stats() {

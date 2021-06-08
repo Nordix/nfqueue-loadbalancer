@@ -98,45 +98,52 @@ iperf -c $docker0adr
 iperf -c 10.0.0.0
 ```
 
+Iperf3 is not used since it's [not intended for use with load-balancers](https://github.com/esnet/iperf/issues/823).
+
 Automatic test using the `nfqlb_performance.sh` script;
 ```
-$ ./nfqlb_performance.sh tcp
+$ ./nfqlb_performance.sh test
 1. Start iperf servers
-2. Rebuild and restart test container
+2. Start the test container
 3. Start LB
 4. Iperf direct
 ------------------------------------------------------------
 Client connecting to 172.17.0.1, TCP port 5001
 TCP window size: 85.0 KByte (default)
 ------------------------------------------------------------
-[  1] local 172.17.0.3 port 33920 connected with 172.17.0.1 port 5001
+[  1] local 172.17.0.3 port 54718 connected with 172.17.0.1 port 5001
 [ ID] Interval       Transfer     Bandwidth
-[  1] 0.00-10.00 sec  52.5 GBytes  45.1 Gbits/sec
-5. Nfnetlink_queue stats
-  Q  port inq cp   rng  Qdrop  Udrop      Seq
-  2    59   0  2  1280      0      0        0
-6. Iperf VIP
+[  1] 0.00-10.00 sec  54.6 GBytes  46.9 Gbits/sec
+5. CPU usage 23.5%
+6. Nfnetlink_queue stats
+  Q       port inq cp   rng  Qdrop  Udrop      Seq
+  2         72   0  2  1280      0      0        0
+7. Re-start iperf servers
+8. Iperf VIP
 ------------------------------------------------------------
 Client connecting to 10.0.0.0, TCP port 5001
 TCP window size: 85.0 KByte (default)
 ------------------------------------------------------------
-[  1] local 172.17.0.3 port 42630 connected with 10.0.0.0 port 5001
+[  1] local 172.17.0.3 port 44948 connected with 10.0.0.0 port 5001
 [ ID] Interval       Transfer     Bandwidth
-[  1] 0.00-10.00 sec  54.0 GBytes  46.4 Gbits/sec
-7. Nfnetlink_queue stats
-  Q  port inq cp   rng  Qdrop  Udrop      Seq
-  2    59   0  2  1280      0      0  1224340
-8. Stop the container
+[  1] 0.00-10.00 sec  60.2 GBytes  51.7 Gbits/sec
+9. CPU usage 28.9%
+10. Nfnetlink_queue stats
+  Q       port inq cp   rng  Qdrop  Udrop      Seq
+  2         72   0  2  1280      0      0  1449321
+10. Stop the container
 ```
 
-Iperf3 is not used since it's [not intended for use with load-balancers](https://github.com/esnet/iperf/issues/823).
+There is no bandwidth degradation caused by `nfqlb` but there *is* a
+CPU usage increase. At ~50 Gbits/sec it is ~6% which is acceptable. It
+would also be lower on a more powerful machine than my Dell ultrabook.
 
 
 ### Parallel and multi-queue
 
 You can start `iperf` with parallel connections:
 ```
-./nfqlb_performance.sh tcp -P8
+./nfqlb_performance.sh test -P8
 ```
 
 Now direct traffic uses all cores (I have 8) and the throughput
@@ -147,7 +154,7 @@ not help since `iperf` uses the same addresses for all connections and
 they belongs to the same "flow" and goes to the same queue.
 
 ```
-./nfqlb_performance.sh tcp --queue=0:3 -P8
+./nfqlb_performance.sh test --queue=0:3 -P8
 ```
 
 If you have a cpu monitor running you can see that one core get 100%

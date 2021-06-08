@@ -97,11 +97,45 @@ format_stats() {
 	done
 }
 
+# CPU usage;
+# https://stackoverflow.com/questions/23367857/accurate-calculation-of-cpu-usage-given-in-percentage-in-linux
+
+cmd_cpu_sample() {
+	local s=$(head -1 /proc/stat | tr -s ' ' :)
+	local user=$(echo $s | cut -d: -f2)
+	local nice=$(echo $s | cut -d: -f3)
+	local system=$(echo $s | cut -d: -f4)
+	local idle=$(echo $s | cut -d: -f5)
+	local iowait=$(echo $s | cut -d: -f6)
+	local irq=$(echo $s | cut -d: -f7)
+	local softirq=$(echo $s | cut -d: -f8)
+	local steal=$(echo $s | cut -d: -f9)
+	local guest=$(echo $s | cut -d: -f10)
+	local guest_nice=$(echo $s | cut -d: -f11)
+	echo "$((user + nice + system + irq + softirq + steal)):$((idle + iowait))"
+}
+cmd_cpu_usage_since() {
+	local s=$(cmd_cpu_sample)  # (asap!)
+	test -n "$1" || die "No previous sample"
+	local pbusy=$(echo $1 | cut -d: -f1)
+	local pidle=$(echo $1 | cut -d: -f2)
+	local ptotal=$((pbusy + pidle))
+	local busy=$(echo $s | cut -d: -f1)
+	local idle=$(echo $s | cut -d: -f2)
+	local total=$((busy + idle))
+
+	local totald=$((total - ptotal))
+	local idled=$((idle - pidle))
+	local pecent10=$(( 1000 * (totald - idled) / totald))
+	echo "$((pecent10/10)).$((pecent10%10))%"
+}
+
 ##
 ## Test Commands;
 
-##   tcp [--rebuild] [--no-stop]
-cmd_tcp() {
+##   test [--rebuild] [--no-stop] [iperf options...]
+cmd_test() {
+	local s
 	local i=0
 	i=$((i+1)); echo "$i. Start iperf servers"
 	cmd_start_iperf_server > /dev/null 2>&1
@@ -114,7 +148,9 @@ cmd_tcp() {
 	i=$((i+1)); echo "$i. Start LB"
 	cmd_start_lb
 	i=$((i+1)); echo "$i. Iperf direct"
+	s=$(cmd_cpu_sample)
 	cmd_iperf -c $(cmd_docker_address) $@
+	i=$((i+1)); echo "$i. CPU usage $(cmd_cpu_usage_since $s)"
 	i=$((i+1)); echo "$i. Nfnetlink_queue stats"
 	cmd_qstats
 	i=$((i+1)); echo "$i. Re-start iperf servers"
@@ -122,6 +158,7 @@ cmd_tcp() {
 	i=$((i+1)); echo "$i. Iperf VIP"
 	local vip=$(echo $__vip | cut -d/ -f1)
 	cmd_iperf -c $vip $@
+	i=$((i+1)); echo "$i. CPU usage $(cmd_cpu_usage_since $s)"
 	i=$((i+1)); echo "$i. Nfnetlink_queue stats"
 	cmd_qstats
 	if test "$__no_stop" != "yes"; then
