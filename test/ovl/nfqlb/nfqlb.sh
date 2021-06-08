@@ -117,6 +117,19 @@ test_udp() {
 	test "$__verbose" = "yes" && otcr nfqlb_stats
 	xcluster_stop
 }
+##     mtu
+test_mtu() {
+	tlog "=== nfqlb: MTU test"
+	test_start mtu
+	otc 221 "http http://10.0.0.0 -s -m2 --interface 20.0.0.1"
+	otc 221 "http http://[1000::] -s -m2 --interface $PREFIX:20.0.0.1"
+	otcprog=mtu_test
+	otc 222 squeeze_chain
+	unset otcprog
+	otc 221 "http http://10.0.0.0 -s -m2 --interface 20.0.0.1"
+	otc 221 "http http://[1000::] -s -m2 --interface $PREFIX:20.0.0.1"
+	xcluster_stop
+}
 ##
 
 #  rexec [--expand=x|y] <cmd>
@@ -140,6 +153,9 @@ cmd_rexec() {
 
 . $($XCLUSTER ovld test)/default/usr/lib/xctest
 indent=''
+
+test -n "$PREFIX" || PREFIX=1000::1
+test -n "$XADDR" || XADDR=20.0.0.0
 
 # Get the command
 cmd=$1

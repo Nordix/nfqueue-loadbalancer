@@ -48,16 +48,16 @@ cmd_tcase_nfqueue_activate_all() {
 cmd_tcase_mconnect() {
 	test -n "$__vip" || __vip="[1000::]:5001"
 	tcase "Mconnect to; $__vip"
-	local srccidr=2000::/112
-	echo $__vip | grep -Fq '[' || srccidr=50.0.0.0/16
+	local srccidr=$PREFIX:$XADDR/112
+	echo $__vip | grep -Fq '[' || srccidr=$XADDR/16
 	do_mconnect $__vip -srccidr $srccidr
 }
 
 cmd_tcase_mconnect_udp() {
 	test -n "$__vip" || __vip="[1000::]:5001"
 	tcase "Mconnect with UDP to; $__vip"
-	local srccidr=2000::/112
-	echo $__vip | grep -Fq '[' || srccidr=50.0.0.0/16
+	local srccidr=$PREFIX:$XADDR/112
+	echo $__vip | grep -Fq '[' || srccidr=$XADDR/16
 	do_mconnect $__vip -srccidr $srccidr -udp
 }
 cmd_tcase_ping() {
@@ -81,8 +81,8 @@ cmd_tcase_udp() {
 	test -n "$__copt" || __copt="-monitor -psize 2048 -rate 1000 -nconn 40 -timeout 20s"
 	test -n "$LBOPT" && tlog "LBOPT=[$LBOPT]"
 	tlog "ctraffic opts; $__copt"
-	local srccidr=2000::/112
-	echo $__vip | grep -Fq '[' || srccidr=50.0.0.0/16
+	local srccidr=$PREFIX:$XADDR/112
+	echo $__vip | grep -Fq '[' || srccidr=$XADDR/16
 	mkdir -p $tmp
 	ctraffic -udp -address $__vip -srccidr $srccidr $__copt > $tmp/out || tdie ctraffic
 	test "$__verbose" = "yes" && jq < $tmp/out >&2
@@ -120,9 +120,24 @@ format_stats() {
 	done
 }
 
+cmd_tcase_http() {
+	local url="http://10.0.0.0"
+	if test -n "$1"; then
+		url=$1
+		shift
+	fi
+	tcase "curl $url"
+	curl $@ $url > /dev/null || tdie "curl $@ $url"
+}
+
+
+
 . /etc/profile
 . /usr/lib/xctest
 indent='  '
+
+test -n "$PREFIX" || PREFIX=1000::1
+test -n "$XADDR" || XADDR=20.0.0.0
 
 
 # Get the command
