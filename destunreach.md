@@ -18,7 +18,7 @@ But for both
 [ipv4](https://en.wikipedia.org/wiki/Internet_Control_Message_Protocol#Destination_unreachable)
 and [ipv6](https://datatracker.ietf.org/doc/html/rfc4443#section-3.2)
 a part of the original message is included in the icmp message. This
-"inner" package contains the original addresses (and ports) and `nfqlb`
+"inner" packet contains the original addresses (and ports) and `nfqlb`
 uses them to load-balance the icmp message to the correct target. The
 included original message is a reply message so we must flip addresses
 and ports before the hash.
