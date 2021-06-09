@@ -44,3 +44,24 @@ for more demanding tests.
 # Multi queue;
 xcluster_LBOPT="--queue=0:3" ./nfqlb.sh test --verbose --fragrev udp > $log
 ```
+
+### PMTU discovery test
+
+There is a general problem with
+[dest-unreachable](../../../destunreach.md) packets and load-balancing
+that is hadled by `nfqlb`. The [ovl/mtu squeeze chain](https://github.com/Nordix/xcluster/tree/master/ovl/mtu#squeeze-chain) is used for test.
+
+```
+./nfqlb.sh test mtu > $log
+```
+
+Manual test;
+```
+__nrouters=1 ./nfqlb.sh test --no-stop mtu > $log
+# On vm-001
+tracepath 20.0.0.0
+# On vm-201
+tcpdump -ni eth2 icmp6
+# On vm-221
+curl --interface 1000::1:20.0.0.2 http://[1000::]
+```
