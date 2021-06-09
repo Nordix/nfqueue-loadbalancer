@@ -9,6 +9,8 @@
 #include <die.h>
 #include <prime.h>
 #include <fragutils.h>
+#include <maglevdyn.h>
+
 #include <stdlib.h>
 #include <stdio.h>
 
@@ -17,12 +19,14 @@ char const* const defaultTargetShm = "nfqlb";
 static void initShm(
 	char const* name, int ownFw, int fwOffset, unsigned m, unsigned n)
 {
-	struct SharedData s;
-	s.ownFwmark = ownFw;
-	s.fwOffset = fwOffset;
-	initMagData(&s.magd, m, n);
-	populate(&s.magd);
-	createSharedDataOrDie(name, &s, sizeof(s));
+	unsigned len = magDataDyn_len(m, n);
+	struct SharedData* s = malloc(sizeof(struct SharedData) + len);
+	s->ownFwmark = ownFw;
+	s->fwOffset = fwOffset;
+	createSharedDataOrDie(name, s, sizeof(struct SharedData) + len);
+	free(s);
+	s = mapSharedDataOrDie(name, O_RDWR);
+	magDataDyn_init(m, n, s->mem, len);
 }
 
 static int cmdInit(int argc, char **argv)
@@ -46,14 +50,12 @@ static int cmdInit(int argc, char **argv)
 	(void)parseOptionsOrDie(argc, argv, options);
 	unsigned m, n, p;
 	m = atoi(M);
-	p = primeBelow(m > MAX_M ? MAX_M : m);
+	p = primeBelow(m);
 	if (p != m) {
 		printf("M adjusted; %u -> %u\n", m, p);
 		m = p;
 	}
 	n = atoi(N);
-	if (n > MAX_N)
-		n = MAX_N;
 	initShm(
 		shm, atoi(ownFw), atoi(offset), m, n);
 
@@ -88,18 +90,27 @@ static int cmdShow(int argc, char **argv)
 	};
 	(void)parseOptionsOrDie(argc, argv, options);
 	struct SharedData* s;
-	s = mapSharedDataOrDie(shm, sizeof(*s), O_RDONLY);
+	s = mapSharedDataOrDie(shm, O_RDONLY);
+	if (s == NULL)
+		die("Failed to open shared mem; %s\n", shm);
 	printf("Shm: %s\n", shm);
 	printf("  Fw: own=%d, offset=%d\n", s->ownFwmark, s->fwOffset);
-	printf("  Maglev: M=%d, N=%d\n", s->magd.M, s->magd.N);
+
+	struct MagDataDyn magd;
+	magDataDyn_map(&magd, s->mem);
+	printf("  Maglev: M=%d, N=%d\n", magd.M, magd.N);
 	printf("   Lookup:");
 	for (int i = 0; i < 25; i++)
-		printf(" %d", s->magd.lookup[i]);
+		printf(" %d", magd.lookup[i]);
 	printf("...\n");
 	printf("   Active:");
-	for (int i = 0; i < s->magd.N; i++)
-		printf(" %u", s->magd.active[i]);
+	for (int i = 0; i < magd.N; i++) {
+		if (magd.active[i] >= 0)
+			printf(" %d(%d)", magd.active[i], i);
+	}
 	printf("\n");
+	magDataDyn_free(&magd);
+
 	return 0;
 }
 
@@ -114,7 +125,7 @@ static int cmdStats(int argc, char **argv)
 		{0, 0, 0, 0}
 	};
 	(void)parseOptionsOrDie(argc, argv, options);
-	struct fragStats* sft = mapSharedDataOrDie(ftShm, sizeof(*sft), O_RDONLY);
+	struct fragStats* sft = mapSharedDataOrDie(ftShm, O_RDONLY);
 	fragPrintStats(sft);
 	return 0;
 }

@@ -6,16 +6,18 @@
 #include "nfqueue.h"
 #include <cmd.h>
 #include <shmem.h>
+#include <maglevdyn.h>
+
 #include <stdlib.h>
 
 static void maglevSetActive(
-	struct MagData* m, unsigned v, int argc, char *argv[])
+	struct MagDataDyn* m, unsigned v, int argc, char *argv[])
 {
 	while (argc-- > 0) {
 		int i = atoi(*argv++);
 		if (i >= 0 && i < m->N) m->active[i] = v;
 	}
-	populate(m);
+	magDataDyn_populate(m);
 }
 
 static int cmdActivate(int argc, char **argv)
@@ -32,8 +34,10 @@ static int cmdActivate(int argc, char **argv)
 	argc -= nopt;
 	argv += nopt;
 	struct SharedData* s;
-	s = mapSharedDataOrDie(shm, sizeof(*s), O_RDWR);
-	maglevSetActive(&s->magd, 1, argc, argv);
+	s = mapSharedDataOrDie(shm, O_RDWR);
+	struct MagDataDyn magd;
+	magDataDyn_map(&magd, s->mem);
+	maglevSetActive(&magd, 1, argc, argv);
 	return 0;
 }
 
@@ -51,8 +55,10 @@ static int cmdDeactivate(int argc, char **argv)
 	argc -= nopt;
 	argv += nopt;
 	struct SharedData* s;
-	s = mapSharedDataOrDie(shm, sizeof(*s), O_RDWR);
-	maglevSetActive(&s->magd, 0, argc, argv);
+	s = mapSharedDataOrDie(shm, O_RDWR);
+	struct MagDataDyn magd;
+	magDataDyn_map(&magd, s->mem);
+	maglevSetActive(&magd, 0, argc, argv);
 	return 0;
 }
 

@@ -15,8 +15,8 @@ struct MagDataDynInternal {
 unsigned magDataDyn_len(unsigned M, unsigned N)
 {
 	M = primeBelow(M);
-	return sizeof(unsigned) * (3 + M * N) + sizeof(int) * (M + N) +
-		sizeof(unsigned*) * N;
+	return sizeof(struct MagDataDynInternal)  + sizeof(unsigned) * (3 + M * N)
+		+ sizeof(int) * (M + N);
 }
 
 void magDataDyn_init(unsigned M, unsigned N, void* mem, unsigned len)
@@ -43,6 +43,7 @@ void magDataDyn_init(unsigned M, unsigned N, void* mem, unsigned len)
 		m.active[i] = -1;
 	}
 	magDataDyn_populate(&m);
+	magDataDyn_free(&m);
 }
 
 void magDataDyn_map(struct MagDataDyn* m, void* mem)
@@ -53,14 +54,19 @@ void magDataDyn_map(struct MagDataDyn* m, void* mem)
 	unsigned offset = sizeof(struct MagDataDynInternal);
 	m->lookup = mem + offset;
 	offset += (m->M * sizeof(int));
-	m->permutation = mem + offset;
-	offset += (m->N * sizeof(unsigned*));
+	m->permutation = malloc(m->N * sizeof(unsigned*));
+	if (m->permutation == NULL)
+		die("Out of mem\n");
 	unsigned i;
 	for (i = 0; i < m->N; i++) {
 		m->permutation[i] = mem + offset;
 		offset += (m->M * sizeof(unsigned));
 	}
 	m->active = mem + offset;	   
+}
+void magDataDyn_free(struct MagDataDyn* m)
+{
+	free(m->permutation);
 }
 
 void magDataDyn_populate(struct MagDataDyn* d)

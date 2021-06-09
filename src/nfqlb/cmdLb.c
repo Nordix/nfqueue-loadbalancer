@@ -10,6 +10,7 @@
 #include <cmd.h>
 #include <die.h>
 #include <tuntap.h>
+#include <maglevdyn.h>
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -24,7 +25,9 @@ static struct FragTable* ft;
 static struct SharedData* st;
 static struct SharedData* slb = NULL;
 static int tun_fd = -1;
-struct fragStats* sft;
+static struct fragStats* sft;
+static struct MagDataDyn magd;
+static struct MagDataDyn magdlb;
 
 #ifdef VERBOSE
 #define D(x)
@@ -51,7 +54,7 @@ static int handleIpv4(void* data, unsigned len)
 		// Make an addres-hash and check if we shall forward to the LB tier
 		if (slb != NULL) {
 			hash = ipv4AddressHash(data, len);
-			int fw = slb->magd.lookup[hash % slb->magd.M];
+			int fw = magdlb.lookup[hash % magdlb.M];
 			if (fw >= 0 && fw != slb->ownFwmark) {
 				Dx(printf("IPv4 fragment to LB tier. fw=%d\n", fw));
 				return fw + slb->fwOffset; /* To the LB tier */
@@ -66,11 +69,11 @@ static int handleIpv4(void* data, unsigned len)
 		}
 		Dx(printf(
 			   "Handle IPv4 frag locally hash=%u, fwmark=%u\n",
-			   hash, st->magd.lookup[hash % st->magd.M] + st->fwOffset));
+			   hash, magd.lookup[hash % magd.M] + st->fwOffset));
 	} else {
 		hash = ipv4Hash(data, len);
 	}
-	return st->magd.lookup[hash % st->magd.M] + st->fwOffset;
+	return magd.lookup[hash % magd.M] + st->fwOffset;
 }
 
 static int handleIpv6(void const* data, unsigned len)
@@ -99,7 +102,7 @@ static int handleIpv6(void const* data, unsigned len)
 		if (slb != NULL) {
 			// Make an addres-hash and check if we shall forward to the LB tier
 			hash = ipv6AddressHash(data, len);
-			int fw = slb->magd.lookup[hash % slb->magd.M];
+			int fw = magdlb.lookup[hash % magdlb.M];
 			if (fw >= 0 && fw != slb->ownFwmark) {
 				Dx(printf("IPv6 fragment to LB tier. fw=%d\n", fw));
 				return fw + slb->fwOffset; /* To the LB tier */
@@ -114,11 +117,11 @@ static int handleIpv6(void const* data, unsigned len)
 		}
 		Dx(printf(
 			   "Handle IPv6 frag locally hash=%u, fwmark=%u\n",
-			   hash, st->magd.lookup[hash % st->magd.M] + st->fwOffset));
+			   hash, magd.lookup[hash % magd.M] + st->fwOffset));
 	} else {
 		hash = ipv6Hash(data, len, htype, hdr);
 	}
-	return st->magd.lookup[hash % st->magd.M] + st->fwOffset;
+	return magd.lookup[hash % magd.M] + st->fwOffset;
 }
 
 static int packetHandleFn(
@@ -178,14 +181,17 @@ static int cmdLb(int argc, char **argv)
 		{0, 0, 0, 0}
 	};
 	(void)parseOptionsOrDie(argc, argv, options);
-	st = mapSharedDataOrDie(targetShm,sizeof(*st), O_RDONLY);
-	if (lbShm != NULL)
-		slb = mapSharedDataOrDie(lbShm,sizeof(*slb), O_RDONLY);
+	st = mapSharedDataOrDie(targetShm, O_RDONLY);
+	magDataDyn_map(&magd, st->mem);
+	if (lbShm != NULL) {
+		slb = mapSharedDataOrDie(lbShm, O_RDONLY);
+		magDataDyn_map(&magdlb, slb->mem);
+	}
 	// Create and re-map the stats struct
 	sft = calloc(1, sizeof(*sft));
 	createSharedDataOrDie(ftShm, sft, sizeof(*sft));
 	free(sft);
-	sft = mapSharedDataOrDie(ftShm, sizeof(*sft), O_RDWR);
+	sft = mapSharedDataOrDie(ftShm, O_RDWR);
 
 	// Get MTU from the ingress device
 	int mtu = atoi(mtuOpt);

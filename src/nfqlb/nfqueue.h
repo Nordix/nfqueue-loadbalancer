@@ -1,11 +1,10 @@
 #pragma once
-#include <maglev.h>
 #include <conntrack.h>
 
 struct SharedData {
-        int ownFwmark;
-        int fwOffset;
-        struct MagData magd;
+	int ownFwmark;
+	int fwOffset;
+	unsigned char mem[];
 };
 
 extern char const* const defaultTargetShm;
