@@ -127,6 +127,7 @@ test_mtu() {
 	otc 222 squeeze_chain
 	unset otcprog
 	otc 221 "http http://10.0.0.0 -s -m2 --interface 20.0.0.1"
+	sleep 1				# ICMP6 not sent immadiately! Probably some DAD problem.
 	otc 221 "http http://[1000::] -s -m2 --interface $PREFIX:20.0.0.1"
 	xcluster_stop
 }
