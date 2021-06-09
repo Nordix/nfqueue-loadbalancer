@@ -93,7 +93,12 @@ for n in $(seq 1 20); do echo | nc 10.0.0.0 8888; done
 iptables -t nat -S    # OUTPUT chain for local origin, forwarding is not setup
 iptables -t mangle -S # The VIP is routed to user-space
 nfqlb show            # Shows the Maglev hash lookup
-nfqlb deactivate 1    # Deactivates a target. Check load-balancing again!
+nfqlb deactivate 101  # Deactivates a target. Check load-balancing again!
+```
+
+Stop the targets;
+```
+docker stop target1 target2 target3
 ```
 
 This is a basic example. `nfqlb` can load-balance forwarded traffic

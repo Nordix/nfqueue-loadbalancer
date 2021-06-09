@@ -17,12 +17,11 @@
 char const* const defaultTargetShm = "nfqlb";
 
 static void initShm(
-	char const* name, int ownFw, int fwOffset, unsigned m, unsigned n)
+	char const* name, int ownFw, unsigned m, unsigned n)
 {
 	unsigned len = magDataDyn_len(m, n);
 	struct SharedData* s = malloc(sizeof(struct SharedData) + len);
 	s->ownFwmark = ownFw;
-	s->fwOffset = fwOffset;
 	createSharedDataOrDie(name, s, sizeof(struct SharedData) + len);
 	free(s);
 	s = mapSharedDataOrDie(name, O_RDWR);
@@ -34,15 +33,13 @@ static int cmdInit(int argc, char **argv)
 	char const* shm = defaultTargetShm;
 	char const* M = "997";
 	char const* N = "32";
-	char const* offset = "100";
-	char const* ownFw = NULL;
+	char const* ownFw = "0";
 	struct Option options[] = {
 		{"help", NULL, 0,
 		 "init [options]\n"
 		 "  Initiate shared mem structures"},
-		{"ownfw", &ownFw, REQUIRED, "Own FW mark (not offset adjusted)"},
+		{"ownfw", &ownFw, 0, "Own FW mark"},
 		{"shm", &shm, 0, "Target shared memory"},
-		{"offset", &offset, 0, "FW offset"},
 		{"N", &N, 0, "Maglev max targets"},
 		{"M", &M, 0, "Maglev lookup table size"},
 		{0, 0, 0, 0}
@@ -56,8 +53,7 @@ static int cmdInit(int argc, char **argv)
 		m = p;
 	}
 	n = atoi(N);
-	initShm(
-		shm, atoi(ownFw), atoi(offset), m, n);
+	initShm(shm, atoi(ownFw), m, n);
 
 	return 0;
 }
@@ -94,7 +90,7 @@ static int cmdShow(int argc, char **argv)
 	if (s == NULL)
 		die("Failed to open shared mem; %s\n", shm);
 	printf("Shm: %s\n", shm);
-	printf("  Fw: own=%d, offset=%d\n", s->ownFwmark, s->fwOffset);
+	printf("  Fw: own=%d\n", s->ownFwmark);
 
 	struct MagDataDyn magd;
 	magDataDyn_map(&magd, s->mem);

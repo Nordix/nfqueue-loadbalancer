@@ -35,13 +35,15 @@ dbg() {
 
 
 cmd_tcase_nfqueue_activate_all() {
-	local vms="$(seq 1 $__nvm | tr '\n' ' ')"
-	tcase "nfqueue activate all [$vms]"
-	nfqlb activate $vms
+	tcase "nfqueue activate all"
+	local n
+	for n in $(seq 1 $__nvm); do
+		nfqlb activate $((n + 100))
+	done
 	nfqlb show --shm=nfqlbLb > /dev/null 2&>1 || return 0
 	test -n "$__nrouters" || __nrouters=1
 	for n in $(seq 1 $__nrouters); do
-		nfqlb activate --shm=nfqlbLb $n
+		nfqlb activate --shm=nfqlbLb $((n + 200))
 	done
 }
 

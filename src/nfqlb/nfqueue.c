@@ -15,11 +15,14 @@
 
 static packetHandleFn_t handlePacket = NULL;
 static unsigned queue_length = 8;
+static unsigned mtu = 1500;
 
-void nfqueueInit(packetHandleFn_t packetHandleFn, unsigned _queue_length)
+void nfqueueInit(
+	packetHandleFn_t packetHandleFn, unsigned _queue_length, unsigned _mtu)
 {
 	handlePacket = packetHandleFn;
 	queue_length = _queue_length;
+	mtu = _mtu;
 }
 
 
@@ -106,7 +109,7 @@ int nfqueueRun(unsigned int queue_num)
 {
 	char *buf;
 	/* largest copied packet payload, plus netlink data overhead: */
-	size_t sizeof_buf = 1280 + (MNL_SOCKET_BUFFER_SIZE/2);
+	size_t sizeof_buf = mtu + (MNL_SOCKET_BUFFER_SIZE/2);
 	unsigned int portid;
 	int ret;
 	struct nlmsghdr *nlh;
@@ -158,7 +161,7 @@ int nfqueueRun(unsigned int queue_num)
 	}
 
 	nlh = nfq_hdr_put(buf, NFQNL_MSG_CONFIG, queue_num);
-	nfq_nlmsg_cfg_put_params(nlh, NFQNL_COPY_PACKET, 1280);
+	nfq_nlmsg_cfg_put_params(nlh, NFQNL_COPY_PACKET, mtu);
 
 	mnl_attr_put_u32(nlh, NFQA_CFG_FLAGS, htonl(NFQA_CFG_F_GSO));
 	mnl_attr_put_u32(nlh, NFQA_CFG_MASK, htonl(NFQA_CFG_F_GSO));

@@ -37,6 +37,7 @@ static struct MagDataDyn magdlb;
 #define Dx(x)
 #endif
 
+#define FW(table) table.active[table.lookup[hash % table.M]]
 
 static int ipv6HandleFragment(
 	struct FragTable* ft, void const* data, unsigned len,
@@ -54,10 +55,10 @@ static int handleIpv4(void* data, unsigned len)
 		// Make an addres-hash and check if we shall forward to the LB tier
 		if (slb != NULL) {
 			hash = ipv4AddressHash(data, len);
-			int fw = magdlb.lookup[hash % magdlb.M];
+			int fw = FW(magdlb);
 			if (fw >= 0 && fw != slb->ownFwmark) {
 				Dx(printf("IPv4 fragment to LB tier. fw=%d\n", fw));
-				return fw + slb->fwOffset; /* To the LB tier */
+				return fw; /* To the LB tier */
 			}
 		}
 
@@ -68,12 +69,11 @@ static int handleIpv4(void* data, unsigned len)
 			return -1;
 		}
 		Dx(printf(
-			   "Handle IPv4 frag locally hash=%u, fwmark=%u\n",
-			   hash, magd.lookup[hash % magd.M] + st->fwOffset));
+			   "Handle IPv4 frag locally hash=%u, fwmark=%u\n",hash, FW(magd)));
 	} else {
 		hash = ipv4Hash(data, len);
 	}
-	return magd.lookup[hash % magd.M] + st->fwOffset;
+	return FW(magd);
 }
 
 static int handleIpv6(void const* data, unsigned len)
@@ -102,10 +102,10 @@ static int handleIpv6(void const* data, unsigned len)
 		if (slb != NULL) {
 			// Make an addres-hash and check if we shall forward to the LB tier
 			hash = ipv6AddressHash(data, len);
-			int fw = magdlb.lookup[hash % magdlb.M];
+			int fw = FW(magdlb);
 			if (fw >= 0 && fw != slb->ownFwmark) {
 				Dx(printf("IPv6 fragment to LB tier. fw=%d\n", fw));
-				return fw + slb->fwOffset; /* To the LB tier */
+				return fw; /* To the LB tier */
 			}
 		}
 
@@ -116,18 +116,17 @@ static int handleIpv6(void const* data, unsigned len)
 			return -1;
 		}
 		Dx(printf(
-			   "Handle IPv6 frag locally hash=%u, fwmark=%u\n",
-			   hash, magd.lookup[hash % magd.M] + st->fwOffset));
+			   "Handle IPv6 frag locally hash=%u, fwmark=%u\n",hash, FW(magd)));
 	} else {
 		hash = ipv6Hash(data, len, htype, hdr);
 	}
-	return magd.lookup[hash % magd.M] + st->fwOffset;
+	return FW(magd);
 }
 
 static int packetHandleFn(
 	unsigned short proto, void* payload, unsigned plen)
 {
-	int fw = st->fwOffset;
+	int fw;
 	switch (proto) {
 	case ETH_P_IP:
 		fw = handleIpv4(payload, plen);
@@ -220,7 +219,7 @@ static int cmdLb(int argc, char **argv)
 		"FragTable; size=%d, buckets=%d, frag=%d, mtu=%d, ttl=%d\n",
 		atoi(ft_size),atoi(ft_buckets),atoi(ft_frag),mtu,atoi(ft_ttl));
 
-	nfqueueInit(packetHandleFn, atoi(qlen));
+	nfqueueInit(packetHandleFn, atoi(qlen), mtu);
 
 	/*
 	  The qnum may be a range like "0:3" in which case we go

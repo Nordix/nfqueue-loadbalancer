@@ -150,10 +150,11 @@ cmd_lb() {
 		iptables=ip6tables
 		ip="ip -6"
 	fi
-	local n fw ntargets=0
+	local n fw fws ntargets=0
 	for n in $@; do
 		ntargets=$((ntargets + 1))
 		fw=$((ntargets + 100))
+		fws="$fws $fw"
 		$ip rule add fwmark $fw table $fw
 		$ip route add default via $n table $fw
 		$iptables -t nat -A OUTPUT -m mark --mark $fw \
@@ -170,8 +171,8 @@ cmd_lb() {
 
 	test -n "$__path" || __path=/opt/nfqlb/bin
 	PATH=$PATH:$__path
-	nfqlb show > /dev/null 2>&1 || nfqlb init --ownfw=1
-	nfqlb activate $(seq 1 $ntargets)
+	nfqlb show > /dev/null 2>&1 || nfqlb init
+	nfqlb activate $fws
 	nfqlb lb --qlength=128 --queue=$__queue >> /var/log/nfqlb.log 2>&1 &
 }
 ##   stop_lb --vip=<virtual-ip> <targets...>

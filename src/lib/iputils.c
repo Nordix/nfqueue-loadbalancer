@@ -41,9 +41,9 @@ static unsigned ipv4IcmpDestUnreachHash(void const* data, unsigned len)
 	*/
 	struct iphdr* hdr = (struct iphdr*)data;
 	struct icmphdr* ihdr = (struct icmphdr*)((uint32_t*)data + hdr->ihl);
-	D(printf(
-		   "ipv4IcmpDestUnreachHash; code=%u, mtu=%u\n",
-		   ihdr->code, ntohs(ihdr->un.frag.mtu)));
+	Dx(printf(
+		   "ipv4IcmpDestUnreachHash; len=%u, code=%u, mtu=%u\n",
+		   len, ihdr->code, ntohs(ihdr->un.frag.mtu)));
 
 	/*
 	  The original datagram is found on offset 8 in this icmp
@@ -68,7 +68,7 @@ static unsigned ipv4IcmpHash(void const* data, unsigned len)
 	int32_t hashData[3];
 	hashData[0] = hdr->saddr;
 	hashData[1] = hdr->daddr;
-	Dx(printf("ipv4IcmpHash; type=%u\n", ihdr->type));
+	D(printf("ipv4IcmpHash; type=%u\n", ihdr->type));
 	switch (ihdr->type) {
 	case ICMP_ECHO:
 		// We hash on addresses and id
@@ -129,7 +129,6 @@ ipv6TcpUdpHash(struct ip6_hdr const* h, uint32_t const* ports)
 
 /*
   https://datatracker.ietf.org/doc/html/rfc4443#section-3.2
-  
 */
 static unsigned ipv6IcmpDestUnreachHash(
 	void const* data, unsigned len,
@@ -154,7 +153,7 @@ static unsigned ipv6IcmpDestUnreachHash(
 	}
 
 	// TODO; Don't assume tcp/udp
-	D(printf("ipv6IcmpDestUnreachHash; inner-type=%u\n", htype));
+	Dx(printf("ipv6IcmpDestUnreachHash; len=%u, inner-type=%u\n", len,htype));
 	/* Reverse addresses and ports and hash */
 	uint32_t hashData[9];
 	memcpy(hashData, &h->ip6_dst, 16);

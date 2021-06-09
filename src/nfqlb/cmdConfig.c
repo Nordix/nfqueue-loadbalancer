@@ -10,15 +10,6 @@
 
 #include <stdlib.h>
 
-static void maglevSetActive(
-	struct MagDataDyn* m, unsigned v, int argc, char *argv[])
-{
-	while (argc-- > 0) {
-		int i = atoi(*argv++);
-		if (i >= 0 && i < m->N) m->active[i] = v;
-	}
-	magDataDyn_populate(m);
-}
 
 static int cmdActivate(int argc, char **argv)
 {
@@ -37,7 +28,30 @@ static int cmdActivate(int argc, char **argv)
 	s = mapSharedDataOrDie(shm, O_RDWR);
 	struct MagDataDyn magd;
 	magDataDyn_map(&magd, s->mem);
-	maglevSetActive(&magd, 1, argc, argv);
+
+	int i, fw, found, changed = 0;
+	while (argc-- > 0) {
+		fw = atoi(*argv++);		
+		found = 0;
+		for (i = 0; i < magd.N; i++) {
+			if (magd.active[i] == fw) {
+				found = 1;
+				break;
+			}
+		}
+		if (!found) {
+			for (i = 0; i < magd.N; i++) {
+				if (magd.active[i] < 0) {
+					magd.active[i] = fw;
+					changed = 1;
+					break;
+				}
+			}
+		}
+	}
+	if (changed)
+		magDataDyn_populate(&magd);
+
 	return 0;
 }
 
@@ -58,7 +72,21 @@ static int cmdDeactivate(int argc, char **argv)
 	s = mapSharedDataOrDie(shm, O_RDWR);
 	struct MagDataDyn magd;
 	magDataDyn_map(&magd, s->mem);
-	maglevSetActive(&magd, 0, argc, argv);
+
+	int changed = 0;
+	while (argc-- > 0) {
+		int fw = atoi(*argv++);		
+		for (int i = 0; i < magd.N; i++) {
+			if (magd.active[i] == fw) {
+				magd.active[i] = -1;
+				changed = 1;
+				break;
+			}
+		}
+	}
+	if (changed)
+		magDataDyn_populate(&magd);
+
 	return 0;
 }
 
