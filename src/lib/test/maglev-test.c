@@ -130,7 +130,7 @@ int
 main(int argc, char* argv[])
 {
 	struct MagData env;
-	if (argc == 1) {
+	if (argc == 2 && strcmp(argv[1], "example") == 0) {
 		// Show the example from p6 in the maglev doc
 		initExample(&env);
 		printPermutations(&env);
@@ -142,7 +142,8 @@ main(int argc, char* argv[])
 	}
 
 	if (argc < 4) {
-		printf("Syntax; maglev M N seed [loops]\n");
+		printf(
+			"Syntax; maglev example, or maglev M N seed [loops]\n");
 		return 0;
 	}
 
