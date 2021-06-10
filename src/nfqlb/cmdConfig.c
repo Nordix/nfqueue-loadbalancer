@@ -5,6 +5,7 @@
 
 #include "nfqueue.h"
 #include <cmd.h>
+#include <die.h>
 #include <shmem.h>
 #include <maglevdyn.h>
 
@@ -14,11 +15,14 @@
 static int cmdActivate(int argc, char **argv)
 {
 	char const* shm = defaultTargetShm;
+	char const* index = NULL;
 	struct Option options[] = {
 		{"help", NULL, 0,
-		 "activate [options]\n"
-		 "  Activate a target or lb"},
+		 "activate [--shm=] <targets...>\n"
+		 "activate [--shm=] --lookup=# <target>\n"
+		 "  Activate targets."},
 		{"shm", &shm, 0, "Shared memory"},
+		{"lookup", &index, 0, "Index in the lookup table"},
 		{0, 0, 0, 0}
 	};
 	int nopt = parseOptionsOrDie(argc, argv, options);
@@ -28,6 +32,20 @@ static int cmdActivate(int argc, char **argv)
 	s = mapSharedDataOrDie(shm, O_RDWR);
 	struct MagDataDyn magd;
 	magDataDyn_map(&magd, s->mem);
+
+	if (index != NULL) {
+		if (argc == 0)
+			return 0;
+		int i = atoi(index);
+		if (i >= magd.N)
+			die("Lookup index too large\n");
+		int fw = atoi(*argv);
+		if (magd.active[i] != fw) {
+			magd.active[i] = atoi(*argv);
+			magDataDyn_populate(&magd);
+		}
+		return 0;
+	}
 
 	int i, fw, found, changed = 0;
 	while (argc-- > 0) {
@@ -58,11 +76,14 @@ static int cmdActivate(int argc, char **argv)
 static int cmdDeactivate(int argc, char **argv)
 {
 	char const* shm = defaultTargetShm;
+	char const* index = NULL;
 	struct Option options[] = {
 		{"help", NULL, 0,
-		 "deactivate [options]\n"
-		 "  Deactivate a target or lb"},
+		 "deactivate [--shm=] <targets...>\n"
+		 "deactivate [--shm=] --lookup=#\n"
+		 "  Deactivate targets"},
 		{"shm", &shm, 0, "Shared memory"},
+		{"lookup", &index, 0, "Index in the lookup table"},
 		{0, 0, 0, 0}
 	};
 	int nopt = parseOptionsOrDie(argc, argv, options);
@@ -72,6 +93,17 @@ static int cmdDeactivate(int argc, char **argv)
 	s = mapSharedDataOrDie(shm, O_RDWR);
 	struct MagDataDyn magd;
 	magDataDyn_map(&magd, s->mem);
+
+	if (index != NULL) {
+		int i = atoi(index);
+		if (i >= magd.N)
+			die("Lookup index too large\n");
+		if (magd.active[i] >= 0) {
+			magd.active[i] = -1;
+			magDataDyn_populate(&magd);
+		}
+		return 0;
+	}
 
 	int changed = 0;
 	while (argc-- > 0) {
