@@ -19,10 +19,10 @@ static int cmdActivate(int argc, char **argv)
 	struct Option options[] = {
 		{"help", NULL, 0,
 		 "activate [--shm=] <fwmarks...>\n"
-		 "activate [--shm=] --lookup=# <fwmark>\n"
+		 "activate [--shm=] --index=# <fwmark>\n"
 		 "  Activate targets."},
 		{"shm", &shm, 0, "Shared memory"},
-		{"lookup", &index, 0, "Index in the lookup table"},
+		{"index", &index, 0, "Index in the active table (<= N)"},
 		{0, 0, 0, 0}
 	};
 	int nopt = parseOptionsOrDie(argc, argv, options);
@@ -80,10 +80,10 @@ static int cmdDeactivate(int argc, char **argv)
 	struct Option options[] = {
 		{"help", NULL, 0,
 		 "deactivate [--shm=] <fwmarks...>\n"
-		 "deactivate [--shm=] --lookup=#\n"
+		 "deactivate [--shm=] --index=#\n"
 		 "  Deactivate targets"},
 		{"shm", &shm, 0, "Shared memory"},
-		{"lookup", &index, 0, "Index in the lookup table"},
+		{"index", &index, 0, "Index in the active table (<= N)"},
 		{0, 0, 0, 0}
 	};
 	int nopt = parseOptionsOrDie(argc, argv, options);
