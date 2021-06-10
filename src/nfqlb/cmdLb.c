@@ -155,7 +155,7 @@ static int cmdLb(int argc, char **argv)
 	char const* lbShm = NULL;
 	char const* ftShm = "ftshm";
 	char const* qnum = "2";
-	char const* qlen = "64";
+	char const* qlen = "1024";
 	char const* ft_size = "500";
 	char const* ft_buckets = "500";
 	char const* ft_frag = "100";
