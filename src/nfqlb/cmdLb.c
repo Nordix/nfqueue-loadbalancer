@@ -206,13 +206,21 @@ static int cmdLb(int argc, char **argv)
 		int tun_mtu = get_mtu(tun);
 		if (tun_mtu < mtu)
 			die("Tun mtu too small; %d < %d\n", tun_mtu, mtu);
+	} else {
+		/*
+		  We can't inject stored fragments. Disable storing of
+		  fragments and set the MTU to 1280 to avoid copy unnecessary
+		  data to user-space.
+		 */
+		ft_frag = "0";
+		mtu = 1280;
 	}
 
 	ft = fragTableCreate(
 		atoi(ft_size),		/* table size */
 		atoi(ft_buckets),	/* Extra buckets for hash collisions */
 		atoi(ft_frag),		/* Max stored fragments */
-		mtu,				/* MTU + some extras */
+		mtu,				/* MTU. Only used for stored fragments */
 		atoi(ft_ttl));		/* Fragment TTL in milli seconds */
 	fragUseStats(ft, sft);
 	printf(
