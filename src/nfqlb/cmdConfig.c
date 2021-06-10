@@ -18,8 +18,8 @@ static int cmdActivate(int argc, char **argv)
 	char const* index = NULL;
 	struct Option options[] = {
 		{"help", NULL, 0,
-		 "activate [--shm=] <targets...>\n"
-		 "activate [--shm=] --lookup=# <target>\n"
+		 "activate [--shm=] <fwmarks...>\n"
+		 "activate [--shm=] --lookup=# <fwmark>\n"
 		 "  Activate targets."},
 		{"shm", &shm, 0, "Shared memory"},
 		{"lookup", &index, 0, "Index in the lookup table"},
@@ -79,7 +79,7 @@ static int cmdDeactivate(int argc, char **argv)
 	char const* index = NULL;
 	struct Option options[] = {
 		{"help", NULL, 0,
-		 "deactivate [--shm=] <targets...>\n"
+		 "deactivate [--shm=] <fwmarks...>\n"
 		 "deactivate [--shm=] --lookup=#\n"
 		 "  Deactivate targets"},
 		{"shm", &shm, 0, "Shared memory"},
