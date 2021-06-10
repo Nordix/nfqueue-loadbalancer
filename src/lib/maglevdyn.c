@@ -14,6 +14,8 @@ struct MagDataDynInternal {
 
 unsigned magDataDyn_len(unsigned M, unsigned N)
 {
+	if (M < 3)
+		M = 3;
 	M = primeBelow(M);
 	return sizeof(struct MagDataDynInternal)  + sizeof(unsigned) * (3 + M * N)
 		+ sizeof(int) * (M + N);
@@ -21,6 +23,8 @@ unsigned magDataDyn_len(unsigned M, unsigned N)
 
 void magDataDyn_init(unsigned M, unsigned N, void* mem, unsigned len)
 {
+	if (M < 3)
+		M = 3;
 	M = primeBelow(M);
 	if (len < magDataDyn_len(M, N))
 		die("magDataDyn len too small; %u < %u\n", len, magDataDyn_len(M, N));

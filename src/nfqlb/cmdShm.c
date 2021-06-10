@@ -47,12 +47,17 @@ static int cmdInit(int argc, char **argv)
 	(void)parseOptionsOrDie(argc, argv, options);
 	unsigned m, n, p;
 	m = atoi(M);
-	p = primeBelow(m);
+	if (m < 3)
+		p = 3;
+	else
+		p = primeBelow(m);
 	if (p != m) {
 		printf("M adjusted; %u -> %u\n", m, p);
 		m = p;
 	}
 	n = atoi(N);
+	if (n > m)
+		die("N can't be larger than M\n");
 	initShm(shm, atoi(ownFw), m, n);
 
 	return 0;
@@ -96,7 +101,7 @@ static int cmdShow(int argc, char **argv)
 	magDataDyn_map(&magd, s->mem);
 	printf("  Maglev: M=%d, N=%d\n", magd.M, magd.N);
 	printf("   Lookup:");
-	for (int i = 0; i < 25; i++)
+	for (int i = 0; i < 25 && i < magd.M; i++)
 		printf(" %d", magd.lookup[i]);
 	printf("...\n");
 	printf("   Active:");
