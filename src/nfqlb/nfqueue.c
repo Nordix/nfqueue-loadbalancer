@@ -183,6 +183,29 @@ int nfqueueRun(unsigned int queue_num)
 	 * in this information, so turn it off. */
 	ret = 1;
 	mnl_socket_setsockopt(nl, NETLINK_NO_ENOBUFS, &ret, sizeof(int));
+#if 0
+	/*
+	  nfnl_rcvbufsiz() mentioned in the docs seem obsolete, but
+	  checking the source in libnfnetlink-1.0.1/src/libnfnetlink.c it
+	  just calls setsockopt().
+	  cat /proc/sys/net/ipv4/tcp_rmem # min default max
+	 */
+	int n = 0;
+	int fd = mnl_socket_get_fd(nl);
+	socklen_t socklen = sizeof(n);
+	if (getsockopt(fd, SOL_SOCKET, SO_RCVBUF, &n, &socklen) == 0) {
+		printf("SO_RCVBUF = %u\n", n);
+		int newsize = (queue_length * sizeof_buf / 4) & ~0xfff;
+		printf("newsize = %d\n", newsize);
+		if (newsize > n) {
+			setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &newsize, socklen);
+			getsockopt(fd, SOL_SOCKET, SO_RCVBUF, &n, &socklen);
+			printf("New SO_RCVBUF = %u\n", n);
+		}
+	} else {
+		printf("getsockopt failed\n");
+	}
+#endif
 
 	for (;;) {
 		ret = mnl_socket_recvfrom(nl, buf, sizeof_buf);
