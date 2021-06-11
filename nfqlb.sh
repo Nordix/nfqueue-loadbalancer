@@ -136,6 +136,18 @@ cmd_start_image() {
 	exec tail -f /dev/null			# Block
 }
 
+##   multi_address
+##     Setup multiple addresses on dev "lo"
+cmd_multi_address() {
+	sysctl -w net.ipv4.ip_nonlocal_bind=1 > /dev/null \
+		|| die "sysctl -w net.ipv4.ip_nonlocal_bind=1"
+	sysctl -w net.ipv6.ip_nonlocal_bind=1 > /dev/null \
+		|| die "sysctl -w net.ipv6.ip_nonlocal_bind=1"
+	ip addr add 10.200.200.0/24 dev lo
+	ip -6 addr add fd01::10.200.200.0/120 dev lo
+	ip -6 ro add local fd01::10.200.200.0/120 dev lo
+}
+
 ##   lb [--queue=] --vip=<virtual-ip> <targets...>
 ##     NOTE: Should normally be executed in a container.
 ##     Setup load-balancing to targets. Examples;
@@ -267,6 +279,14 @@ cmd_build_alpine_image() {
 	make -C src clean > /dev/null
 	make -C src -j8 static X=$d/nfqlb || die make
 	strip $d/nfqlb
+	local iperf=$HOME/Downloads/iperf
+	if test -r $iperf; then
+		log "Using [$iperf]"
+		chmod a+x $iperf
+		d=$dir/image/usr/bin
+		mkdir -p $d
+		cp $iperf $d
+	fi
 	docker build -t $img:latest -f Dockerfile.alpine .
 }
 

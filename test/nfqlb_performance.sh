@@ -34,18 +34,25 @@ dbg() {
 
 ## Low-level Commands;
 
-##   start_iperf_server
-##     In the current netns. Both tcp6 and udp6
+##   start_iperf_server [--multi-src]
+##     In the current netns. Both tcp6 and udp6. --multi-src requires
+##     a patched iperf.
 cmd_start_iperf_server() {
+	local iperf=iperf
+	if test "$__multi_src" = "yes"; then
+		iperf="$HOME/Downloads/iperf"
+		test -x $iperf || die "Not executable [$iperf]"
+		iperf="$iperf --sum-dstip"
+	fi
 	if netstat -putln 2> /dev/null | grep 5001 | grep -q tcp6; then
 		log "Iperf tcp6 already started"
 	else
-		iperf --server --daemon --ipv6_domain || die
+		$iperf --server --daemon --ipv6_domain || die
 	fi
 	if netstat -putln 2> /dev/null | grep 5001 | grep -q udp6; then
 		log "Iperf udp6 already started"
 	else
-		iperf --server --daemon --ipv6_domain --udp || die
+		$iperf --server --daemon --ipv6_domain --udp || die
 	fi
 }
 
@@ -130,11 +137,16 @@ cmd_cpu_usage_since() {
 	echo "$((pecent10/10)).$((pecent10%10))%"
 }
 
+cmd_add_multi_address() {
+	docker exec nfqlb /opt/nfqlb/bin/nfqlb.sh multi_address
+}
+
 ##
 ## Test Commands;
 
-##   test [--rebuild] [--no-stop] [iperf options...]
+##   test [--rebuild] [--no-stop] [--multi-src] [iperf options...]
 cmd_test() {
+	local xopt
 	local s
 	local i=0
 	i=$((i+1)); echo "$i. Start iperf servers"
@@ -145,19 +157,24 @@ cmd_test() {
 	fi
 	i=$((i+1)); echo "$i. Start the test container"
 	cmd_start_test_image > /dev/null
+	if test "$__multi_src" = "yes"; then
+		i=$((i+1)); echo "$i. Add multiple addresses in the container"
+		cmd_add_multi_address
+		xopt="-B 10.200.200.1 --incr-srcip"
+	fi
 	i=$((i+1)); echo "$i. Start LB"
 	cmd_start_lb
-	i=$((i+1)); echo "$i. Iperf direct (-c $(cmd_docker_address) $@)"
+	i=$((i+1)); echo "$i. Iperf direct (-c $(cmd_docker_address) $xopt $@)"
 	s=$(cmd_cpu_sample)
-	cmd_iperf -c $(cmd_docker_address) $@
+	cmd_iperf -c $(cmd_docker_address) $xopt $@
 	i=$((i+1)); echo "$i. CPU usage $(cmd_cpu_usage_since $s)"
 	i=$((i+1)); echo "$i. Nfnetlink_queue stats"
 	cmd_qstats
 	i=$((i+1)); echo "$i. Re-start iperf servers"
 	cmd_start_iperf_server > /dev/null 2>&1
 	local vip=$(echo $__vip | cut -d/ -f1)
-	i=$((i+1)); echo "$i. Iperf VIP (-c $vip $@)"
-	cmd_iperf -c $vip $@
+	i=$((i+1)); echo "$i. Iperf VIP (-c $vip $xopt $@)"
+	cmd_iperf -c $vip $xopt $@
 	i=$((i+1)); echo "$i. CPU usage $(cmd_cpu_usage_since $s)"
 	i=$((i+1)); echo "$i. Nfnetlink_queue stats"
 	cmd_qstats
