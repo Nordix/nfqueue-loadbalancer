@@ -78,13 +78,13 @@ We want to measure the impact on throughput, latency and packet loss
 caused by the nfqueue. So we compare direct traffic and traffic
 through the `nfqlb` to one single target.
 
-<img src="nfq-queue.svg" alt="netlink queue flow" width="60%" />
+<img src="nfq-queue.svg" alt="netlink queue flow" width="45%" />
 
 Performance is affected by;
 
 * The queue length
 * The size of packets (+meta-data) copied to the socket buffer
-* The size of the socket buffer
+* The size of the socket buffer (SO_RCVBUF)
 
 These values are logged on start-up;
 
