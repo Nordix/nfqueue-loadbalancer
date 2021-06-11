@@ -82,7 +82,7 @@ through the `nfqlb` to one single target.
 
 Performance is affected by;
 
-* The queue length
+* The maximum queue length
 * The size of packets (+meta-data) copied to the socket buffer
 * The size of the socket buffer (SO_RCVBUF)
 
@@ -122,8 +122,8 @@ The easiest way, and probably a quite good one, is to use the Docker
 container we used in the example. Remember that we are not making HW
 measurements here, we want to *compare* heavy traffic with and without
 `nfqlb`. The `veth` pair between the container and main netns has a
-max bandwidth at around 80 Gbit/second on my laptop (measured with
-iperf2).
+max bandwidth at around 80 Gbit/second on my laptop ([measured with
+iperf2](report-P8.md)).
 
 We set our `docker0` device in main netns as the one target and run
 `iperf` directly and to the VIP address. A problem is that the example
