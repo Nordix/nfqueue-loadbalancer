@@ -78,11 +78,56 @@ We want to measure the impact on throughput, latency and packet loss
 caused by the nfqueue. So we compare direct traffic and traffic
 through the `nfqlb` to one single target.
 
+<img src="nfq-queue.svg" alt="netlink queue flow" width="60%" />
+
+Performance is affected by;
+
+* The queue length
+* The size of packets (+meta-data) copied to the socket buffer
+* The size of the socket buffer
+
+These values are logged on start-up;
+
+```
+queue_length=1024, mtu=1500, SO_RCVBUF=425984 (765952)
+```
+
+If the `nfqlb` program can't keep up we got two cases;
+
+1. The socket buffer gets full (user drop)
+2. The queue gets full (queue drop)
+
+The former is will eventually happen on a sustained overload. The
+later may happen on a burst of small packets, for instance on many
+simultaneous TCP connects.
+
+The only parameter you can control is the queue size, set by the
+`--qlength=` option. The netlink socker buffer size (SO_RCVBUF) is
+computed (approximately);
+
+```
+SO_RCVBUF = queue_length * mtu / 2
+```
+
+The max value of SO_RCVBUF may be restricted. The `mtu` is governed by
+the MTU of the ingress interface but is set to 1280 if fragment
+re-injection is not used (`--tun=` not set), because then we only need
+to see the headers.
+
+
+
+### Local performance test
+
 The easiest way, and probably a quite good one, is to use the Docker
-container we used in the example. We set our `docker0` device in main
-netns as the one target and run `iperf` directly and to the VIP
-address. A problem is that the example container uses DNAT
-so [fragment tests are not
+container we used in the example. Remember that we are not making HW
+measurements here, we want to *compare* heavy traffic with and without
+`nfqlb`. The `veth` pair between the container and main netns has a
+max bandwidth at around 80 Gbit/second on my laptop (measured with
+iperf2).
+
+We set our `docker0` device in main netns as the one target and run
+`iperf` directly and to the VIP address. A problem is that the example
+container uses DNAT so [fragment tests are not
 possible](https://github.com/Nordix/nfqueue-loadbalancer/blob/master/fragments.md#the-unwanted-re-assembly-problem).
 
 Manual test;
