@@ -56,8 +56,19 @@ cmd_start_iperf_server() {
 	fi
 }
 
+##   multi_src_route [--sudo] [--remove]
+##     Add (or remove) router to the multi-address space.
+cmd_multi_src_route() {
+	test "$__sudo" = "yes" && __sudo=sudo
+	if test "$__remove" = "yes"; then
+		$__sudo ip ro del 10.200.200.0/24
+	else
+		$__sudo ip ro replace 10.200.200.0/24 via $(cmd_container_address nfqlb)
+	fi
+}
+
 ##   start_test_image
-##     Re-start the test container. Re-build if specified.
+##     Re-start the test container.
 cmd_start_test_image() {
 	docker stop -t 1 nfqlb > /dev/null 2>&1
 	docker run --privileged --name=nfqlb -d --rm registry.nordix.org/cloud-native/nfqlb:latest
@@ -65,6 +76,10 @@ cmd_start_test_image() {
 
 cmd_docker_address() {
 	docker inspect bridge | jq -r .[].IPAM.Config[].Gateway | grep -v :
+}
+
+cmd_container_address() {
+	docker inspect "$1" | jq -r .[].NetworkSettings.IPAddress
 }
 
 ##   start_lb [--adr=] [--vip=]
@@ -76,11 +91,13 @@ cmd_start_lb() {
 }
 
 ##   iperf <params...>
+##     Run iperf in the test container
 cmd_iperf() {
 	docker exec -it nfqlb iperf $@
 }
 
 ##   qstats
+##     Format printout of /proc/net/netfilter/nfnetlink_queue
 cmd_qstats() {
 	local sfile=/proc/net/netfilter/nfnetlink_queue
 	echo "  Q       port inq cp   rng  Qdrop  Udrop      Seq"
@@ -161,6 +178,8 @@ cmd_test() {
 		i=$((i+1)); echo "$i. Add multiple addresses in the container"
 		cmd_add_multi_address
 		xopt="-B 10.200.200.1 --incr-srcip"
+		i=$((i+1)); echo "$i. Add routes to multi-addresses"
+		cmd_multi_src_route
 	fi
 	i=$((i+1)); echo "$i. Start LB"
 	cmd_start_lb
@@ -182,6 +201,11 @@ cmd_test() {
 		i=$((i+1)); echo "$i. Get frag stats"
 		docker exec nfqlb /opt/nfqlb/bin/nfqlb stats
 	fi
+	if test "$__multi_src" = "yes"; then
+		i=$((i+1)); echo "$i. Remove routes to multi-addresses"
+		__remove=yes
+		cmd_multi_src_route
+	fi		
 	if test "$__no_stop" != "yes"; then
 		echo "$i. Stop the container"
 		docker stop -t 1 nfqlb > /dev/null 2>&1

@@ -196,17 +196,23 @@ You can start `iperf` with parallel connections ([report](report-P8.md)):
 Now direct traffic uses all cores (I have 8) and the throughput
 becomes ~80 Gbits/sec. But via `nfqlb` the throughput stays at ~40
 Gbits/sec. This because only a single thread handles packets in
-`nfqlb`. To use multi-queue (and multi-thread) is supported but does
-not help since `iperf` uses the same addresses for all connections and
-they belongs to the same "flow" and goes to the same queue and we get
-`user drops` ([report](report-P8-mqueue.md)).
+`nfqlb`.
+
+Multi-queue (and multi-thread) is supported by `nfqlb` but to get `-j
+NFQUEUE --queue-balance` work properly the traffic must come from
+different sources. After a
+[discussion](https://sourceforge.net/p/iperf2/discussion/general/thread/3dcc4d673f/)
+with the author of `iperf2` he kindly agreed to [add this
+feature](https://sourceforge.net/p/iperf2/tickets/112/). The updated
+`iperf2` is included in the pre-build image from version 0.1.1, and a
+pre-built updated `iperf2` can be [downloaded](https://artifactory.nordix.org/artifactory/cloud-native/lib/iperf).
 
 ```
-./nfqlb_performance.sh test --queue=0:3 -P8
+./nfqlb_performance.sh test --queue=0:3 --multi-src -P8
 ```
 
 If you have a cpu monitor running you can see that one core get 100%
-load.
+load. ([report](report-P8-mqueue.md))
 
 ### UDP
 
