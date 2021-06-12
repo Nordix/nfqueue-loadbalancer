@@ -102,7 +102,7 @@ later may happen on a burst of small packets, for instance on many
 simultaneous TCP connects.
 
 The only parameter you can control is the queue size, set by the
-`--qlength=` option. The netlink socker buffer size (SO_RCVBUF) is
+`--qlength=` option. The netlink socket buffer size (SO_RCVBUF) is
 computed (approximately);
 
 ```
@@ -196,7 +196,7 @@ You can start `iperf` with parallel connections ([report](report-P8.md)):
 Now direct traffic uses all cores (I have 8) and the throughput
 becomes ~80 Gbits/sec. But via `nfqlb` the throughput stays at ~40
 Gbits/sec. This because only a single thread handles packets in
-`nfqlb`.
+`nfqlb`. Note that we get user-drops.
 
 Multi-queue (and multi-thread) is supported by `nfqlb` but to get `-j
 NFQUEUE --queue-balance` work properly the traffic must come from
@@ -205,14 +205,16 @@ different sources. After a
 with the author of `iperf2` he kindly agreed to [add this
 feature](https://sourceforge.net/p/iperf2/tickets/112/). The updated
 `iperf2` is included in the pre-build image from version 0.1.1, and a
-pre-built updated `iperf2` can be [downloaded](https://artifactory.nordix.org/artifactory/cloud-native/lib/iperf).
+pre-built updated `iperf2` can be [downloaded](https://artifactory.nordix.org/artifactory/cloud-native/lib/iperf). ([report](report-P8-mqueue.md))
 
 ```
 ./nfqlb_performance.sh test --queue=0:3 --multi-src -P8
 ```
 
-If you have a cpu monitor running you can see that one core get 100%
-load. ([report](report-P8-mqueue.md))
+Direct traffic still is ~80Gbit/sec and via `nfqlb` we get
+~70Gbit/sec. CPU usage is ~90% in both cases. Note that all queues
+gets a share of the traffic and *there are no drops*.
+
 
 ### UDP
 
