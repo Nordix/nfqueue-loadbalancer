@@ -27,11 +27,11 @@ The test program is rather crude but can be extended (by you);
 
 ```
 make -j8 -C src test_progs
-magtest=/tmp/$USER/nfqlb/lib/test/maglev-test
-$magtest                # The example from p6 in the maglev doc
-$magtest 20 5 1         # Shows permutation, lookup and a scale in/out
-$magtest 20 5 1 10      # Test scale in/out and print % loss
-$magtest 10000 10 1 10  # Larger M comes nearer to the ideal (10%)
+alias magtest=/tmp/$USER/nfqlb/lib/test/maglev-test
+magtest example        # The example from p6 in the maglev doc
+magtest 20 5 1         # Shows permutation, lookup and a scale in/out
+magtest 20 5 1 10      # Test scale in/out and print % loss
+magtest 10000 10 1 10  # Larger M comes nearer to the ideal (10%)
 ```
 
 ### Fragment handling
