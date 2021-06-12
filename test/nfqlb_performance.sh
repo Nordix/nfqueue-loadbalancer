@@ -207,7 +207,7 @@ cmd_test() {
 		cmd_multi_src_route
 	fi		
 	if test "$__no_stop" != "yes"; then
-		echo "$i. Stop the container"
+		i=$((i+1)); echo "$i. Stop the container"
 		docker stop -t 1 nfqlb > /dev/null 2>&1
 	fi
 }
