@@ -161,7 +161,167 @@ cmd_add_multi_address() {
 ##
 ## Test Commands;
 
+##   test_netns [--iface=] [--delete]
+##     Create netns for frag test. If --iface= is specified an ipvlan is used.
+cmd_test_netns() {
+	test -n "$__sudo" || __sudo=sudo
+	if test "$__delete" = "yes"; then
+		test_netns_delete
+		return
+	fi
+	local netns=${USER}_nfqlb
+	local ip="$__sudo ip"
+	$ip netns pid $netns > /dev/null 2>&1 && die "Netns exists [$netns]"
+	$ip netns add $netns || die "Failed to add netns"
+	$ip netns exec $netns ip link set up dev lo
+	$ip link add nfqlb0 type veth peer name host0 || die veth
+	$ip link set dev host0 netns $netns || die host0
+	$ip link set up dev nfqlb0 || die "ip up"
+	$ip addr add 10.20.0.0/31 dev nfqlb0 || die "ip addr"
+	$ip -6 addr add 1000::1:10.20.0.0/127 dev nfqlb0 || die "ip -6 addr"
+	$ip netns exec $netns ip link set up dev host0
+	$ip netns exec $netns ip addr add 10.20.0.1/31 dev host0
+	$ip netns exec $netns ip -6 addr add 1000::1:10.20.0.1/127 dev host0
+
+	if test -n "$__iface"; then
+		die NYI
+	fi
+
+	# Setup a server netns
+	local srvnetns=${USER}_nfqlb_server
+	$ip netns add $srvnetns || die "Failed to add [$srvnetns]"
+	$ip netns exec $srvnetns ip link set up dev lo
+
+	$ip link add ext0 type veth peer name ns0 || die veth
+	$ip link set dev ext0 netns $netns || die ext0
+	$ip link set dev ns0 netns $srvnetns || die ns0
+
+	$ip netns exec $netns ip link set up dev ext0
+	$ip netns exec $srvnetns ip link set up dev ns0
+	$ip netns exec $netns ip addr add 10.10.0.1/31 dev ext0
+	$ip netns exec $netns ip -6 addr add 1000::1:10.10.0.1/127 dev ext0
+	$ip netns exec $srvnetns ip addr add 10.10.0.0/31 dev ns0
+	$ip netns exec $srvnetns ip -6 addr add 1000::1:10.10.0.0/127 dev ns0
+
+}
+test_netns_delete() {
+	local ip="$__sudo ip"
+	$ip netns del ${USER}_nfqlb || die "netns del"
+	$ip link del nfqlb0
+
+	if test -n "$__iface"; then
+		die NYI
+	fi
+
+	$ip netns del ${USER}_nfqlb_server
+}
+
+##   test_hw_server [--multi-src --clientip= --vip=] [iperf options...]
+##   test_hw_client --serverip= --vip= [--multi-src] [iperf options...]
+##     DSR is used for --multi-src.
+cmd_test_hw_server() {
+	if test "$__multi_src" != "yes"; then
+		exec iperf -s -V $@
+		return					# (never reached)
+	fi
+
+	# multi-src
+	test -n "$__sudo" || __sudo=sudo
+	local iperf=$HOME/Downloads/iperf
+	test -x $iperf || die "Not executable [$iperf]"
+	test -n "$__clientip" || die "Not set --clientip="
+	ping -c1 -W1 -nq $__clientip > /dev/null || die "Can't ping [$__clientip]"
+
+	local ip="$__sudo ip"
+	local srccidr=10.200.200.0/24
+	if echo "$__clientip" | grep -q :; then
+		ip="$__sudo ip -6"
+		srccidr=1000::1:10.200.200.0/120
+	fi
+
+	$ip route replace $srccidr via $__clientip
+	$ip addr add $__vip dev lo
+	echo "Cleanup;"
+	echo "  $ip route del $srccidr via $__clientip"
+	echo "  $ip addr del $__vip dev lo"
+	echo "Starting; iperf --sum-dstip --server --ipv6_domain $@"
+	$iperf --sum-dstip --server --ipv6_domain $@
+}
+basic_hw_client() {
+	#sudo ip -6 ro add default via fd01::2
+	test -n "$__nfqlb" || __nfqlb=/tmp/$USER/nfqlb/nfqlb/nfqlb
+	test -x "$__nfqlb"|| die "Not executable [$__nfqlb]"
+	local nfqlbsh=${__nfqlb}.sh
+	test -x $nfqlbsh || nfqlbsh=$dir/nfqlb.sh
+	test -x $nfqlbsh || nfqlbsh=$(readlink -f $dir/..)/nfqlb.sh
+	test -x $nfqlbsh || die "Not executable [$nfqlbsh]"
+	local xopt ip="$__sudo ip"
+	if echo "$__serverip" | grep -q :; then
+		xopt=-V
+		ip="$__sudo ip -6"
+	fi
+	
+	local s i=0
+	if ! $ip ro get $__vip > /dev/null 2>&1; then
+		i=$((i+1)); echo "$i. Setup route to $__vip"
+		$ip ro add $__vip via $__serverip
+	fi
+	i=$((i+1)); echo "$i. Start LB"
+	$__sudo $nfqlbsh lb --path=$(dirname $__nfqlb) --vip=$__vip $__serverip
+	i=$((i+1)); echo "$i. Iperf direct (-c $__serverip $xopt $@)"
+	s=$(cmd_cpu_sample)
+	iperf -c $__serverip $xopt $@   # direct
+	i=$((i+1)); echo "$i. CPU usage $(cmd_cpu_usage_since $s)"
+	i=$((i+1)); echo "$i. Iperf VIP (-c $__vip $xopt $@)"
+	local vip=$(echo $__vip | cut -d/ -f1)
+	s=$(cmd_cpu_sample)
+	iperf -c $vip $xopt $@        # via nfqlb
+	i=$((i+1)); echo "$i. CPU usage $(cmd_cpu_usage_since $s)"
+	i=$((i+1)); echo "$i. Stop LB"
+	$__sudo $nfqlbsh stop_lb --path=$(dirname $__nfqlb) --vip=$__vip $__serverip
+	$ip ro del $__vip via $__serverip > /dev/null 2>&1
+}
+cmd_test_hw_client() {
+	test -n "$__serverip" || die "No server ip"
+	ping -c1 -W1 -nq $__serverip > /dev/null || die "Can't ping [$__serverip]"
+	test -n "$__vip" || die "No VIP"
+	test -n "$__sudo" || __sudo=sudo
+	local ip="$__sudo ip"
+	echo "$__serverip" | grep -q : && ip="$__sudo ip -6"
+
+	if test "$__multi_src" != "yes"; then
+		basic_hw_client $@
+		return
+	fi
+
+	$ip ro get $__vip > /dev/null || die "No route to [$__vip]"
+
+	# multi-src
+	local srccidr=10.200.200.0/24
+	local src=10.200.200.1
+	if echo "$__serverip" | grep -q :; then
+		srccidr=1000::1:10.200.200.0/120
+		src=1000::1:10.200.200.1
+	fi
+
+	local xopt
+	iperf=$HOME/Downloads/iperf
+	test -x $iperf || die "Not executable [$iperf]"
+	xopt="-B $src --incr-srcip"
+	i=$((i+1)); echo "$i. Add addresses to dev lo"
+	$__sudo $ip addr add $srccidr dev lo
+
+	local s
+	local i=0
+
+
+	
+	i=$((i+1)); echo "$i. Remove addresses from dev lo"
+	$__sudo $ip addr del $srccidr dev lo
+}
+
 ##   test [--rebuild] [--no-stop] [--multi-src] [iperf options...]
+##     Use the test container
 cmd_test() {
 	local xopt
 	local s

@@ -249,7 +249,7 @@ iperf -V -c fd01::2      # direct
 iperf -V -c 2000::1      # via nfqlb
 sudo ./nfqlb.sh stop_lb --path=/tmp/$USER/nfqlb/nfqlb --vip=2000::1/128 fd01::2
 ```
-Note: You *must* have a default route even though it's not used.
+Note: You *must* have a route to the vip even though it's not used.
 
 Test on a 1G interface shows ~800 Mbits/sec both with and without `nfqlb`.
 
