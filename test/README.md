@@ -253,3 +253,14 @@ Note: You *must* have a route to the vip even though it's not used.
 
 Test on a 1G interface shows ~800 Mbits/sec both with and without `nfqlb`.
 
+
+### Fragmentation test
+
+To test performance with fragmentation we can't use the test container
+since it uses DNAT, we must setup an environment with Direct Server
+Return (DSR) and avoid all conntrack related settings. We must also
+use `nfqlb` with forwarding which will add an extra hop.
+
+<img src="performance-frag.svg" alt="Performance with frags" width="60%" />
+
+A network namespace (netns) is used, not a container.
