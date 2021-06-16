@@ -161,7 +161,7 @@ cmd_add_multi_address() {
 ##
 ## Test Commands;
 
-##   test_netns [--iface=] [--delete]
+##   test_netns [--iface= --ipvlan-addr=] [--delete]
 ##     Create netns for frag test. If --iface= is specified an ipvlan is used.
 cmd_test_netns() {
 	test -n "$__sudo" || __sudo=sudo

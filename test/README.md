@@ -263,4 +263,15 @@ use `nfqlb` with forwarding which will add an extra hop.
 
 <img src="performance-frag.svg" alt="Performance with frags" width="60%" />
 
-A network namespace (netns) is used, not a container.
+A network namespace (netns) is used, not a container. There should not
+be any additional hop to the netns so an `ipvlan` interface is created
+and injected (rather than another veth pair).
+
+Client `iperf` is executed in the main netns on `HW1`. Tests are
+executed to the VIP address on `HW2` with and without `nfqlb`.
+
+We can also use a second netns for local testing.
+
+<img src="performance-frag-local.svg" alt="Local performance with frags" width="60%" />
+
+This time there will be two hops over `veth` pairs.
