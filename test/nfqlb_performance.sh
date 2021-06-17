@@ -96,12 +96,16 @@ cmd_iperf() {
 	docker exec -it nfqlb iperf $@
 }
 
-##   qstats
+##   qstats [container]
 ##     Format printout of /proc/net/netfilter/nfnetlink_queue
 cmd_qstats() {
 	local sfile=/proc/net/netfilter/nfnetlink_queue
 	echo "  Q       port inq cp   rng  Qdrop  Udrop      Seq"
-	docker exec nfqlb cat $sfile | format_stats
+	if test -n "$1"; then
+		docker exec $1 cat $sfile | format_stats
+	else
+		$__sudo cat $sfile | format_stats
+	fi
 }
 format_stats() {
 	local line s
@@ -162,7 +166,8 @@ cmd_add_multi_address() {
 ## Test Commands;
 
 ##   test_netns [--iface= --ipvlan-addr=] [--delete]
-##     Create netns for frag test. If --iface= is specified an ipvlan is used.
+##     Create netns for frag test. If --iface= is specified an ipvlan is used,
+##     otherwise a local nfqlb_server netns is created.
 cmd_test_netns() {
 	test -n "$__sudo" || __sudo=sudo
 	if test "$__delete" = "yes"; then
@@ -202,7 +207,8 @@ cmd_test_netns() {
 	$ip netns exec $netns ip -6 addr add 1000::1:10.10.0.1/127 dev ext0
 	$ip netns exec $srvnetns ip addr add 10.10.0.0/31 dev ns0
 	$ip netns exec $srvnetns ip -6 addr add 1000::1:10.10.0.0/127 dev ns0
-
+	$ip netns exec $srvnetns ip ro add default via 10.10.0.1
+	$ip netns exec $srvnetns ip -6 ro add default via 1000::1:10.10.0.1
 }
 test_netns_delete() {
 	local ip="$__sudo ip"
@@ -216,87 +222,43 @@ test_netns_delete() {
 	$ip netns del ${USER}_nfqlb_server
 }
 
-##   test_hw_server [--multi-src --clientip= --vip=] [iperf options...]
-##   test_hw_client --serverip= --vip= [--multi-src] [iperf options...]
-##     DSR is used for --multi-src.
-cmd_test_hw_server() {
-	if test "$__multi_src" != "yes"; then
-		exec iperf -s -V $@
-		return					# (never reached)
-	fi
+##   start_server --gw= [--vip=] [iperf options...]
+##     Setup multi-src routing and start iperf servers.  If --vip= is
+##     specified DSR is assumed.
+cmd_start_server() {
 
-	# multi-src
 	test -n "$__sudo" || __sudo=sudo
+	test -n "$__gw" || die "Not set --gw="
 	local iperf=$HOME/Downloads/iperf
 	test -x $iperf || die "Not executable [$iperf]"
-	test -n "$__clientip" || die "Not set --clientip="
-	ping -c1 -W1 -nq $__clientip > /dev/null || die "Can't ping [$__clientip]"
+	ping -c1 -W1 -nq $__gw > /dev/null || die "Can't ping [$__gw]"
 
 	local ip="$__sudo ip"
 	local srccidr=10.200.200.0/24
-	if echo "$__clientip" | grep -q :; then
+	if echo "$__gw" | grep -q :; then
 		ip="$__sudo ip -6"
-		srccidr=1000::1:10.200.200.0/120
+		srccidr=fd01::10.200.200.0/120
 	fi
 
-	$ip route replace $srccidr via $__clientip
-	$ip addr add $__vip dev lo
+	$ip route replace $srccidr via $__gw
+	test -n "$__vip" && $ip addr replace $__vip dev lo
 	echo "Cleanup;"
-	echo "  $ip route del $srccidr via $__clientip"
-	echo "  $ip addr del $__vip dev lo"
-	echo "Starting; iperf --sum-dstip --server --ipv6_domain $@"
-	$iperf --sum-dstip --server --ipv6_domain $@
+	echo "  $ip route del $srccidr via $__gw"
+	test -n "$__vip" && echo "  $ip addr del $__vip dev lo"
+	echo "Starting; iperf --sum-dstip --server --ipv6_domain --daemon $@"
+	__multi_src=yes
+	cmd_start_iperf_server $@
 }
-basic_hw_client() {
-	#sudo ip -6 ro add default via fd01::2
-	test -n "$__nfqlb" || __nfqlb=/tmp/$USER/nfqlb/nfqlb/nfqlb
-	test -x "$__nfqlb"|| die "Not executable [$__nfqlb]"
-	local nfqlbsh=${__nfqlb}.sh
-	test -x $nfqlbsh || nfqlbsh=$dir/nfqlb.sh
-	test -x $nfqlbsh || nfqlbsh=$(readlink -f $dir/..)/nfqlb.sh
-	test -x $nfqlbsh || die "Not executable [$nfqlbsh]"
-	local xopt ip="$__sudo ip"
-	if echo "$__serverip" | grep -q :; then
-		xopt=-V
-		ip="$__sudo ip -6"
-	fi
-	
-	local s i=0
-	if ! $ip ro get $__vip > /dev/null 2>&1; then
-		i=$((i+1)); echo "$i. Setup route to $__vip"
-		$ip ro add $__vip via $__serverip
-	fi
-	i=$((i+1)); echo "$i. Start LB"
-	$__sudo $nfqlbsh lb --path=$(dirname $__nfqlb) --vip=$__vip $__serverip
-	i=$((i+1)); echo "$i. Iperf direct (-c $__serverip $xopt $@)"
-	s=$(cmd_cpu_sample)
-	iperf -c $__serverip $xopt $@   # direct
-	i=$((i+1)); echo "$i. CPU usage $(cmd_cpu_usage_since $s)"
-	i=$((i+1)); echo "$i. Iperf VIP (-c $__vip $xopt $@)"
-	local vip=$(echo $__vip | cut -d/ -f1)
-	s=$(cmd_cpu_sample)
-	iperf -c $vip $xopt $@        # via nfqlb
-	i=$((i+1)); echo "$i. CPU usage $(cmd_cpu_usage_since $s)"
-	i=$((i+1)); echo "$i. Stop LB"
-	$__sudo $nfqlbsh stop_lb --path=$(dirname $__nfqlb) --vip=$__vip $__serverip
-	$ip ro del $__vip via $__serverip > /dev/null 2>&1
-}
-cmd_test_hw_client() {
-	test -n "$__serverip" || die "No server ip"
-	ping -c1 -W1 -nq $__serverip > /dev/null || die "Can't ping [$__serverip]"
+##   dsr_test --vip= [iperf options...]
+##     Setup addresses and routes for DSR and test.
+##     Prerequisite; the netns must be setup and the dsr server running.
+cmd_dsr_test() {
 	test -n "$__vip" || die "No VIP"
 	test -n "$__sudo" || __sudo=sudo
 	local ip="$__sudo ip"
-	echo "$__serverip" | grep -q : && ip="$__sudo ip -6"
-
-	if test "$__multi_src" != "yes"; then
-		basic_hw_client $@
-		return
-	fi
-
+	echo "$__vip" | grep -q : && ip="$__sudo ip -6"
 	$ip ro get $__vip > /dev/null || die "No route to [$__vip]"
 
-	# multi-src
 	local srccidr=10.200.200.0/24
 	local src=10.200.200.1
 	if echo "$__serverip" | grep -q :; then
@@ -304,20 +266,78 @@ cmd_test_hw_client() {
 		src=1000::1:10.200.200.1
 	fi
 
-	local xopt
-	iperf=$HOME/Downloads/iperf
+	local iperf=$HOME/Downloads/iperf
 	test -x $iperf || die "Not executable [$iperf]"
+
+	test -n "$i" || i=0
+	local xopt s
 	xopt="-B $src --incr-srcip"
 	i=$((i+1)); echo "$i. Add addresses to dev lo"
-	$__sudo $ip addr add $srccidr dev lo
+	$__sudo $ip addr replace $srccidr dev lo
 
-	local s
-	local i=0
-
+	i=$((i+1)); echo "$i. Add addresses to dev lo"
 
 	
 	i=$((i+1)); echo "$i. Remove addresses from dev lo"
 	$__sudo $ip addr del $srccidr dev lo
+}
+##   hw_test --serverip= --vip= [--multi-src] [--nfqlb=]
+##     Execute test on a machine.
+##     Prerequisite; the server must be running.
+cmd_hw_test() {
+	test -n "$__sudo" || __sudo=sudo
+	test -n "$__vip" || die "Not set --vip="
+	test -n "$__serverip" || die "No server ip"
+	ping -c1 -W1 -nq $__serverip > /dev/null || die "Can't ping [$__serverip]"
+	find_progs
+	local s i=0
+
+	local xopt queue ip="$__sudo ip"
+	if echo "$__serverip" | grep -q :; then
+		xopt=-V
+		ip="$__sudo ip -6"
+	fi
+	if test "$__multi_src" = "yes"; then
+		xopt="$xopt -B fd01::10.200.200.1 --incr-srcip"
+		queue=--queue=0:3
+		i=$((i+1)); echo "$i. Add multiple addresses to dev lo"
+		$nfqlbsh multi_address --sudo=$__sudo
+	fi
+	if ! $ip ro get $__vip > /dev/null 2>&1; then
+		i=$((i+1)); echo "$i. Setup route to $__vip"
+		$ip ro replace $__vip via $__serverip
+	fi
+	i=$((i+1)); echo "$i. Start LB"
+	$__sudo $nfqlbsh lb --path=$(dirname $nfqlb) --vip=$__vip $queue $__serverip
+	i=$((i+1)); echo "$i. Iperf direct (-c $__serverip $xopt $@)"
+	s=$(cmd_cpu_sample)
+	$iperf -c $__serverip $xopt $@   # direct
+	i=$((i+1)); echo "$i. CPU usage $(cmd_cpu_usage_since $s)"
+	i=$((i+1)); echo "$i. Iperf VIP (-c $__vip $xopt $@)"
+	local vip=$(echo $__vip | cut -d/ -f1)
+	s=$(cmd_cpu_sample)
+	$iperf -c $vip $xopt $@        # via nfqlb
+	i=$((i+1)); echo "$i. CPU usage $(cmd_cpu_usage_since $s)"
+	i=$((i+1)); echo "$i. Nfnetlink_queue stats"
+	cmd_qstats
+	i=$((i+1)); echo "$i. Stop LB"
+	$__sudo $nfqlbsh stop_lb --path=$(dirname $nfqlb) --vip=$__vip $__serverip
+	if test "$__multi_src" = "yes"; then
+		i=$((i+1)); echo "$i. Remove addresses from dev lo"
+		$nfqlbsh multi_address --sudo=$__sudo --delete
+	fi
+	$ip ro del $__vip via $__serverip > /dev/null 2>&1
+}
+find_progs() {
+	iperf=$HOME/Downloads/iperf
+	test -x $iperf || iperf=iperf
+	nfqlb=/tmp/$USER/nfqlb/nfqlb/nfqlb
+	test -x "$nfqlb"||  nfqlb=$dir/nfqlb
+	test -x "$nfqlb"|| die "Not found [nfqlb]"
+	nfqlbsh=${nfqlb}.sh
+	test -x $nfqlbsh || nfqlbsh=$dir/nfqlb.sh
+	test -x $nfqlbsh || nfqlbsh=$(readlink -f $dir/..)/nfqlb.sh
+	test -x $nfqlbsh || die "Not found [nfqlb.sh]"
 }
 
 ##   test [--rebuild] [--no-stop] [--multi-src] [iperf options...]
@@ -348,7 +368,7 @@ cmd_test() {
 	cmd_iperf -c $(cmd_docker_address) $xopt $@
 	i=$((i+1)); echo "$i. CPU usage $(cmd_cpu_usage_since $s)"
 	i=$((i+1)); echo "$i. Nfnetlink_queue stats"
-	cmd_qstats
+	cmd_qstats nfqlb
 	i=$((i+1)); echo "$i. Re-start iperf servers"
 	cmd_start_iperf_server > /dev/null 2>&1
 	local vip=$(echo $__vip | cut -d/ -f1)
@@ -356,7 +376,7 @@ cmd_test() {
 	cmd_iperf -c $vip $xopt $@
 	i=$((i+1)); echo "$i. CPU usage $(cmd_cpu_usage_since $s)"
 	i=$((i+1)); echo "$i. Nfnetlink_queue stats"
-	cmd_qstats
+	cmd_qstats nfqlb
 	if test "$__fragstats" = "yes"; then
 		i=$((i+1)); echo "$i. Get frag stats"
 		docker exec nfqlb /opt/nfqlb/bin/nfqlb stats

@@ -136,16 +136,18 @@ cmd_start_image() {
 	exec tail -f /dev/null			# Block
 }
 
-##   multi_address
+##   multi_address [--delete]
 ##     Setup multiple addresses on dev "lo"
 cmd_multi_address() {
-	sysctl -w net.ipv4.ip_nonlocal_bind=1 > /dev/null \
+	local op=replace
+	test "$__delete" = "yes" && op=del
+	$__sudo sysctl -w net.ipv4.ip_nonlocal_bind=1 > /dev/null \
 		|| die "sysctl -w net.ipv4.ip_nonlocal_bind=1"
-	sysctl -w net.ipv6.ip_nonlocal_bind=1 > /dev/null \
+	$__sudo sysctl -w net.ipv6.ip_nonlocal_bind=1 > /dev/null \
 		|| die "sysctl -w net.ipv6.ip_nonlocal_bind=1"
-	ip addr add 10.200.200.0/24 dev lo
-	ip -6 addr add fd01::10.200.200.0/120 dev lo
-	ip -6 ro add local fd01::10.200.200.0/120 dev lo
+	$__sudo ip addr $op 10.200.200.0/24 dev lo
+	$__sudo ip -6 addr $op fd01::10.200.200.0/120 dev lo
+	$__sudo ip -6 ro $op local fd01::10.200.200.0/120 dev lo
 }
 
 ##   lb [--queue=] --vip=<virtual-ip> <targets...>

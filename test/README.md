@@ -238,20 +238,47 @@ another tool for testing UDP bandwidth.
 Warning: To run `nfqlb.sh lb` in main netns may interfere with your
 network setup.
 
+You must install `nfqlb` on both machines. Either clone the repo and
+build the binary or copy the necessary files;
+
 ```
-# On the remote machine (fd01::2);
+scp /tmp/$USER/nfqlb/nfqlb/nfqlb nfqlb.sh test/nfqlb_performance.sh remote-machine:remote/path
+# If you want to execute multi-queue tests;
+scp $HOME/Downloads/iperf remote-machine:Downloads
+```
+
+Manual test;
+```
+# On the server machine (fd01::2)
 iperf -s -V
-# On the local machine
-make -C src -j8
-#sudo ip -6 ro add default via fd01::2
-sudo ./nfqlb.sh lb --path=/tmp/$USER/nfqlb/nfqlb --vip=2000::1/128 fd01::2
+# On the local machine (fd01::1)
+sudo ./nfqlb.sh lb --path=. --vip=2000::1/128 fd01::2
 iperf -V -c fd01::2      # direct
+#ip -6 ro add 2000::1 via fd01::2 # (unless you have an ipv6 default route)
 iperf -V -c 2000::1      # via nfqlb
+sudo ip6tables -t mangle -nvL OUTPUT  # (just checking)
 sudo ./nfqlb.sh stop_lb --path=/tmp/$USER/nfqlb/nfqlb --vip=2000::1/128 fd01::2
 ```
 Note: You *must* have a route to the vip even though it's not used.
 
 Test on a 1G interface shows ~800 Mbits/sec both with and without `nfqlb`.
+
+Test using script
+```
+# On the server machine (fd01::2)
+./nfqlb_performance.sh start_iperf_server
+# On the local machine (fd01::1)
+./nfqlb_performance.sh hw_test --serverip=fd01::2 --vip=2000::1/128
+```
+
+Test using script with multi-queue/multi-src;
+```
+# On the server machine (fd01::2)
+./nfqlb_performance.sh start_server --gw=fd01::1
+# On the local machine (fd01::1)
+./nfqlb_performance.sh hw_test --multi-src --serverip=fd01::2 --vip=2000::1/128 -P8
+```
+
 
 
 ### Fragmentation test
@@ -269,6 +296,13 @@ and injected (rather than another veth pair).
 
 Client `iperf` is executed in the main netns on `HW1`. Tests are
 executed to the VIP address on `HW2` with and without `nfqlb`.
+
+
+
+
+
+
+#### Local fragmentation test
 
 We can also use a second netns for local testing.
 
