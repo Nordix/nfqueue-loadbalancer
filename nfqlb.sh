@@ -10,6 +10,7 @@ prg=$(basename $0)
 dir=$(dirname $0); dir=$(readlink -f $dir)
 tmp=/tmp/${prg}_$$
 me=$dir/$prg
+PREFIX=fd01:
 
 die() {
     echo "ERROR: $*" >&2
@@ -146,8 +147,8 @@ cmd_multi_address() {
 	$__sudo sysctl -w net.ipv6.ip_nonlocal_bind=1 > /dev/null \
 		|| die "sysctl -w net.ipv6.ip_nonlocal_bind=1"
 	$__sudo ip addr $op 10.200.200.0/24 dev lo
-	$__sudo ip -6 addr $op fd01::10.200.200.0/120 dev lo
-	$__sudo ip -6 ro $op local fd01::10.200.200.0/120 dev lo
+	$__sudo ip -6 addr $op $PREFIX:10.200.200.0/120 dev lo
+	$__sudo ip -6 ro $op local $PREFIX:10.200.200.0/120 dev lo
 }
 
 ##   lb [--queue=] --vip=<virtual-ip> <targets...>
@@ -169,8 +170,8 @@ cmd_lb() {
 		ntargets=$((ntargets + 1))
 		fw=$((ntargets + 100))
 		fws="$fws $fw"
-		$ip rule add fwmark $fw table $fw
-		$ip route add default via $n table $fw
+		#$ip rule add fwmark $fw table $fw
+		#$ip route add default via $n table $fw
 		$iptables -t nat -A OUTPUT -m mark --mark $fw \
 			-j DNAT --to-destination $n
 	done
@@ -187,7 +188,7 @@ cmd_lb() {
 	PATH=$PATH:$__path
 	nfqlb show > /dev/null 2>&1 || nfqlb init
 	nfqlb activate $fws
-	nfqlb lb --qlength=128 --queue=$__queue >> /var/log/nfqlb.log 2>&1 &
+	nfqlb lb --queue=$__queue >> /var/log/nfqlb.log 2>&1 &
 }
 ##   stop_lb --vip=<virtual-ip> <targets...>
 ##     Stop load-balancing.

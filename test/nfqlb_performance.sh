@@ -11,6 +11,7 @@ dir=$(dirname $0); dir=$(readlink -f $dir)
 tmp=/tmp/${prg}_$$
 me=$dir/$prg
 nfqlbsh=$(readlink -f $dir/../nfqlb.sh)
+PREFIX=fd01:
 
 die() {
     echo "ERROR: $*" >&2
@@ -104,6 +105,7 @@ cmd_qstats() {
 	if test -n "$1"; then
 		docker exec $1 cat $sfile | format_stats
 	else
+		test -n "$__sudo" || __sudo=sudo
 		$__sudo cat $sfile | format_stats
 	fi
 }
@@ -165,7 +167,7 @@ cmd_add_multi_address() {
 ##
 ## Test Commands;
 
-##   test_netns [--iface= --ipvlan-addr=] [--delete]
+##   test_netns [--iface=] [--delete]
 ##     Create netns for frag test. If --iface= is specified an ipvlan is used,
 ##     otherwise a local nfqlb_server netns is created.
 cmd_test_netns() {
@@ -183,10 +185,14 @@ cmd_test_netns() {
 	$ip link set dev host0 netns $netns || die host0
 	$ip link set up dev nfqlb0 || die "ip up"
 	$ip addr add 10.20.0.0/31 dev nfqlb0 || die "ip addr"
-	$ip -6 addr add 1000::1:10.20.0.0/127 dev nfqlb0 || die "ip -6 addr"
+	$ip -6 addr add $PREFIX:10.20.0.0/127 dev nfqlb0 || die "ip -6 addr"
 	$ip netns exec $netns ip link set up dev host0
 	$ip netns exec $netns ip addr add 10.20.0.1/31 dev host0
-	$ip netns exec $netns ip -6 addr add 1000::1:10.20.0.1/127 dev host0
+	$ip netns exec $netns ip -6 addr add $PREFIX:10.20.0.1/127 dev host0
+
+	$ip netns exec $netns sysctl -w net.ipv6.conf.all.forwarding=1 > /dev/null
+	$ip netns exec $netns sysctl -w net.ipv4.conf.all.forwarding=1 > /dev/null
+	$ip netns exec $netns sysctl -w net.ipv4.ip_forward=1 > /dev/null
 
 	if test -n "$__iface"; then
 		die NYI
@@ -204,11 +210,11 @@ cmd_test_netns() {
 	$ip netns exec $netns ip link set up dev ext0
 	$ip netns exec $srvnetns ip link set up dev ns0
 	$ip netns exec $netns ip addr add 10.10.0.1/31 dev ext0
-	$ip netns exec $netns ip -6 addr add 1000::1:10.10.0.1/127 dev ext0
+	$ip netns exec $netns ip -6 addr add $PREFIX:10.10.0.1/127 dev ext0
 	$ip netns exec $srvnetns ip addr add 10.10.0.0/31 dev ns0
-	$ip netns exec $srvnetns ip -6 addr add 1000::1:10.10.0.0/127 dev ns0
+	$ip netns exec $srvnetns ip -6 addr add $PREFIX:10.10.0.0/127 dev ns0
 	$ip netns exec $srvnetns ip ro add default via 10.10.0.1
-	$ip netns exec $srvnetns ip -6 ro add default via 1000::1:10.10.0.1
+	$ip netns exec $srvnetns ip -6 ro add default via $PREFIX:10.10.0.1
 }
 test_netns_delete() {
 	local ip="$__sudo ip"
@@ -237,11 +243,12 @@ cmd_start_server() {
 	local srccidr=10.200.200.0/24
 	if echo "$__gw" | grep -q :; then
 		ip="$__sudo ip -6"
-		srccidr=fd01::10.200.200.0/120
+		srccidr=$PREFIX:10.200.200.0/120
 	fi
-
 	$ip route replace $srccidr via $__gw
+
 	test -n "$__vip" && $ip addr replace $__vip dev lo
+
 	echo "Cleanup;"
 	echo "  $ip route del $srccidr via $__gw"
 	test -n "$__vip" && echo "  $ip addr del $__vip dev lo"
@@ -255,31 +262,103 @@ cmd_start_server() {
 cmd_dsr_test() {
 	test -n "$__vip" || die "No VIP"
 	test -n "$__sudo" || __sudo=sudo
-	local ip="$__sudo ip"
-	echo "$__vip" | grep -q : && ip="$__sudo ip -6"
-	$ip ro get $__vip > /dev/null || die "No route to [$__vip]"
+	find_progs
+	test -n "$i" || i=0
 
-	local srccidr=10.200.200.0/24
-	local src=10.200.200.1
-	if echo "$__serverip" | grep -q :; then
-		srccidr=1000::1:10.200.200.0/120
-		src=1000::1:10.200.200.1
-	fi
-
+	# Environment check
+	i=$((i+1)); echo "$i. Environment check"
 	local iperf=$HOME/Downloads/iperf
 	test -x $iperf || die "Not executable [$iperf]"
+	local ip="$__sudo ip"
+	local gw=10.20.0.1
+	local myip=10.20.0.0
+	local server=10.10.0.0
+	local srccidr=10.200.200.0/24
+	local base=10.200.200.1
+	local xopt="-B $base --incr-srcip"
+	if echo $__vip | grep -q :; then
+		ip="$__sudo ip -6"
+		gw=$PREFIX:10.20.0.1
+		myip=$PREFIX:10.20.0.0
+		server=$PREFIX:10.10.0.0
+		srccidr=$PREFIX:10.200.200.0/120
+		base=$PREFIX:10.200.200.1
+		xopt="-V -B $base --incr-srcip"
+	fi
+	ping -c1 -W1 -nq $gw > /dev/null || die "Can't ping the netns [$gw]"
+	ip netns exec ${USER}_nfqlb ping -c1 -W1 -nq $server > /dev/null \
+		|| die "Failed to ping the server from the netns [$server]"
 
-	test -n "$i" || i=0
-	local xopt s
-	xopt="-B $src --incr-srcip"
+	i=$((i+1)); echo "$i. Add route to VIP via the netns"
+	$ip ro replace $__vip via $gw || die "Set route to [$__vip]"
+
 	i=$((i+1)); echo "$i. Add addresses to dev lo"
-	$__sudo $ip addr replace $srccidr dev lo
+	$nfqlbsh multi_address --sudo=$__sudo
 
-	i=$((i+1)); echo "$i. Add addresses to dev lo"
+	i=$((i+1)); echo "$i. Add routes inside the netns"
+	ip netns exec ${USER}_nfqlb $ip ro replace $__vip via $server
+	ip netns exec ${USER}_nfqlb $ip ro replace $srccidr via $myip
 
+	i=$((i+1)); echo "$i. Ping the VIP from within the netns"
+	local vip=$(echo $__vip | cut -d/ -f1)
+	ip netns exec ${USER}_nfqlb ping -c1 -W1 -nq $vip > /dev/null \
+		|| die "Ping vip failed from within the netns [$vip]"
+
+	i=$((i+1)); echo "$i. Ping the VIP from main netns"
+	ping -c1 -W1 -nq -I $base $vip > /dev/null \
+		|| die "Ping vip failed from main netns [-I $base $vip]"
+
+	i=$((i+1)); echo "$i. Direct access (-c $vip $xopt $@)"
+	local s=$(cmd_cpu_sample)
+	$iperf -c $vip $xopt $@ || die "iperf direct"
+	i=$((i+1)); echo "$i. CPU usage $(cmd_cpu_usage_since $s)"
+
+	i=$((i+1)); echo "$i. Start nfqlb in the netns"
+	ip netns exec ${USER}_nfqlb $me lb --vip=$__vip
+
+	i=$((i+1)); echo "$i. Access via nfqlb (-c $vip $xopt $@)"
+	local s=$(cmd_cpu_sample)
+	$iperf -c $vip $xopt $@ || die "iperf direct"
+	i=$((i+1)); echo "$i. CPU usage $(cmd_cpu_usage_since $s)"
+
+	i=$((i+1)); echo "$i. Nfnetlink_queue stats"
+	ip netns exec ${USER}_nfqlb $me qstats --sudo=$__sudo
+
+	i=$((i+1)); echo "$i. Frag stats"
+	ip netns exec ${USER}_nfqlb $__sudo $nfqlb stats
+
+	i=$((i+1)); echo "$i. Stop nfqlb in the netns"
+	ip netns exec ${USER}_nfqlb $me lb --vip=$__vip --stop
 	
+	i=$((i+1)); echo "$i. Remove route to VIP inside the netns"
+	ip netns exec ${USER}_nfqlb $ip ro del $__vip via $server
+
 	i=$((i+1)); echo "$i. Remove addresses from dev lo"
-	$__sudo $ip addr del $srccidr dev lo
+	$nfqlbsh multi_address --sudo=$__sudo --delete
+
+	i=$((i+1)); echo "$i. Remove the route to VIP"
+	$ip ro del $__vip via $gw || die "Remove route to [$__vip]"
+}
+cmd_lb() {
+	test -n "$__vip" || die "No VIP"
+	find_progs
+	test -n "$__sudo" || __sudo=sudo
+	local iptables="$__sudo iptables"
+	echo $__vip | grep -q : && iptables="$__sudo ip6tables"
+
+	if test "$__stop" = "yes"; then
+		sudo killall nfqlb
+		$iptables -t mangle -D PREROUTING 1
+		$__sudo rm -f /dev/shm/ftshm /dev/shm/nfqlb
+		return
+	fi
+	test -n "$__queue" || __queue=0:7
+	$iptables -t mangle -A PREROUTING -d $__vip -j NFQUEUE \
+		--queue-balance $__queue || die "$iptables NFQUEUE"
+	$__sudo rm -f /dev/shm/ftshm /dev/shm/nfqlb
+	$__sudo $nfqlb init
+	$__sudo $nfqlb activate 1			# (doesn't matter what fwmark)
+	$__sudo $nfqlb lb --queue=$__queue > /dev/null &
 }
 ##   hw_test --serverip= --vip= [--multi-src] [--nfqlb=]
 ##     Execute test on a machine.
@@ -298,7 +377,7 @@ cmd_hw_test() {
 		ip="$__sudo ip -6"
 	fi
 	if test "$__multi_src" = "yes"; then
-		xopt="$xopt -B fd01::10.200.200.1 --incr-srcip"
+		xopt="$xopt -B $PREFIX:10.200.200.1 --incr-srcip"
 		queue=--queue=0:3
 		i=$((i+1)); echo "$i. Add multiple addresses to dev lo"
 		$nfqlbsh multi_address --sudo=$__sudo
