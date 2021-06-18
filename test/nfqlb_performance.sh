@@ -370,7 +370,7 @@ cmd_lb() {
 	$__sudo rm -f /dev/shm/ftshm /dev/shm/nfqlb
 	$__sudo $nfqlb init
 	$__sudo $nfqlb activate 1			# (doesn't matter what fwmark)
-	$__sudo $nfqlb lb --queue=$__queue $__lbopts > /dev/null &
+	$__sudo nice -n -20 $nfqlb lb --queue=$__queue $__lbopts > /dev/null &
 }
 ##   hw_test --serverip= --vip= [--multi-src] [--nfqlb=]
 ##     Execute test on a machine.

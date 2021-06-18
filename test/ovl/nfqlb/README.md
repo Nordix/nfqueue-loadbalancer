@@ -80,7 +80,7 @@ vip=10.0.0.0
 # On vm-201
 echo $vip    # (should be the same as above)
 export __sudo=env
-export __lbopts="--ft_size=100000 --ft_buckets=100000 --ft_frag=100 --ft_ttl=50"
-nfqlb_performance.sh dsr_test --vip=$vip -P4 -u -b200M -l 2400
+export __lbopts="--ft_size=10000 --ft_buckets=10000 --ft_frag=100 --ft_ttl=50"
+nfqlb_performance.sh dsr_test --vip=$vip -P4 -u -b100M -l 2400
 ```
 
