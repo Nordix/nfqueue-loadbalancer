@@ -292,7 +292,8 @@ static int ipv4HandleFragment(
 		*hash = ipv4Hash(data, len);
 
 		struct Item* storedFragments;
-		if (fragInsertFirst(ft, &now, &key, *hash, &storedFragments) != 0) {
+		if (fragInsertFirst(
+				ft, &now, &key, *hash, &storedFragments, data, len) != 0) {
 			itemFree(storedFragments);
 			return -1;
 		}
@@ -345,7 +346,8 @@ static int ipv6HandleFragment(
 		*hash = ipv6Hash(data, len, htype, hdr);
 
 		struct Item* storedFragments;
-		if (fragInsertFirst(ft, &now, &key, *hash, &storedFragments) != 0) {
+		if (fragInsertFirst(
+				ft, &now, &key, *hash, &storedFragments, data, len) != 0) {
 			itemFree(storedFragments);
 			return -1;
 		}

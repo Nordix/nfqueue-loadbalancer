@@ -43,6 +43,29 @@ static int numItems(struct Item* items)
 	return i;
 }
 
+static int reass_data = -1;
+static void* reass_new(void)
+{
+	assert(reass_data == -1);
+	reass_data = 0;
+	return &reass_data;
+}
+static int reass_handleFragment(void* r, void const* data, unsigned len)
+{
+	assert(r == &reass_data);
+	assert(reass_data >= 0);
+	reass_data++;
+	if (reass_data >= 3)
+		return 0;
+	return 1;
+}
+static void reass_destoy(void* r)
+{
+	assert(r == &reass_data);
+	assert(reass_data >= 0);
+	reass_data = -1;
+}
+
 
 int
 cmdFragutilsBasic(int argc, char* argv[])
@@ -80,7 +103,7 @@ cmdFragutilsBasic(int argc, char* argv[])
 	a.ctstats.lookups++;
 	a.ctstats.inserts++;
 	a.ctstats.active++;
-	rc = fragInsertFirst(ft, &now, &key, 5, NULL);
+	rc = fragInsertFirst(ft, &now, &key, 5, NULL, NULL, 0);
 	assert(rc == 0);
 	fragGetStats(ft, &now, &b);
 	assert(statsCmp(&a, &b) == 0);
@@ -167,7 +190,7 @@ cmdFragutilsBasic(int argc, char* argv[])
 	// Get and release the stored fragments
 	fragGetStats(ft, &now, &a);
 	a.ctstats.lookups++;
-	rc = fragInsertFirst(ft, &now, &key, 444, &item);
+	rc = fragInsertFirst(ft, &now, &key, 444, &item, NULL, 0);
 	assert(item != NULL);
 	assert(numItems(item) == 3);
 	fragGetStats(ft, &now, &b);
@@ -240,7 +263,7 @@ cmdFragutilsBasic(int argc, char* argv[])
 	// Also try to add first-fragment should fail
 	fragGetStats(ft, &now, &a);
 	a.ctstats.lookups++;
-	rc = fragInsertFirst(ft, &now, &key, 444, &item);
+	rc = fragInsertFirst(ft, &now, &key, 444, &item, NULL, 0);
 	assert(rc == -1);
 	assert(item == NULL);
 	fragGetStats(ft, &now, &b);
@@ -248,9 +271,49 @@ cmdFragutilsBasic(int argc, char* argv[])
 
 	fragTableDestroy(ft);
 
+	/*
+	  Re-assembler tests
+	 */
+
+	ft = fragTableCreate(2, 3, 4, 1500, 100);
+	fragGetStats(ft, &now, &a);
+	fragGetStats(ft, &now, &b);
+	assert(statsCmp(&a, &b) == 0);
+	struct FragReassembler reass = {
+		reass_new, reass_handleFragment, reass_destoy
+	};
+	fragRegisterFragReassembler(ft, &reass);
+
+	rc = fragInsertFirst(ft, &now, &key, 5, NULL, NULL, 0);
+	assert(reass_data == 1);
+	rc = fragGetHashOrStore(ft, &now, &key, &hash, &key, sizeof(key));
+	assert(reass_data == 2);
+	rc = fragGetHashOrStore(ft, &now, &key, &hash, &key, sizeof(key));
+	assert(reass_data == -1);
+	fragGetStats(ft, &now, &b);
+	a.ctstats.inserts = 1;
+	a.ctstats.lookups = 3;
+	assert(statsCmp(&a, &b) == 0);
+
+	rc = fragGetHashOrStore(ft, &now, &key, &hash, &key, sizeof(key));
+	assert(reass_data == 1);
+	rc = fragGetHashOrStore(ft, &now, &key, &hash, &key, sizeof(key));
+	assert(reass_data == 2);
+	rc = fragInsertFirst(ft, &now, &key, 5, NULL, NULL, 0);
+	assert(reass_data == -1);
+	fragGetStats(ft, &now, &b);
+	a.ctstats.inserts += 1;
+	a.ctstats.lookups += 3;
+	a.fragsAllocated = 2;
+	a.fragsDiscarded = 2;
+	assert(statsCmp(&a, &b) == 0);
+
+	fragTableDestroy(ft);
+	
 	printf("==== fragutils-test OK\n");
 	return 0;
 }
+
 
 #ifdef CMD
 void addCmd(char const* name, int (*fn)(int argc, char* argv[]));

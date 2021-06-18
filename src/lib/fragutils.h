@@ -77,6 +77,19 @@ struct FragTable* fragTableCreate(
 
 void fragTableDestroy(struct FragTable* ft);
 
+struct FragReassembler {
+	void* (*new)(void);
+	// Returns;
+	//  0 - Packet ready
+	//  1 - More fragments needed
+	// -1 - Packet is invalid
+	int (*handleFragment)(void* r, void const* data, unsigned len);
+	void (*destoy)(void* r);
+};
+void fragRegisterFragReassembler(
+	struct FragTable* ft, struct FragReassembler* reassembler);
+
+
 /*
   Inserts the first fragment and stores the passed hash to be used for
   sub-sequent fragments. The caller must call itemFree() on returned
@@ -87,7 +100,8 @@ void fragTableDestroy(struct FragTable* ft);
 */
 int fragInsertFirst(
 	struct FragTable* ft, struct timespec* now,
-	struct ctKey* key, unsigned hash, struct Item** storedFragments);
+	struct ctKey* key, unsigned hash, struct Item** storedFragments,
+	void const* data, unsigned len);
 
 /*
   Called for non-first fragments.

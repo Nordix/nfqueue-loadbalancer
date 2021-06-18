@@ -1,6 +1,6 @@
 /*
-   SPDX-License-Identifier: Apache-2.0
-   Copyright (c) 2021 Nordix Foundation
+  SPDX-License-Identifier: Apache-2.0
+  Copyright (c) 2021 Nordix Foundation
 */
 
 #include "fragutils.h"
@@ -44,6 +44,7 @@ struct FragTable {
 	struct ItemPool* fragmentPool; /* Stored not-first fragments to re-inject */
 	struct fragStats _fstats;
 	struct fragStats* fstats;
+	struct FragReassembler* reassembler;
 };
 
 /*
@@ -63,6 +64,7 @@ struct FragData {
 	enum FragDataState state;
 	unsigned hash;
 	struct Item* storedFragments;
+	void* assemblyData;
 };
 
 
@@ -87,6 +89,9 @@ static void fragDataUnlock(void* user_ref, void* data)
 		for (i = f->storedFragments; i != NULL; i = i->next)
 			CNTINC(ft->fstats->fragsDiscarded);
 		itemFree(f->storedFragments);
+		if (ft->reassembler != NULL) {
+			ft->reassembler->destoy(f->assemblyData);
+		}
 		struct Item* item = ITEM_OF(data);
 		itemFree(item);
 	}
@@ -111,6 +116,8 @@ static struct FragData* fragDataLookup(
 		f->referenceCounter = 1; /* Only the CT refer the object */
 		f->state = FragData_storingFragments;
 		f->storedFragments = NULL;
+		if (ft->reassembler != NULL)
+			f->assemblyData = ft->reassembler->new();
 
 		switch (ctInsert(ft->ct, now, key, f)) {
 		case 0:
@@ -241,6 +248,12 @@ void fragTableDestroy(struct FragTable* ft)
 	free(ft);
 }
 
+void fragRegisterFragReassembler(
+	struct FragTable* ft, struct FragReassembler* reassembler)
+{
+	ft->reassembler = reassembler;
+}
+
 void fragUseStats(struct FragTable* ft, struct fragStats* stats)
 {
 	*stats = *ft->fstats;
@@ -250,7 +263,8 @@ void fragUseStats(struct FragTable* ft, struct fragStats* stats)
 
 int fragInsertFirst(
 	struct FragTable* ft, struct timespec* now,
-	struct ctKey* key, unsigned hash, struct Item** storedFragments)
+	struct ctKey* key, unsigned hash, struct Item** storedFragments,
+	void const* data, unsigned len)
 {
 	struct FragData* f = fragDataLookup(ft, now, key);
 	if (f == NULL) {
@@ -261,13 +275,17 @@ int fragInsertFirst(
 	// Lock here to avoid a race with fragGetHashOrStore()
 	struct Item* storedFrags;
 	LOCK(&f->mutex);
+	if (ft->reassembler != NULL) {
+		if (ft->reassembler->handleFragment(f->assemblyData, data, len) == 0)
+			ctRemove(ft->ct, now, key);
+	}
 	if (f->state != FragData_storingFragments) {
 		/* This entry is poisoned (or we have got multiple first
 		 * fragments) */
 		UNLOCK(&f->mutex);
 		if (storedFragments != NULL)
 			*storedFragments = NULL;
-		fragDataUnlock(NULL, f);
+		fragDataUnlock(ft, f);
 		return -1;
 	}
 	f->hash = hash;
@@ -275,7 +293,7 @@ int fragInsertFirst(
 	storedFrags = f->storedFragments;
 	f->storedFragments = NULL;
 	UNLOCK(&f->mutex);
-	fragDataUnlock(NULL, f);
+	fragDataUnlock(ft, f);
 
 	if (storedFragments != NULL) {
 		*storedFragments = storedFrags;
@@ -297,10 +315,10 @@ int fragGetHash(
 		return -1;
 	if (ATOMIC_LOAD(f->state) == FragData_hashValid) {
 		*hash = f->hash;
-		fragDataUnlock(NULL, f);
+		fragDataUnlock(ft, f);
 		return 0;
 	}
-	fragDataUnlock(NULL, f);
+	fragDataUnlock(ft, f);
 	return -1;
 }
 
@@ -313,14 +331,22 @@ int fragGetHashOrStore(
 	if (f == NULL) {
 		return -1;				/* Out of buckets */
 	}
+
+	if (ft->reassembler != NULL) {
+		LOCK(&f->mutex);
+		if (ft->reassembler->handleFragment(f->assemblyData, data, len) == 0)
+			ctRemove(ft->ct, now, key);
+		UNLOCK(&f->mutex);
+	}
+
 	/* No lock here! We will re-check with the lock later */
 	switch (ATOMIC_LOAD(f->state)) {
 	case FragData_hashValid:
 		*hash = f->hash;
-		fragDataUnlock(NULL, f);
+		fragDataUnlock(ft, f);
 		return 0;				/* OK return (the normal case) */
 	case FragData_poisoned:
-		fragDataUnlock(NULL, f);
+		fragDataUnlock(ft, f);
 		return -1;
 	default:;
 	}
@@ -330,7 +356,7 @@ int fragGetHashOrStore(
 	 */
 	struct ItemPoolStats const* stats = itemPoolStats(ft->fragmentPool);
 	if (len > stats->itemSize) {
-		fragDataUnlock(NULL, f);
+		fragDataUnlock(ft, f);
 		return -1;				/* Fragment > MTU ?? Should not happen */
 	}
 
@@ -344,7 +370,7 @@ int fragGetHashOrStore(
 		storedFrags = f->storedFragments;
 		f->storedFragments = NULL;
 		UNLOCK(&f->mutex);
-		fragDataUnlock(NULL, f);
+		fragDataUnlock(ft, f);
 
 		for (struct Item* i = storedFrags; i != NULL; i = i->next)
 			CNTINC(ft->fstats->fragsDiscarded);
@@ -394,7 +420,7 @@ int fragGetHashOrStore(
 		CNTINC(ft->fstats->fragsAllocated);
 	}
 
-	fragDataUnlock(NULL, f);
+	fragDataUnlock(ft, f);
 	return rc;
 }
 
