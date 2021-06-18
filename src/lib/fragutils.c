@@ -254,6 +254,8 @@ int fragInsertFirst(
 {
 	struct FragData* f = fragDataLookup(ft, now, key);
 	if (f == NULL) {
+		if (storedFragments != NULL)
+			*storedFragments = NULL;
 		return -1;				/* Out of buckets */
 	}
 	// Lock here to avoid a race with fragGetHashOrStore()
