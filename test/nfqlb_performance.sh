@@ -261,7 +261,7 @@ cmd_start_server() {
 	__multi_src=yes
 	cmd_start_iperf_server $@
 }
-##   dsr_test --vip= [iperf options...]
+##   dsr_test --vip= [--lbopts=] [iperf options...]
 ##     Setup addresses and routes for DSR and test.
 ##     Prerequisite; the netns must be setup and the dsr server running.
 cmd_dsr_test() {
@@ -326,11 +326,11 @@ cmd_dsr_test() {
 	i=$((i+1)); echo "$i. CPU usage $(cmd_cpu_usage_since $s)"
 
 	i=$((i+1)); echo "$i. Start nfqlb in the netns"
-	ip netns exec ${USER}_nfqlb $me lb --vip=$__vip
+	ip netns exec ${USER}_nfqlb $me lb --vip=$__vip --lbopts="$__lbopts"
 
 	i=$((i+1)); echo "$i. Access via nfqlb (-c $vip $xopt $@)"
 	local s=$(cmd_cpu_sample)
-	$iperf -c $vip $xopt $@ || die "iperf direct"
+	$iperf -c $vip $xopt $@ || die "iperf nfqlb"
 	i=$((i+1)); echo "$i. CPU usage $(cmd_cpu_usage_since $s)"
 
 	i=$((i+1)); echo "$i. Nfnetlink_queue stats"
@@ -370,7 +370,7 @@ cmd_lb() {
 	$__sudo rm -f /dev/shm/ftshm /dev/shm/nfqlb
 	$__sudo $nfqlb init
 	$__sudo $nfqlb activate 1			# (doesn't matter what fwmark)
-	$__sudo $nfqlb lb --queue=$__queue > /dev/null &
+	$__sudo $nfqlb lb --queue=$__queue $__lbopts > /dev/null &
 }
 ##   hw_test --serverip= --vip= [--multi-src] [--nfqlb=]
 ##     Execute test on a machine.
