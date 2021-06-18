@@ -539,13 +539,19 @@ static void* testSustainedRate(void *_arg)
 		data_free, NULL, bucket_alloc, bucket_free, &userRef);
 	ctUseStats(ct, &stats);
 
+	/*
+	  Real-life test programs (e.g iperf) are connects to the vip with
+	  a few different source addresses.  Basically the only thing
+	  changing is the fragid. And it is probably just incremented.
+	 */
+	
 	// Simulated time
+	key.id = rand_r(&seed);
 	while (nowNanos < duration) {
 		nowNanos += timeToNextPacket(arg->rate, &seed);
 		now.tv_sec = nowNanos / SEC;
 		now.tv_nsec = nowNanos % SEC;
-		key.src.s6_addr32[0]++;
-		key.id = rand_r(&seed);
+		key.id = (key.id + 1);
 		ctInsert(ct, &now, &key, (void*)(key.id));
 	}
 
