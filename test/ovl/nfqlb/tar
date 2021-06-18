@@ -18,7 +18,7 @@ test -n "$1" || die "No out-file"
 mkdir -p $tmp
 cp -R $dir/default/* $tmp
 
-src=$(readlink -f ../../../src)
+src=$(readlink -f $dir/../../../src)
 make -C $src clean > /dev/null
 make -C $src -j8 X=$tmp/bin/nfqlb $MAKEOPT > /dev/null || die make
 
@@ -42,6 +42,15 @@ for x in mconnect ctraffic; do
 done
 
 $XCLUSTER install_prog --dest=$tmp jq
+
+if test "$xcluster_HW_SETUP" = "yes"; then
+	iperf=$HOME/Downloads/iperf
+	test -x $iperf || die "Not executable [$iperf]"
+	mkdir -p $tmp/root/Downloads
+	cp $iperf $tmp/root/Downloads
+	cp $dir/../../../nfqlb.sh $dir/../../nfqlb_performance.sh $tmp/bin
+	rm $tmp/etc/init.d/20load-balancer.rc $tmp/etc/init.d/50nfqueue.rc
+fi
 
 cd $tmp
 tar cf "$1" *

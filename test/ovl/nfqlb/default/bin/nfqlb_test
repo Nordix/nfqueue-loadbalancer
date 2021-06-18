@@ -122,6 +122,28 @@ format_stats() {
 	done
 }
 
+cmd_tcase_hw_server() {
+	test -n "$__vip" || __vip=10.0.0.0/32
+	echo 0 > /proc/sys/net/ipv6/conf/eth1/accept_dad
+	local gw=10.10.0.1
+	if echo $__vip | grep -q :; then
+		gw=$PREFIX:10.10.0.1
+		ip -6 addr add $PREFIX:10.10.0.0/127 dev eth1
+	else
+		ip addr add 10.10.0.0/31 dev eth1
+	fi
+	tcase "HW-setup; Start server, vip=$__vip, gw=$gw"
+	tex ping -c1 -W1 -q $gw
+	export __sudo=env
+	nfqlb_performance.sh start_server --gw=$gw --vip=$__vip
+}
+cmd_tcase_hw_netns() {
+	tcase "HW-setup; Setup netns"
+	echo 0 > /proc/sys/net/ipv6/conf/eth1/accept_dad
+	export __sudo=env
+	nfqlb_performance.sh test_netns --iface=eth1
+}
+
 cmd_tcase_http() {
 	local url="http://10.0.0.0"
 	if test -n "$1"; then

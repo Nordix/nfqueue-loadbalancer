@@ -92,6 +92,21 @@ test_start() {
 	otcr nfqueue_activate_all
 	test "$__fragrev" = "yes" && otc 222 fragrev
 }
+test_start_hw_setup() {
+	export __image=$XCLUSTER_HOME/hd.img
+	echo "$XOVLS" | grep -q private-reg && unset XOVLS
+	export xcluster_HW_SETUP=yes
+	export xcluster_PREFIX=fd01:
+	test -n "$__vip" || __vip=10.0.0.0
+	export xcluster_vip=$__vip
+	export __nvm=1
+	export __nrouters=1
+	export __ntesters=0
+	export __smp201=4
+	xcluster_start network-topology iptools udp-test nfqlb
+	otc 201 hw_netns
+	otc 1 "hw_server --vip=$__vip"
+}
 
 ##     basic
 test_basic() {

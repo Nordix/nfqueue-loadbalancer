@@ -65,3 +65,21 @@ tcpdump -ni eth2 icmp6
 # On vm-221
 curl --interface 1000::1:20.0.0.2 http://[1000::]
 ```
+
+
+## Test the HW setup
+
+To prepare for test on real HW we test the
+[setup](https://github.com/Nordix/nfqueue-loadbalancer/blob/master/test/README.md#fragmentation-test)
+on `xcluster`.
+
+```
+vip=10.0.0.0
+#vip=2000::
+./nfqlb.sh test --vip=$vip start_hw_setup > $log
+# On vm-201
+export __sudo=env
+echo $vip    # (should be the same as above)
+nfqlb_performance.sh dsr_test --vip=$vip -P4 -u -b200M -l 2400
+```
+

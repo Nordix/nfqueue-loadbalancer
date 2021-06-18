@@ -195,7 +195,12 @@ cmd_test_netns() {
 	$ip netns exec $netns sysctl -w net.ipv4.ip_forward=1 > /dev/null
 
 	if test -n "$__iface"; then
-		die NYI
+		ip link add link $__iface name ext0 type ipvlan mode l2 || die ipvlan
+		ip link set ext0 netns $netns
+		$ip netns exec $netns ip link set up ext0
+		$ip netns exec $netns ip addr add 10.10.0.1/31 dev ext0
+		$ip netns exec $netns ip -6 addr add $PREFIX:10.10.0.1/127 dev ext0
+		return 0
 	fi
 
 	# Setup a server netns
@@ -308,6 +313,13 @@ cmd_dsr_test() {
 	ping -c1 -W1 -nq -I $base $vip > /dev/null \
 		|| die "Ping vip failed from main netns [-I $base $vip]"
 
+	if test "$__test_setup" = "yes"; then
+		i=$((i+1)); echo "$i. Start nfqlb in the netns"
+		ip netns exec ${USER}_nfqlb $me lb --vip=$__vip
+		i=$((i+1)); echo "$i. Test-setup ready"
+		return 0
+	fi
+
 	i=$((i+1)); echo "$i. Direct access (-c $vip $xopt $@)"
 	local s=$(cmd_cpu_sample)
 	$iperf -c $vip $xopt $@ || die "iperf direct"
@@ -347,7 +359,7 @@ cmd_lb() {
 	echo $__vip | grep -q : && iptables="$__sudo ip6tables"
 
 	if test "$__stop" = "yes"; then
-		sudo killall nfqlb
+		$__sudo killall nfqlb
 		$iptables -t mangle -D PREROUTING 1
 		$__sudo rm -f /dev/shm/ftshm /dev/shm/nfqlb
 		return

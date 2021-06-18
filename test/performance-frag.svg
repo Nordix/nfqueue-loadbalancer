@@ -24,7 +24,7 @@
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
      inkscape:zoom="1"
-     inkscape:cx="542.5"
+     inkscape:cx="369"
      inkscape:cy="158.5"
      inkscape:document-units="px"
      inkscape:current-layer="layer1"
@@ -272,7 +272,7 @@
          sodipodi:role="line"
          id="tspan1149"
          x="159"
-         y="221">192.168.1.1</tspan></text>
+         y="221">192.168.1.201</tspan></text>
     <text
        id="text1155"
        y="221"
@@ -282,7 +282,7 @@
          y="221"
          x="789"
          id="tspan1153"
-         sodipodi:role="line">192.168.1.2</tspan></text>
+         sodipodi:role="line">192.168.1.1</tspan></text>
     <text
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;font-size:14.66666698px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none"
