@@ -291,13 +291,36 @@ use `nfqlb` with forwarding which will add an extra hop.
 <img src="performance-frag.svg" alt="Performance with frags" width="60%" />
 
 A network namespace (netns) is used, not a container. There should not
-be any additional hop to the netns so an `ipvlan` interface is created
+be any additional hop to the netns so a `macvlan` interface is created
 and injected (rather than another veth pair).
 
 Client `iperf` is executed in the main netns on `HW1`. Tests are
 executed to the VIP address on `HW2` with and without `nfqlb`.
 
+```
+# Copy SW to the test machines
+for target in hw1 hw2; do
+  scp nfqlb_performance.sh ../nfqlb.sh $HOME/Downloads/iperf \
+    /tmp/$USER/nfqlb/nfqlb/nfqlb $target:Downloads
+done
 
+# On hw1
+cd Downloads
+./nfqlb_performance.sh test_netns --iface=<your-interface>
+# On hw2
+cd Downloads
+sudo ip -6 addr add fd01::10.10.0.0/127 dev <your-interface>
+./nfqlb_performance.sh start_server --gw=fd01::10.10.0.1 --vip=fd01:2000::/128
+# Back on hw1
+export __lbopts="--ft_size=10000 --ft_buckets=10000 --ft_frag=100 --ft_ttl=50"
+./nfqlb_performance.sh dsr_test --vip=fd01:2000:: -P4 -u -b100M -l 2400
+
+# Clean-up on hw1
+./nfqlb_performance.sh test_netns --iface=<your-interface> --delete
+# Clean-up on hw2
+sudo ip -6 route del fd01::10.200.200.0/120 via fd01::10.10.0.1
+sudo ip -6 addr del fd01:2000::/128 dev lo
+```
 
 
 

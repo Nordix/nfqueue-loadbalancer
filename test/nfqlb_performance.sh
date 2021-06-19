@@ -168,7 +168,7 @@ cmd_add_multi_address() {
 ## Test Commands;
 
 ##   test_netns [--iface=] [--delete]
-##     Create netns for frag test. If --iface= is specified an ipvlan is used,
+##     Create netns for frag test. If --iface= is specified a macvlan is used,
 ##     otherwise a local nfqlb_server netns is created.
 cmd_test_netns() {
 	test -n "$__sudo" || __sudo=sudo
@@ -195,8 +195,8 @@ cmd_test_netns() {
 	$ip netns exec $netns sysctl -w net.ipv4.ip_forward=1 > /dev/null
 
 	if test -n "$__iface"; then
-		ip link add link $__iface name ext0 type ipvlan mode l2 || die ipvlan
-		ip link set ext0 netns $netns
+		$ip link add link $__iface name ext0 type macvlan || die macvlan
+		$ip link set ext0 netns $netns
 		$ip netns exec $netns ip link set up ext0
 		$ip netns exec $netns ip addr add 10.10.0.1/31 dev ext0
 		$ip netns exec $netns ip -6 addr add $PREFIX:10.10.0.1/127 dev ext0
@@ -226,9 +226,7 @@ test_netns_delete() {
 	$ip netns del ${USER}_nfqlb || die "netns del"
 	$ip link del nfqlb0
 
-	if test -n "$__iface"; then
-		die NYI
-	fi
+	test -n "$__iface" && return 0
 
 	$ip netns del ${USER}_nfqlb_server
 }
