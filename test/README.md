@@ -326,7 +326,7 @@ sudo ip -6 route del fd01::10.200.200.0/120 via fd01::10.10.0.1
 sudo ip -6 addr del fd01:2000::/128 dev lo
 ```
 
-
+This setup can also be tested in the [function test environment](ovl/nfqlb/README.md#test-the-hw-setup).
 
 
 #### Local fragmentation test
