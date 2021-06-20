@@ -125,6 +125,9 @@ measurements here, we want to *compare* heavy traffic with and without
 max bandwidth at around 80 Gbit/second on my laptop ([measured with
 iperf2](report-P8.md)).
 
+<img src="performance-local.svg" alt="Missing image" width="60%" />
+
+
 We set our `docker0` device in main netns as the one target and run
 `iperf` directly and to the VIP address. A problem is that the example
 container uses DNAT so [fragment tests are not
@@ -318,6 +321,7 @@ export __lbopts="--ft_size=10000 --ft_buckets=10000 --ft_frag=100 --ft_ttl=50"
 # Clean-up on hw1
 ./nfqlb_performance.sh test_netns --iface=<your-interface> --delete
 # Clean-up on hw2
+killall iperf
 sudo ip -6 route del fd01::10.200.200.0/120 via fd01::10.10.0.1
 sudo ip -6 addr del fd01:2000::/128 dev lo
 ```
