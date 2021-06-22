@@ -83,12 +83,12 @@ cmd_container_address() {
 	docker inspect "$1" | jq -r .[].NetworkSettings.IPAddress
 }
 
-##   start_lb [--adr=] [--vip=]
+##   start_lb [--adr=] [--vip=] [--queue=] [--lbopts=]
 ##     Start nfqlb in the test container
 cmd_start_lb() {
 	test -n "$__adr" || __adr=$(cmd_docker_address)
 	test -n "$__vip" || __vip=10.0.0.0/32
-	docker exec --detach nfqlb /opt/nfqlb/bin/nfqlb.sh lb --queue=$__queue --vip=$__vip $__adr
+	docker exec --detach nfqlb /opt/nfqlb/bin/nfqlb.sh lb --queue=$__queue --lbopts=$__lbopts --vip=$__vip $__adr
 }
 
 ##   iperf <params...>

@@ -151,7 +151,7 @@ cmd_multi_address() {
 	$__sudo ip -6 ro $op local $PREFIX:10.200.200.0/120 dev lo
 }
 
-##   lb [--queue=] --vip=<virtual-ip> <targets...>
+##   lb [--queue=] [--lbopts] --vip=<virtual-ip> <targets...>
 ##     NOTE: Should normally be executed in a container.
 ##     Setup load-balancing to targets. Examples;
 ##
@@ -188,7 +188,7 @@ cmd_lb() {
 	PATH=$PATH:$__path
 	nfqlb show > /dev/null 2>&1 || nfqlb init
 	nfqlb activate $fws
-	nfqlb lb --queue=$__queue >> /var/log/nfqlb.log 2>&1 &
+	nfqlb lb --queue=$__queue $__lbopts >> /var/log/nfqlb.log 2>&1 &
 }
 ##   stop_lb --vip=<virtual-ip> <targets...>
 ##     Stop load-balancing.

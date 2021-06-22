@@ -92,6 +92,7 @@ test_start() {
 	otcr nfqueue_activate_all
 	test "$__fragrev" = "yes" && otc 222 fragrev
 }
+##     [--vip=] start_hw_setup
 test_start_hw_setup() {
 	export __image=$XCLUSTER_HOME/hd.img
 	echo "$XOVLS" | grep -q private-reg && unset XOVLS
