@@ -75,7 +75,7 @@ on `xcluster`.
 
 ```
 vip=10.0.0.0
-#vip=2000::
+#vip=fd01::2000
 ./nfqlb.sh test --vip=$vip start_hw_setup > $log
 # On vm-201
 echo $vip    # (should be the same as above)

@@ -314,17 +314,17 @@ cd Downloads
 # On hw2
 cd Downloads
 sudo ip -6 addr add fd01::10.10.0.0/127 dev <your-interface>
-./nfqlb_performance.sh start_server --gw=fd01::10.10.0.1 --vip=fd01:2000::/128
+./nfqlb_performance.sh start_server --gw=fd01::10.10.0.1 --vip=fd01::2000/128
 # Back on hw1
 export __lbopts="--ft_size=10000 --ft_buckets=10000 --ft_frag=100 --ft_ttl=50"
-./nfqlb_performance.sh dsr_test --vip=fd01:2000:: -P4 -u -b100M -l 2400
+./nfqlb_performance.sh dsr_test --vip=fd01::2000 -P4 -u -b100M -l 2400
 
 # Clean-up on hw1
 ./nfqlb_performance.sh test_netns --iface=<your-interface> --delete
 # Clean-up on hw2
 killall iperf
 sudo ip -6 route del fd01::10.200.200.0/120 via fd01::10.10.0.1
-sudo ip -6 addr del fd01:2000::/128 dev lo
+sudo ip -6 addr del fd01::2000/128 dev lo
 ```
 
 This setup can also be tested in the [function test environment](ovl/nfqlb/README.md#test-the-hw-setup).
