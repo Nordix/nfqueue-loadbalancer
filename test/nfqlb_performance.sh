@@ -259,6 +259,7 @@ cmd_start_server() {
 	__multi_src=yes
 	cmd_start_iperf_server $@
 }
+##   dsr_test_local --vip= [--lbopts=] [iperf options...]
 ##   dsr_test --vip= [--lbopts=] [iperf options...]
 ##     Setup addresses and routes for DSR and test.
 ##     Prerequisite; the netns must be setup and the dsr server running.
@@ -348,6 +349,27 @@ cmd_dsr_test() {
 
 	i=$((i+1)); echo "$i. Remove the route to VIP"
 	$ip ro del $__vip via $gw || die "Remove route to [$__vip]"
+}
+cmd_dsr_test_local() {
+	test -n "$__vip" || die "No VIP"
+	test -n "$__sudo" || __sudo=sudo
+	local netns=${USER}_nfqlb
+	local netns_server=${USER}_nfqlb_server
+	local gw=10.20.0.1
+	if echo $__vip | grep -q :; then
+		gw=$PREFIX:10.20.0.1
+	fi
+	i=0
+	i=$((i+1)); echo "$i. Setup local netns"
+	cmd_test_netns
+	echo $__vip | grep -q : && sleep 2 # IPv6 takes time
+
+	i=$((i+1)); echo "$i. Start the server in netns $netns_server"
+	ip netns exec $netns_server $me start_server --vip=$__vip --gw=$gw
+	cmd_dsr_test $@
+
+	i=$((i+1)); echo "$i. Delete local netns"
+	__delete=yes; cmd_test_netns
 }
 cmd_lb() {
 	test -n "$__vip" || die "No VIP"

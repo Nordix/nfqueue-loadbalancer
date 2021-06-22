@@ -288,8 +288,9 @@ Test using script with multi-queue/multi-src;
 
 To test performance with fragmentation we can't use the test container
 since it uses DNAT, we must setup an environment with Direct Server
-Return (DSR) and avoid all conntrack related settings. We must also
-use `nfqlb` with forwarding which will add an extra hop.
+Return (DSR) and avoid all conntrack related settings, and *uninstall
+openvswitch*! We must also use `nfqlb` with forwarding which will add
+an extra hop.
 
 <img src="performance-frag.svg" alt="Performance with frags" width="60%" />
 
@@ -336,3 +337,9 @@ We can also use a second netns for local testing.
 <img src="performance-frag-local.svg" alt="Local performance with frags" width="60%" />
 
 This time there will be two hops over `veth` pairs.
+
+```
+export __lbopts="--ft_size=10000 --ft_buckets=10000 --ft_frag=100 --ft_ttl=50"
+./nfqlb_performance.sh dsr_test_local --vip=10.0.0.0/32 -P4 -u -b100M -l 2400
+./nfqlb_performance.sh dsr_test_local --vip=fd01::2000/128 -P4 -u -b100M -l 2400
+```
