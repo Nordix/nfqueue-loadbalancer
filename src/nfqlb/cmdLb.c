@@ -51,6 +51,9 @@ static int handleIpv4(void* data, unsigned len)
 	struct iphdr* hdr = (struct iphdr*)data;
 	unsigned hash = 0;
 
+	if (!IN_BOUNDS(hdr, sizeof(*hdr), data + len))
+		return -1;
+
 	if (ntohs(hdr->frag_off) & (IP_OFFMASK|IP_MF)) {
 		// Make an addres-hash and check if we shall forward to the LB tier
 		if (slb != NULL) {
@@ -79,21 +82,25 @@ static int handleIpv4(void* data, unsigned len)
 static int handleIpv6(void const* data, unsigned len)
 {
 	unsigned hash;
-
+	void const* endp = data + len;
 	/*
 	  Find the fragment header or the upper-layer header
 	  https://datatracker.ietf.org/doc/html/rfc2460#section-4.1
 	 */
 	struct ip6_hdr* ip6hdr = (struct ip6_hdr*)data;
+	if (!IN_BOUNDS(ip6hdr, sizeof(*ip6hdr), endp))
+		return -1;
+
 	uint8_t htype = ip6hdr->ip6_nxt;
 	void const* hdr = data + sizeof(struct ip6_hdr);
 	while (ipv6IsExtensionHeader(htype)) {
 		if (htype == IPPROTO_FRAGMENT)
 			break;
 		struct ip6_ext const* xh = hdr;
+		if (!IN_BOUNDS(xh, sizeof(*xh), endp))
+			return -1;
 		htype = xh->ip6e_nxt;
 		hdr = hdr + (xh->ip6e_len * 8);
-		// TODO: Check that we don't step outside the packet!
 	}
 
 	if (htype == IPPROTO_FRAGMENT) {

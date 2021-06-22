@@ -22,10 +22,14 @@ static unsigned ipv4TcpUdpHash(void const* data, unsigned len)
 {
 	// We hash on addresses and ports
 	struct iphdr* hdr = (struct iphdr*)data;
-	int32_t hashData[3];
+	uint32_t const* ports = (uint32_t*)data + hdr->ihl;
+	if (!IN_BOUNDS(ports, sizeof(*ports), data + len))
+		return -1;
+
+	uint32_t hashData[3];
 	hashData[0] = hdr->saddr;
 	hashData[1] = hdr->daddr;
-	hashData[2] = *((uint32_t*)data + hdr->ihl);
+	hashData[2] = *ports;
 	return HASH(hashData, sizeof(hashData));
 }
 static uint32_t flip16(uint32_t v)
@@ -33,16 +37,18 @@ static uint32_t flip16(uint32_t v)
 	uint16_t* p = (uint16_t*)&v;
 	return (p[0] << 16) + p[1];
 }
-static unsigned ipv4IcmpDestUnreachHash(void const* data, unsigned len)
+static unsigned ipv4IcmpInnerHash(void const* data, unsigned len)
 {
+	void const* endp = data + len;
+
 	/*
-	  Dest unreachable including PMTU discovery reply. We must use the
-	  *inner* header to make sure the origial sender gets the reply.
+	  We must use the *inner* header to make sure the origial sender
+	  gets the reply.
 	*/
 	struct iphdr* hdr = (struct iphdr*)data;
 	struct icmphdr* ihdr = (struct icmphdr*)((uint32_t*)data + hdr->ihl);
 	Dx(printf(
-		   "ipv4IcmpDestUnreachHash; len=%u, code=%u, mtu=%u\n",
+		   "ipv4IcmpInnerHash; len=%u, code=%u, mtu=%u\n",
 		   len, ihdr->code, ntohs(ihdr->un.frag.mtu)));
 
 	/*
@@ -52,34 +58,54 @@ static unsigned ipv4IcmpDestUnreachHash(void const* data, unsigned len)
 	  the hash.
 	 */
 	hdr = (void*)ihdr + 8;
+	if (!IN_BOUNDS(hdr, sizeof(*hdr), endp))
+		return ipv4AddressHash(data, len);
+
 	uint32_t hashData[3];
 	hashData[0] = hdr->daddr;
 	hashData[1] = hdr->saddr;
-	hashData[2] = flip16(*((uint32_t*)hdr + hdr->ihl));
-	D(printf(
-		   "  %u %08x %08x %08x\n", hdr->protocol,
-		   ntohl(hashData[0]), ntohl(hashData[1]), ntohl(hashData[2])));
-	return HASH(hashData, sizeof(hashData));
+	uint32_t const* ports = (uint32_t*)hdr + hdr->ihl;
+
+	switch (hdr->protocol) {
+	case IPPROTO_TCP:
+	case IPPROTO_UDP:
+		if (!IN_BOUNDS(ports, sizeof(*ports), endp))
+			return ipv4AddressHash(data, len);
+		hashData[2] = flip16(*ports);
+		D(printf(
+			  "  %u %08x %08x %08x\n", hdr->protocol,
+			  ntohl(hashData[0]), ntohl(hashData[1]), ntohl(hashData[2])));
+		return HASH(hashData, sizeof(hashData));
+	default:;
+	}
+	// Hash on flipped addresses
+	return HASH(hashData, sizeof(uint32_t) * 2);
 }
 static unsigned ipv4IcmpHash(void const* data, unsigned len)
 {
 	struct iphdr* hdr = (struct iphdr*)data;
 	struct icmphdr* ihdr = (struct icmphdr*)((uint32_t*)data + hdr->ihl);
-	int32_t hashData[3];
-	hashData[0] = hdr->saddr;
-	hashData[1] = hdr->daddr;
+	if (!IN_BOUNDS(ihdr, sizeof(*ihdr), data + len))
+		return ipv4AddressHash(data, len);
+	
 	D(printf("ipv4IcmpHash; type=%u\n", ihdr->type));
 	switch (ihdr->type) {
-	case ICMP_ECHO:
+	case ICMP_ECHO: {
 		// We hash on addresses and id
+		uint32_t hashData[3];
+		hashData[0] = hdr->saddr;
+		hashData[1] = hdr->daddr;
 		hashData[2] = ihdr->un.echo.id;
-		break;
-	case ICMP_DEST_UNREACH:
-		return ipv4IcmpDestUnreachHash(data, len);
-	default:
-		hashData[2] = 0;
+		return HASH((uint8_t const*)hashData, sizeof(hashData));
 	}
-	return HASH((uint8_t const*)hashData, sizeof(hashData));
+	case ICMP_DEST_UNREACH:
+	case ICMP_SOURCE_QUENCH:
+	case ICMP_REDIRECT:
+	case ICMP_TIME_EXCEEDED:
+		return ipv4IcmpInnerHash(data, len);
+	default:;
+	}
+	return ipv4AddressHash(data, len);
 }
 unsigned ipv4Hash(void const* data, unsigned len)
 {
@@ -130,10 +156,12 @@ ipv6TcpUdpHash(struct ip6_hdr const* h, uint32_t const* ports)
 /*
   https://datatracker.ietf.org/doc/html/rfc4443#section-3.2
 */
-static unsigned ipv6IcmpDestUnreachHash(
+static unsigned ipv6IcmpInnerHash(
 	void const* data, unsigned len,
 	struct ip6_hdr const* h, struct icmp6_hdr const* ih)
 {
+	void const* endp = data + len;
+
 	/*
 	  The original datagram is found on offset 8 in this icmp6
 	  header. But since the original datagram is outgoing we must
@@ -141,28 +169,42 @@ static unsigned ipv6IcmpDestUnreachHash(
 	  the hash.
 	 */
 	h = (void*)ih + 8;			/* Now at the "inner" header */
-
+	if (!IN_BOUNDS(h, sizeof(*h), endp))
+		return ipv6AddressHash(data, len);
+	
 	/* Skip all extension headers */
 	uint8_t htype = h->ip6_nxt;
 	void const* hdr = (void*)h + sizeof(struct ip6_hdr);
 	while (ipv6IsExtensionHeader(htype)) {
 		struct ip6_ext const* xh = hdr;
+		if (!IN_BOUNDS(xh, sizeof(*xh), endp))
+			return ipv6AddressHash(data, len);
 		htype = xh->ip6e_nxt;
 		hdr = hdr + (xh->ip6e_len * 8);
 		// TODO: Check that we don't step outside the packet!
 	}
 
-	// TODO; Don't assume tcp/udp
-	Dx(printf("ipv6IcmpDestUnreachHash; len=%u, inner-type=%u\n", len,htype));
-	/* Reverse addresses and ports and hash */
+	Dx(printf("ipv6IcmpInnerHash; len=%u, inner-type=%u\n", len,htype));
 	uint32_t hashData[9];
 	memcpy(hashData, &h->ip6_dst, 16);
 	memcpy(hashData + 4, &h->ip6_src, 16);
-	hashData[8] = flip16(*((uint32_t*)hdr));
-	D(printf("Ports %08x\n", ntohl(hashData[8])));
-	return HASH(hashData, sizeof(hashData));
 
-	return 0;
+	switch (htype) {
+	case IPPROTO_TCP:
+	case IPPROTO_UDP: {
+		/* Reverse addresses and ports and hash */
+		uint32_t const* ports = (uint32_t const*)hdr;
+		if (IN_BOUNDS(ports, sizeof(*ports), endp)) {
+			hashData[8] = flip16(*ports);
+			D(printf("Ports %08x\n", ntohl(hashData[8])));
+			return HASH(hashData, sizeof(hashData));
+		}
+	}
+	case IPPROTO_SCTP:
+	default:;
+	}
+	// Hash on inner (flipped) addresses by default
+	return HASH(hashData, sizeof(uint32_t) * 8);
 }
 static unsigned
 ipv6IcmpHash(
@@ -170,19 +212,22 @@ ipv6IcmpHash(
 	struct ip6_hdr const* h, struct icmp6_hdr const* ih)
 {
 	D(printf("ipv6IcmpHash; type=%u\n", ih->icmp6_type));
-	int32_t hashData[9];
 	switch (ih->icmp6_type) {
 	case ICMP6_DST_UNREACH:
 	case ICMP6_PACKET_TOO_BIG:
-		return ipv6IcmpDestUnreachHash(data, len, h, ih);
-	case ICMP6_ECHO_REQUEST:
+		// TODO; More types here?
+		return ipv6IcmpInnerHash(data, len, h, ih);
+	case ICMP6_ECHO_REQUEST: {
+		if (!IN_BOUNDS(ih, sizeof(*ih), data + len))
+			ipv6AddressHash(data, len);
+		int32_t hashData[9];
+		memcpy(hashData, &h->ip6_src, 32);
 		hashData[8] = ih->icmp6_id;
-		break;
-	default:
-		hashData[8] = 0;
+		return HASH(hashData, sizeof(hashData));
 	}
-	memcpy(hashData, &h->ip6_src, 32);
-	return HASH(hashData, sizeof(hashData));
+	default:;
+	}
+	return ipv6AddressHash(data, len);
 }
 
 unsigned ipv6Hash(
@@ -190,9 +235,12 @@ unsigned ipv6Hash(
 {
 	D(printf("ipv6Hash; type=%u\n", htype));
 	struct ip6_hdr* ip6hdr = (struct ip6_hdr*)data;
+
 	switch (htype) {
 	case IPPROTO_TCP:
 	case IPPROTO_UDP:
+		if (!IN_BOUNDS(hdr, 4, data + len))
+			return -1;
 		return ipv6TcpUdpHash(ip6hdr, hdr);
 	case IPPROTO_ICMPV6:
 		return ipv6IcmpHash(data, len, ip6hdr, hdr);
