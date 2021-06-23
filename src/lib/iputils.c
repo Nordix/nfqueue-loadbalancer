@@ -22,9 +22,11 @@ static unsigned ipv4TcpUdpHash(void const* data, unsigned len)
 {
 	// We hash on addresses and ports
 	struct iphdr* hdr = (struct iphdr*)data;
+	if (hdr->ihl < 5)
+		return ipv4AddressHash(data, len); /* Corrupt packet */
 	uint32_t const* ports = (uint32_t*)data + hdr->ihl;
 	if (!IN_BOUNDS(ports, sizeof(*ports), data + len))
-		return -1;
+		return ipv4AddressHash(data, len);
 
 	uint32_t hashData[3];
 	hashData[0] = hdr->saddr;
@@ -58,6 +60,8 @@ static unsigned ipv4IcmpInnerHash(void const* data, unsigned len)
 	  the hash.
 	 */
 	hdr = (void*)ihdr + 8;
+	if (hdr->ihl < 5)
+		return ipv4AddressHash(data, len);
 	if (!IN_BOUNDS(hdr, sizeof(*hdr), endp))
 		return ipv4AddressHash(data, len);
 
@@ -84,6 +88,8 @@ static unsigned ipv4IcmpInnerHash(void const* data, unsigned len)
 static unsigned ipv4IcmpHash(void const* data, unsigned len)
 {
 	struct iphdr* hdr = (struct iphdr*)data;
+	if (hdr->ihl < 5)
+		return ipv4AddressHash(data, len); /* Corrupt packet */
 	struct icmphdr* ihdr = (struct icmphdr*)((uint32_t*)data + hdr->ihl);
 	if (!IN_BOUNDS(ihdr, sizeof(*ihdr), data + len))
 		return ipv4AddressHash(data, len);
@@ -180,8 +186,9 @@ static unsigned ipv6IcmpInnerHash(
 		if (!IN_BOUNDS(xh, sizeof(*xh), endp))
 			return ipv6AddressHash(data, len);
 		htype = xh->ip6e_nxt;
+		if (xh->ip6e_len == 0)
+			return ipv6AddressHash(data, len);
 		hdr = hdr + (xh->ip6e_len * 8);
-		// TODO: Check that we don't step outside the packet!
 	}
 
 	Dx(printf("ipv6IcmpInnerHash; len=%u, inner-type=%u\n", len,htype));

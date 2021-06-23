@@ -100,6 +100,8 @@ static int handleIpv6(void const* data, unsigned len)
 		if (!IN_BOUNDS(xh, sizeof(*xh), endp))
 			return -1;
 		htype = xh->ip6e_nxt;
+		if (xh->ip6e_len == 0)
+			return -1;			/* Corrupt header */
 		hdr = hdr + (xh->ip6e_len * 8);
 	}
 
