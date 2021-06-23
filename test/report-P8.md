@@ -3,62 +3,62 @@
 1. Start iperf servers
 2. Start the test container
 3. Start LB
-4. Iperf direct (-c 172.17.0.1 -P8)
-[  2] local 172.17.0.3 port 55128 connected with 172.17.0.1 port 5001
+4. Iperf direct (-c 172.17.0.1  -P8)
+[  6] local 172.17.0.3 port 46756 connected with 172.17.0.1 port 5001
+[  5] local 172.17.0.3 port 46754 connected with 172.17.0.1 port 5001
+[  3] local 172.17.0.3 port 46744 connected with 172.17.0.1 port 5001
+[  4] local 172.17.0.3 port 46752 connected with 172.17.0.1 port 5001
 ------------------------------------------------------------
 Client connecting to 172.17.0.1, TCP port 5001
 TCP window size: 85.0 KByte (default)
 ------------------------------------------------------------
-[  5] local 172.17.0.3 port 55132 connected with 172.17.0.1 port 5001
-[  3] local 172.17.0.3 port 55136 connected with 172.17.0.1 port 5001
-[  1] local 172.17.0.3 port 55130 connected with 172.17.0.1 port 5001
-[  4] local 172.17.0.3 port 55138 connected with 172.17.0.1 port 5001
-[  6] local 172.17.0.3 port 55140 connected with 172.17.0.1 port 5001
-[  7] local 172.17.0.3 port 55142 connected with 172.17.0.1 port 5001
-[  8] local 172.17.0.3 port 55144 connected with 172.17.0.1 port 5001
+[  1] local 172.17.0.3 port 46746 connected with 172.17.0.1 port 5001
+[  2] local 172.17.0.3 port 46742 connected with 172.17.0.1 port 5001
+[  7] local 172.17.0.3 port 46758 connected with 172.17.0.1 port 5001
+[  8] local 172.17.0.3 port 46760 connected with 172.17.0.1 port 5001
 [ ID] Interval       Transfer     Bandwidth
-[  5] 0.00-10.00 sec  11.7 GBytes  10.0 Gbits/sec
-[  8] 0.00-10.00 sec  11.7 GBytes  10.1 Gbits/sec
-[  3] 0.00-10.00 sec  11.5 GBytes  9.90 Gbits/sec
-[  4] 0.00-10.00 sec  12.0 GBytes  10.3 Gbits/sec
-[  6] 0.00-10.00 sec  11.5 GBytes  9.90 Gbits/sec
-[  2] 0.00-10.00 sec  11.7 GBytes  10.1 Gbits/sec
-[  1] 0.00-10.00 sec  11.8 GBytes  10.1 Gbits/sec
-[  7] 0.00-10.00 sec  11.8 GBytes  10.1 Gbits/sec
-[SUM] 0.00-10.00 sec  93.7 GBytes  80.5 Gbits/sec
-[ CT] final connect times (min/avg/max/stdev) = 0.074/0.106/0.177/0.041 ms (tot/err) = 8/0
-5. CPU usage 88.9%
+[  3] 0.00-10.01 sec  3.75 GBytes  3.21 Gbits/sec
+[  8] 0.00-10.01 sec  3.73 GBytes  3.20 Gbits/sec
+[  2] 0.00-10.01 sec  3.65 GBytes  3.13 Gbits/sec
+[  7] 0.00-10.01 sec  3.68 GBytes  3.15 Gbits/sec
+[  1] 0.00-10.01 sec  3.64 GBytes  3.12 Gbits/sec
+[  5] 0.00-10.01 sec  3.70 GBytes  3.17 Gbits/sec
+[  4] 0.00-10.01 sec  3.76 GBytes  3.23 Gbits/sec
+[  6] 0.00-10.01 sec  3.66 GBytes  3.14 Gbits/sec
+[SUM] 0.00-10.00 sec  29.6 GBytes  25.4 Gbits/sec
+[ CT] final connect times (min/avg/max/stdev) = 0.045/0.114/0.196/0.063 ms (tot/err) = 8/0
+5. CPU usage 89.9%
 6. Nfnetlink_queue stats
   Q       port inq cp   rng  Qdrop  Udrop      Seq
-  2         71   0  2  1280      0      0        0
+  2         85   0  2  1280      0      0        0
 7. Re-start iperf servers
-8. Iperf VIP (-c 10.0.0.0 -P8)
+8. Iperf VIP (-c 10.0.0.0  -P8)
+[  4] local 172.17.0.3 port 44696 connected with 10.0.0.0 port 5001
+[  2] local 172.17.0.3 port 44700 connected with 10.0.0.0 port 5001
 ------------------------------------------------------------
 Client connecting to 10.0.0.0, TCP port 5001
 TCP window size: 85.0 KByte (default)
 ------------------------------------------------------------
-[  1] local 172.17.0.3 port 45372 connected with 10.0.0.0 port 5001
-[  4] local 172.17.0.3 port 45376 connected with 10.0.0.0 port 5001
-[  2] local 172.17.0.3 port 45378 connected with 10.0.0.0 port 5001
-[  5] local 172.17.0.3 port 45380 connected with 10.0.0.0 port 5001
-[  6] local 172.17.0.3 port 45382 connected with 10.0.0.0 port 5001
-[  3] local 172.17.0.3 port 45374 connected with 10.0.0.0 port 5001
-[  7] local 172.17.0.3 port 45384 connected with 10.0.0.0 port 5001
-[  8] local 172.17.0.3 port 45386 connected with 10.0.0.0 port 5001
+[  3] local 172.17.0.3 port 44698 connected with 10.0.0.0 port 5001
+[  1] local 172.17.0.3 port 44694 connected with 10.0.0.0 port 5001
+[  5] local 172.17.0.3 port 44708 connected with 10.0.0.0 port 5001
+[  8] local 172.17.0.3 port 44710 connected with 10.0.0.0 port 5001
+[  6] local 172.17.0.3 port 44712 connected with 10.0.0.0 port 5001
+[  7] local 172.17.0.3 port 44714 connected with 10.0.0.0 port 5001
 [ ID] Interval       Transfer     Bandwidth
-[  8] 0.00-10.00 sec  6.01 GBytes  5.16 Gbits/sec
-[  5] 0.00-10.00 sec  4.80 GBytes  4.12 Gbits/sec
-[  1] 0.00-10.00 sec  5.42 GBytes  4.66 Gbits/sec
-[  3] 0.00-10.00 sec  6.39 GBytes  5.49 Gbits/sec
-[  2] 0.00-10.00 sec  5.66 GBytes  4.86 Gbits/sec
-[  6] 0.00-10.00 sec  5.90 GBytes  5.07 Gbits/sec
-[  4] 0.00-10.00 sec  5.92 GBytes  5.08 Gbits/sec
-[  7] 0.00-10.00 sec  5.65 GBytes  4.85 Gbits/sec
-[SUM] 0.00-10.00 sec  45.7 GBytes  39.3 Gbits/sec
-[ CT] final connect times (min/avg/max/stdev) = 0.048/0.103/0.173/0.048 ms (tot/err) = 8/0
-9. CPU usage 62.9%
+[  8] 0.00-10.03 sec   999 MBytes   835 Mbits/sec
+[  5] 0.00-10.03 sec   831 MBytes   695 Mbits/sec
+[  6] 0.00-10.03 sec  1012 MBytes   846 Mbits/sec
+[  4] 0.00-10.03 sec   744 MBytes   622 Mbits/sec
+[  7] 0.00-10.03 sec   949 MBytes   794 Mbits/sec
+[  2] 0.00-10.03 sec   877 MBytes   734 Mbits/sec
+[  1] 0.00-10.03 sec  1005 MBytes   841 Mbits/sec
+[  3] 0.00-10.03 sec  1013 MBytes   847 Mbits/sec
+[SUM] 0.00-10.01 sec  7.26 GBytes  6.23 Gbits/sec
+[ CT] final connect times (min/avg/max/stdev) = 0.062/0.096/0.134/0.056 ms (tot/err) = 8/0
+9. CPU usage 56.1%
 10. Nfnetlink_queue stats
   Q       port inq cp   rng  Qdrop  Udrop      Seq
-  2         71   0  2  1280      0   5928   818677
-10. Stop the container
+  2         85   0  2  1280      0      0   120700
+11. Stop the container
 ```

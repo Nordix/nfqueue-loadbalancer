@@ -139,6 +139,7 @@ cmd_tcase_hw_server() {
 }
 cmd_tcase_hw_netns() {
 	tcase "HW-setup; Setup netns"
+	ethtool -K eth1 gro off gso off tso off
 	echo 0 > /proc/sys/net/ipv6/conf/eth1/accept_dad
 	export __sudo=env
 	nfqlb_performance.sh test_netns --iface=eth1

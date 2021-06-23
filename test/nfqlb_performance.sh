@@ -73,6 +73,7 @@ cmd_multi_src_route() {
 cmd_start_test_image() {
 	docker stop -t 1 nfqlb > /dev/null 2>&1
 	docker run --privileged --name=nfqlb -d --rm registry.nordix.org/cloud-native/nfqlb:latest
+	docker exec nfqlb ethtool -K eth0 gro off gso off tso off
 }
 
 cmd_docker_address() {
@@ -187,6 +188,7 @@ cmd_test_netns() {
 	$ip addr add 10.20.0.0/31 dev nfqlb0 || die "ip addr"
 	$ip -6 addr add $PREFIX:10.20.0.0/127 dev nfqlb0 || die "ip -6 addr"
 	$ip netns exec $netns ip link set up dev host0
+	$ip netns exec $netns ip ethtool -K host0 gro off gso off tso off
 	$ip netns exec $netns ip addr add 10.20.0.1/31 dev host0
 	$ip netns exec $netns ip -6 addr add $PREFIX:10.20.0.1/127 dev host0
 

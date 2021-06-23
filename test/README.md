@@ -122,7 +122,7 @@ The easiest way, and probably a quite good one, is to use the Docker
 container we used in the example. Remember that we are not making HW
 measurements here, we want to *compare* heavy traffic with and without
 `nfqlb`. The `veth` pair between the container and main netns has a
-max bandwidth at around 80 Gbit/second on my laptop ([measured with
+max bandwidth at around 27 Gbit/second on my laptop ([measured with
 iperf2](report-P8.md)).
 
 <img src="performance-local.svg" alt="Missing image" width="60%" />
@@ -152,41 +152,39 @@ Iperf3 is not used since it's [not intended for use with load-balancers](https:/
 
 Automatic test using the `nfqlb_performance.sh` script;
 ```
-$ ./nfqlb_performance.sh test
 1. Start iperf servers
 2. Start the test container
 3. Start LB
-4. Iperf direct
+4. Iperf direct (-c 172.17.0.1  )
 ------------------------------------------------------------
 Client connecting to 172.17.0.1, TCP port 5001
 TCP window size: 85.0 KByte (default)
 ------------------------------------------------------------
-[  1] local 172.17.0.3 port 54718 connected with 172.17.0.1 port 5001
+[  1] local 172.17.0.3 port 46604 connected with 172.17.0.1 port 5001
 [ ID] Interval       Transfer     Bandwidth
-[  1] 0.00-10.00 sec  54.6 GBytes  46.9 Gbits/sec
-5. CPU usage 23.5%
+[  1] 0.00-10.01 sec  8.51 GBytes  7.30 Gbits/sec
+5. CPU usage 22.2%
 6. Nfnetlink_queue stats
   Q       port inq cp   rng  Qdrop  Udrop      Seq
-  2         72   0  2  1280      0      0        0
+  2         85   0  2  1280      0      0        0
 7. Re-start iperf servers
-8. Iperf VIP
+8. Iperf VIP (-c 10.0.0.0  )
 ------------------------------------------------------------
 Client connecting to 10.0.0.0, TCP port 5001
 TCP window size: 85.0 KByte (default)
 ------------------------------------------------------------
-[  1] local 172.17.0.3 port 44948 connected with 10.0.0.0 port 5001
+[  1] local 172.17.0.3 port 44540 connected with 10.0.0.0 port 5001
 [ ID] Interval       Transfer     Bandwidth
-[  1] 0.00-10.00 sec  60.2 GBytes  51.7 Gbits/sec
-9. CPU usage 28.9%
+[  1] 0.00-10.01 sec  8.01 GBytes  6.87 Gbits/sec
+9. CPU usage 22.9%
 10. Nfnetlink_queue stats
   Q       port inq cp   rng  Qdrop  Udrop      Seq
-  2         72   0  2  1280      0      0  1449321
-10. Stop the container
+  2         85   0  2  1280      0      0   132041
+11. Stop the container
 ```
 
-There is no bandwidth degradation caused by `nfqlb` but there *is* a
-CPU usage increase. At ~50 Gbits/sec it is ~6% which is acceptable. It
-would also be lower on a more powerful machine than my Dell ultrabook.
+There is a minor bandwidth degradation caused by `nfqlb` and a slight
+CPU usage increase.
 
 
 ### Parallel and multi-queue
@@ -197,9 +195,9 @@ You can start `iperf` with parallel connections ([report](report-P8.md)):
 ```
 
 Now direct traffic uses all cores (I have 8) and the throughput
-becomes ~80 Gbits/sec. But via `nfqlb` the throughput stays at ~40
+becomes ~25 Gbits/sec. But via `nfqlb` the throughput stays at ~6
 Gbits/sec. This because only a single thread handles packets in
-`nfqlb`. Note that we get user-drops.
+`nfqlb`.
 
 Multi-queue (and multi-thread) is supported by `nfqlb` but to get `-j
 NFQUEUE --queue-balance` work properly the traffic must come from
@@ -211,12 +209,20 @@ feature](https://sourceforge.net/p/iperf2/tickets/112/). The updated
 pre-built updated `iperf2` can be [downloaded](https://artifactory.nordix.org/artifactory/cloud-native/lib/iperf). ([report](report-P8-mqueue.md))
 
 ```
-./nfqlb_performance.sh test --queue=0:3 --multi-src -P8
+./nfqlb_performance.sh test --queue=0:7 --multi-src -P8
 ```
 
-Direct traffic still is ~80Gbit/sec and via `nfqlb` we get
-~70Gbit/sec. CPU usage is ~90% in both cases. Note that all queues
-gets a share of the traffic and *there are no drops*.
+Direct traffic is ~27Gbit/sec and via `nfqlb` we get ~16 Gbit/sec. CPU
+usage is ~90% in both cases. Note that multiple queues gets a share of
+the traffic and there are no drops.
+
+
+#### HW offload
+
+By a mistake the first performance tests were made with
+hw-offload. The throughput soared to ~80 Gbit/sec without `nfqlb` and
+~70 Gbit/sec with. IRL you would keep hw-offload which will improve
+performance.
 
 
 ### UDP
