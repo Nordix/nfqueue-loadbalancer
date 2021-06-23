@@ -250,7 +250,14 @@ cmd_start_server() {
 	fi
 	$ip route replace $srccidr via $__gw
 
-	test -n "$__vip" && $ip addr replace $__vip dev lo
+	if test -n "$__vip"; then
+		$ip addr replace $__vip dev lo
+		local opt
+		echo "$__vip" | grep -q : && opt=--ipv6_domain
+		$iperf --sum-dstip --server $opt --daemon -B $__vip $@
+		$iperf --sum-dstip --server $opt --daemon -u -B $__vip $@
+		return 0
+	fi
 
 	echo "Cleanup;"
 	echo "  $ip route del $srccidr via $__gw"
@@ -259,8 +266,8 @@ cmd_start_server() {
 	__multi_src=yes
 	cmd_start_iperf_server $@
 }
-##   dsr_test_local --vip= [--lbopts=] [iperf options...]
-##   dsr_test --vip= [--lbopts=] [iperf options...]
+##   dsr_test_local --vip= [--direct] [--lbopts=] [iperf options...]
+##   dsr_test --vip= [--direct] [--lbopts=] [iperf options...]
 ##     Setup addresses and routes for DSR and test.
 ##     Prerequisite; the netns must be setup and the dsr server running.
 cmd_dsr_test() {
@@ -319,28 +326,30 @@ cmd_dsr_test() {
 		return 0
 	fi
 
-	i=$((i+1)); echo "$i. Direct access (-c $vip $xopt $@)"
-	local s=$(cmd_cpu_sample)
-	$iperf -c $vip $xopt $@ || die "iperf direct"
-	i=$((i+1)); echo "$i. CPU usage $(cmd_cpu_usage_since $s)"
+	if test "$__direct" = "yes"; then
+		i=$((i+1)); echo "$i. Direct access (-c $vip $xopt $@)"
+		local s=$(cmd_cpu_sample)
+		$iperf -c $vip $xopt $@ || die "iperf direct"
+		i=$((i+1)); echo "$i. CPU usage $(cmd_cpu_usage_since $s)"
+	else
+		i=$((i+1)); echo "$i. Start nfqlb in the netns"
+		ip netns exec ${USER}_nfqlb $me lb --vip=$__vip --lbopts="$__lbopts"
 
-	i=$((i+1)); echo "$i. Start nfqlb in the netns"
-	ip netns exec ${USER}_nfqlb $me lb --vip=$__vip --lbopts="$__lbopts"
+		i=$((i+1)); echo "$i. Access via nfqlb (-c $vip $xopt $@)"
+		local s=$(cmd_cpu_sample)
+		$iperf -c $vip $xopt $@ || die "iperf nfqlb"
+		i=$((i+1)); echo "$i. CPU usage $(cmd_cpu_usage_since $s)"
 
-	i=$((i+1)); echo "$i. Access via nfqlb (-c $vip $xopt $@)"
-	local s=$(cmd_cpu_sample)
-	$iperf -c $vip $xopt $@ || die "iperf nfqlb"
-	i=$((i+1)); echo "$i. CPU usage $(cmd_cpu_usage_since $s)"
+		i=$((i+1)); echo "$i. Nfnetlink_queue stats"
+		ip netns exec ${USER}_nfqlb $me qstats --sudo=$__sudo
 
-	i=$((i+1)); echo "$i. Nfnetlink_queue stats"
-	ip netns exec ${USER}_nfqlb $me qstats --sudo=$__sudo
+		i=$((i+1)); echo "$i. Frag stats"
+		ip netns exec ${USER}_nfqlb $__sudo $nfqlb stats
 
-	i=$((i+1)); echo "$i. Frag stats"
-	ip netns exec ${USER}_nfqlb $__sudo $nfqlb stats
+		i=$((i+1)); echo "$i. Stop nfqlb in the netns"
+		ip netns exec ${USER}_nfqlb $me lb --vip=$__vip --stop
+	fi
 
-	i=$((i+1)); echo "$i. Stop nfqlb in the netns"
-	ip netns exec ${USER}_nfqlb $me lb --vip=$__vip --stop
-	
 	i=$((i+1)); echo "$i. Remove route to VIP inside the netns"
 	ip netns exec ${USER}_nfqlb $ip ro del $__vip via $server
 

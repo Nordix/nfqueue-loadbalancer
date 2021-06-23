@@ -311,11 +311,17 @@ done
 # On hw1
 cd Downloads
 ./nfqlb_performance.sh test_netns --iface=<your-interface>
+
 # On hw2
 cd Downloads
 sudo ip -6 addr add fd01::10.10.0.0/127 dev <your-interface>
 ./nfqlb_performance.sh start_server --gw=fd01::10.10.0.1 --vip=fd01::2000/128
+# NOTE! The iperf udp server tends to crash, so restart it if needed
+$HOME/Downloads/iperf -s -V -B fd01::2000 --udp
+
 # Back on hw1
+./nfqlb_performance.sh dsr_test --direct --vip=fd01::2000 -P4 -u -b100M -l 2400
+# (restart the servers on hw2!)
 export __lbopts="--ft_size=10000 --ft_buckets=10000 --ft_frag=100 --ft_ttl=50"
 ./nfqlb_performance.sh dsr_test --vip=fd01::2000 -P4 -u -b100M -l 2400
 
