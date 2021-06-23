@@ -1,4 +1,4 @@
 FROM alpine:latest
-RUN apk add iproute2 iperf iputils tcpdump ip6tables
+RUN apk add iproute2 iperf iputils tcpdump ip6tables ethtool
 COPY --chown=0:0 image/ /
 CMD ["/opt/nfqlb/bin/nfqlb.sh", "start_image"]
