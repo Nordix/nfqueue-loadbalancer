@@ -81,9 +81,12 @@ vip=10.0.0.0
 echo $vip    # (should be the same as above)
 export __sudo=env
 export __lbopts="--ft_size=10000 --ft_buckets=10000 --ft_frag=100 --ft_ttl=50"
-nfqlb_performance.sh dsr_test --vip=$vip -P4 -u -b100M -l 2400
+nfqlb_performance.sh dsr_test --vip=$vip -P4
+nfqlb_performance.sh dsr_test --direct --vip=$vip -P4
+nfqlb_performance.sh dsr_test --vip=$vip -P8 -u -b50M -l 2400
 # On vm-001
 killall iperf
-/root/Downloads/iperf -s -B $vip --udp
+echo $vip | grep -q : && opt=-V
+/root/Downloads/iperf -s $opt -B $vip --udp
 ```
 
