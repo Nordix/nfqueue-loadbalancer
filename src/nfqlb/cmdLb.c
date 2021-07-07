@@ -11,6 +11,7 @@
 #include <die.h>
 #include <tuntap.h>
 #include <maglevdyn.h>
+#include <reassembler.h>
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -171,12 +172,14 @@ static int cmdLb(int argc, char **argv)
 	char const* ft_ttl = "200";
 	char const* mtuOpt = "1500";
 	char const* tun = NULL;
+	char const* reassembler = "0";
 	struct Option options[] = {
 		{"help", NULL, 0,
 		 "lb [options]\n"
 		 "  Load-balance"},
 		{"mtu", &mtuOpt, 0, "MTU. At least the mtu of the ingress device"},
 		{"tun", &tun, 0, "Tun device for re-inject fragments"},
+		{"reassembler", &reassembler, 0, "Reassembler size. default=0"},
 		{"tshm", &targetShm, 0, "Target shared memory"},
 		{"lbshm", &lbShm, 0, "Lb shared memory"},
 		{"queue", &qnum, 0, "NF-queues to listen to (default 2)"},
@@ -232,6 +235,8 @@ static int cmdLb(int argc, char **argv)
 		mtu,				/* MTU. Only used for stored fragments */
 		atoi(ft_ttl));		/* Fragment TTL in milli seconds */
 	fragUseStats(ft, sft);
+	if (atoi(reassembler) > 0)
+		fragRegisterFragReassembler(ft, createReassembler(atoi(reassembler)));
 	printf(
 		"FragTable; size=%d, buckets=%d, frag=%d, mtu=%d, ttl=%d\n",
 		atoi(ft_size),atoi(ft_buckets),atoi(ft_frag),mtu,atoi(ft_ttl));
