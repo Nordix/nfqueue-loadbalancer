@@ -84,7 +84,7 @@ struct FragReassembler {
 	//  1 - More fragments needed
 	// -1 - Packet is invalid
 	int (*handleFragment)(void* r, void const* data, unsigned len);
-	void (*destoy)(void* r);
+	void (*destroy)(void* r);
 };
 void fragRegisterFragReassembler(
 	struct FragTable* ft, struct FragReassembler* reassembler);

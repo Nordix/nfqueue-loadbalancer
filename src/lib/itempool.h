@@ -50,5 +50,12 @@ void itemPoolDestroy(struct ItemPool* pool, itemFn_t itemDestroyFn);
 struct ItemPoolStats const* itemPoolStats(struct ItemPool* pool);
 void itemPoolClearStats(struct ItemPool* pool);
 struct Item* itemAllocate(struct ItemPool* pool);
+/*
+  Free ALL items in the passed item list.
+ */
 void itemFree(struct Item* items);
+
+/*
+  Allocate a new item, if succesful set "next", if unsuccesful free "next".
+ */
 struct Item* itemAllocateWithNext(struct ItemPool* pool, struct Item* next);

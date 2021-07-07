@@ -90,7 +90,7 @@ static void fragDataUnlock(void* user_ref, void* data)
 			CNTINC(ft->fstats->fragsDiscarded);
 		itemFree(f->storedFragments);
 		if (ft->reassembler != NULL) {
-			ft->reassembler->destoy(f->assemblyData);
+			ft->reassembler->destroy(f->assemblyData);
 		}
 		struct Item* item = ITEM_OF(data);
 		itemFree(item);
