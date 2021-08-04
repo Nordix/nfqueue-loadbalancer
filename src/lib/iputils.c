@@ -113,6 +113,18 @@ static unsigned ipv4IcmpHash(void const* data, unsigned len)
 	}
 	return ipv4AddressHash(data, len);
 }
+static unsigned ipv4SctpHash(void const* data, unsigned len)
+{
+	// We hash on ports only!
+	struct iphdr* hdr = (struct iphdr*)data;
+	if (hdr->ihl < 5)
+		return ipv4AddressHash(data, len); /* Corrupt packet */
+	uint32_t const* ports = (uint32_t*)data + hdr->ihl;
+	if (!IN_BOUNDS(ports, sizeof(*ports), data + len))
+		return ipv4AddressHash(data, len);
+
+	return HASH(ports, sizeof(uint32_t));
+}
 unsigned ipv4Hash(void const* data, unsigned len)
 {
 	struct iphdr* hdr = (struct iphdr*)data;
@@ -123,7 +135,7 @@ unsigned ipv4Hash(void const* data, unsigned len)
 	case IPPROTO_ICMP:
 		return ipv4IcmpHash(data, len);
 	case IPPROTO_SCTP:
-		break;
+		return ipv4SctpHash(data, len);
 	default:;
 	}
 	return ipv4AddressHash(data, len);
@@ -252,7 +264,9 @@ unsigned ipv6Hash(
 	case IPPROTO_ICMPV6:
 		return ipv6IcmpHash(data, len, ip6hdr, hdr);
 	case IPPROTO_SCTP:
-		break;
+		if (!IN_BOUNDS(hdr, 4, data + len))
+			return -1;
+		return HASH(hdr, sizeof(uint32_t)); /* Hash on ports only */
 	default:;
 	}
 	return ipv6AddressHash(data, len);
