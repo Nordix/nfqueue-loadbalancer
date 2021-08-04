@@ -43,7 +43,7 @@ static struct reassembler {
 
 static void* raNew(void)
 {
-	Dx(printf("Called; raNew\n"));
+	D(printf("Called; raNew\n"));
 	struct Item* hitem = itemAllocate(obj.holePool);
 	if (hitem == NULL)
 		return NULL;
@@ -59,7 +59,7 @@ static void* raNew(void)
 
 static void raDestoy(void* r)
 {
-	Dx(printf("Called; raDestoy\n"));
+	D(printf("Called; raDestoy\n"));
 	if (r == NULL)
 		return;
 	itemFree(r);
@@ -186,7 +186,7 @@ struct ReassemblerStats const* getReassemblerStats(void)
 int handleFragment(
 	struct Item* head, unsigned fragmentFirst, unsigned len, int morefragments)
 {
-	Dx(printf("handleFragment: %u, len=%u, MF=%u\n", fragmentFirst, len, morefragments != 0));
+	D(printf("handleFragment: %u, len=%u, MF=%u\n", fragmentFirst, len, morefragments != 0));
 	if (len == 0)
 		return 1;
 	unsigned fragmentLast = fragmentFirst + len -1;
@@ -200,6 +200,7 @@ int handleFragment(
 		// 1.
 		if (itemDeleted) {
 			// The current item is deleted. Unlink it
+			D(printf("1. Unlink deleted item\n"));
 			prev->next = item->next;
 			item->next = NULL;
 			itemFree(item);
@@ -220,12 +221,14 @@ int handleFragment(
 		// 4.
 		// We don't unlink the item yet since it can be re-used.
 		// We must use the same hole in the next steps, so save it.
+		D(printf("4. \n"));
 		itemDeleted = 1;
 		tmphole = *hole;
 		hole = &tmphole;
 		// 5.
 		if (fragmentFirst > hole->first) {
 			// Re-use the item
+			D(printf("5. Re-use\n"));
 			new_hole = H(item);
 			new_hole->first = hole->first;
 			new_hole->last = fragmentFirst - 1;
@@ -235,13 +238,16 @@ int handleFragment(
 		if (fragmentLast < hole->last && morefragments) {
 			if (!itemDeleted) {
 				// Item already re-used, create a new
-				item = itemAllocate(obj.holePool);
-				if (item == NULL) {
+				D(printf("6. New item\n"));
+				struct Item* newItem = itemAllocate(obj.holePool);
+				if (newItem == NULL) {
 					// TODO
 				}
-				item->next = prev->next;
-				prev = item;
+				newItem->next = item->next;
+				item->next = newItem;
+				prev = newItem;
 			} else {
+				D(printf("6. Re-use\n"));
 				itemDeleted = 0;
 			}
 			new_hole = H(item);
