@@ -3,7 +3,7 @@
 Describes problems and solutions for load-balaning with multihomed
 SCTP.
 
-It essential that all paths of an association ends up in the same
+It is essential that all paths of an association ends up in the same
 backend (server).
 
 <img src="sctp-lb.svg" alt="SCTP multihomed load-balancing" width="70%" />
@@ -15,4 +15,11 @@ for SCTP the `nfqlb` hash on ports only.
 The properties, such as scalability, are the same as for tcp/udp but
 distribution will basically be based the on source port (since the
 dest (server) port is the same).
+
+
+DSR should be used since NAT can not be used without great
+difficulties. From
+[rfc3257](https://datatracker.ietf.org/doc/html/rfc3257#section-4);
+
+> the NAT can have internal Application Layer Gateway (ALG) which will intelligently translate the IP addresses in the INIT and INIT ACK chunks
 
