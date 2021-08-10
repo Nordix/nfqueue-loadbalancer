@@ -80,6 +80,15 @@ static unsigned ipv4IcmpInnerHash(void const* data, unsigned len)
 			  "  %u %08x %08x %08x\n", hdr->protocol,
 			  ntohl(hashData[0]), ntohl(hashData[1]), ntohl(hashData[2])));
 		return HASH(hashData, sizeof(hashData));
+	case IPPROTO_SCTP: {
+		/* Reverse ports (only) and hash */
+		uint32_t const* ports = (uint32_t const*)hdr;
+		if (IN_BOUNDS(ports, sizeof(*ports), endp)) {
+			uint32_t revPorts = flip16(*ports);
+			D(printf("SCTP Ports %08x\n", ntohl(revPorts)));
+			return HASH(&revPorts, sizeof(uint32_t));
+		}
+	}
 	default:;
 	}
 	// Hash on flipped addresses
@@ -219,7 +228,15 @@ static unsigned ipv6IcmpInnerHash(
 			return HASH(hashData, sizeof(hashData));
 		}
 	}
-	case IPPROTO_SCTP:
+	case IPPROTO_SCTP: {
+		/* Reverse ports (only) and hash */
+		uint32_t const* ports = (uint32_t const*)hdr;
+		if (IN_BOUNDS(ports, sizeof(*ports), endp)) {
+			uint32_t revPorts = flip16(*ports);
+			D(printf("SCTP Ports %08x\n", ntohl(revPorts)));
+			return HASH(&revPorts, sizeof(uint32_t));
+		}
+	}
 	default:;
 	}
 	// Hash on inner (flipped) addresses by default
