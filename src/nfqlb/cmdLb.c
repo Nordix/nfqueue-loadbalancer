@@ -173,6 +173,7 @@ static int cmdLb(int argc, char **argv)
 	char const* mtuOpt = "1500";
 	char const* tun = NULL;
 	char const* reassembler = "0";
+	char const* sctpEncap = "0";
 	struct Option options[] = {
 		{"help", NULL, 0,
 		 "lb [options]\n"
@@ -180,6 +181,7 @@ static int cmdLb(int argc, char **argv)
 		{"mtu", &mtuOpt, 0, "MTU. At least the mtu of the ingress device"},
 		{"tun", &tun, 0, "Tun device for re-inject fragments"},
 		{"reassembler", &reassembler, 0, "Reassembler size. default=0"},
+		{"sctp_encap", &sctpEncap, 0, "SCTP UDP encapsulation port. default=0"},
 		{"tshm", &targetShm, 0, "Target shared memory"},
 		{"lbshm", &lbShm, 0, "Lb shared memory"},
 		{"queue", &qnum, 0, "NF-queues to listen to (default 2)"},
@@ -208,6 +210,9 @@ static int cmdLb(int argc, char **argv)
 	int mtu = atoi(mtuOpt);
 	if (mtu < 576)
 		die("Invalid MTU; %d\n", mtu);
+
+	// SCTP encapsulation. 0 - No encapsulation (default)
+	sctpUdpEncapsulation(atoi(sctpEncap));
 
 	/* Open the "tun" device if specified. Check that the mtu is at
 	 * least as large as for the ingress device */

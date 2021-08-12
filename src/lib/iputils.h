@@ -18,3 +18,7 @@ unsigned ipv6Hash(
 unsigned ipv6AddressHash(void const* data, unsigned len);
 
 int ipv6IsExtensionHeader(unsigned htype);
+
+// If set to non-zero UDP packets to the passed port will be handled
+// as encapsulated SCTP and hash will be on SCTP-ports only.
+void sctpUdpEncapsulation(unsigned port);

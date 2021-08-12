@@ -23,3 +23,12 @@ difficulties. From
 
 > the NAT can have internal Application Layer Gateway (ALG) which will intelligently translate the IP addresses in the INIT and INIT ACK chunks
 
+### SCTP over UDP
+
+For SCTP over UDP hashing is still made of the SCTP ports.  The
+encapsulation (UDP) port is specified with the `--sctp_encap=9899`
+option to `nfqlb`. If a UDP packet with the specified port as
+destination port arrives, hashing is made on the SCTP ports.
+
+<img src="sctp-over-udp.svg" alt="SCTP over UDP" width="25%" />
+

@@ -8,6 +8,7 @@
 #include <netinet/ip_icmp.h>
 #include <netinet/ip6.h>
 #include <netinet/icmp6.h>
+#include <netinet/udp.h>
 
 #ifdef VERBOSE
 #include "stdio.h"
@@ -17,6 +18,7 @@
 #endif
 #define D(x)
 
+static unsigned sctpEncapPort = 0;
 
 static unsigned ipv4TcpUdpHash(void const* data, unsigned len)
 {
@@ -71,8 +73,9 @@ static unsigned ipv4IcmpInnerHash(void const* data, unsigned len)
 	uint32_t const* ports = (uint32_t*)hdr + hdr->ihl;
 
 	switch (hdr->protocol) {
-	case IPPROTO_TCP:
 	case IPPROTO_UDP:
+		// TODO: Check for encapsulated SCTP
+	case IPPROTO_TCP:
 		if (!IN_BOUNDS(ports, sizeof(*ports), endp))
 			return ipv4AddressHash(data, len);
 		hashData[2] = flip16(*ports);
@@ -138,8 +141,19 @@ unsigned ipv4Hash(void const* data, unsigned len)
 {
 	struct iphdr* hdr = (struct iphdr*)data;
 	switch (hdr->protocol) {
-	case IPPROTO_TCP:
 	case IPPROTO_UDP:
+		if (sctpEncapPort != 0) {
+			/* Check if this is an encapsulated SCTP */
+			struct udphdr const* h = (struct udphdr const*)hdr;
+			if (htons(h->uh_dport) == sctpEncapPort) {
+				if (IN_BOUNDS(h, sizeof(*h) + sizeof(uint32_t), data + len)) {
+					uint32_t const* ports;
+					ports = (void const*)h + sizeof(struct udphdr);
+					return HASH(ports, sizeof(*ports));
+				}
+			}
+		}
+	case IPPROTO_TCP:
 		return ipv4TcpUdpHash(data, len);
 	case IPPROTO_ICMP:
 		return ipv4IcmpHash(data, len);
@@ -218,8 +232,9 @@ static unsigned ipv6IcmpInnerHash(
 	memcpy(hashData + 4, &h->ip6_src, 16);
 
 	switch (htype) {
-	case IPPROTO_TCP:
-	case IPPROTO_UDP: {
+	case IPPROTO_UDP:
+		// TODO: Check for encapsulated SCTP
+	case IPPROTO_TCP: {
 		/* Reverse addresses and ports and hash */
 		uint32_t const* ports = (uint32_t const*)hdr;
 		if (IN_BOUNDS(ports, sizeof(*ports), endp)) {
@@ -273,8 +288,19 @@ unsigned ipv6Hash(
 	struct ip6_hdr* ip6hdr = (struct ip6_hdr*)data;
 
 	switch (htype) {
-	case IPPROTO_TCP:
 	case IPPROTO_UDP:
+		if (sctpEncapPort != 0) {
+			/* Check if this is an encapsulated SCTP */
+			struct udphdr const* h = (struct udphdr const*)hdr;
+			if (htons(h->uh_dport) == sctpEncapPort) {
+				if (IN_BOUNDS(h, sizeof(*h) + sizeof(uint32_t), data + len)) {
+					uint32_t const* ports;
+					ports = (void const*)h + sizeof(struct udphdr);
+					return HASH(ports, sizeof(*ports));
+				}
+			}
+		}
+	case IPPROTO_TCP:
 		if (!IN_BOUNDS(hdr, 4, data + len))
 			return -1;
 		return ipv6TcpUdpHash(ip6hdr, hdr);
@@ -296,4 +322,9 @@ unsigned ipv6AddressHash(void const* data, unsigned len)
 	memcpy(hdata, &hdr->ip6_src, 32);
 	hdata[8] = ntohl(hdr->ip6_flow) & 0xfffff;
 	return HASH(hdata, sizeof(hdata));
+}
+
+void sctpUdpEncapsulation(unsigned port)
+{
+	sctpEncapPort = port;
 }
