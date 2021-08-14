@@ -144,7 +144,8 @@ unsigned ipv4Hash(void const* data, unsigned len)
 	case IPPROTO_UDP:
 		if (sctpEncapPort != 0) {
 			/* Check if this is an encapsulated SCTP */
-			struct udphdr const* h = (struct udphdr const*)hdr;
+			struct udphdr const* h = (struct udphdr const*)((uint32_t*)data + hdr->ihl);
+			D(printf("IPv4 sctpEncapPort=%u (%u)\n", sctpEncapPort, htons(h->uh_dport)));
 			if (htons(h->uh_dport) == sctpEncapPort) {
 				if (IN_BOUNDS(h, sizeof(*h) + sizeof(uint32_t), data + len)) {
 					uint32_t const* ports;
@@ -292,6 +293,7 @@ unsigned ipv6Hash(
 		if (sctpEncapPort != 0) {
 			/* Check if this is an encapsulated SCTP */
 			struct udphdr const* h = (struct udphdr const*)hdr;
+			D(printf("IPv6 sctpEncapPort=%u (%u)\n", sctpEncapPort, htons(h->uh_dport)));
 			if (htons(h->uh_dport) == sctpEncapPort) {
 				if (IN_BOUNDS(h, sizeof(*h) + sizeof(uint32_t), data + len)) {
 					uint32_t const* ports;
@@ -326,5 +328,6 @@ unsigned ipv6AddressHash(void const* data, unsigned len)
 
 void sctpUdpEncapsulation(unsigned port)
 {
+	D(printf("Set sctpEncapPort=%u\n", port));
 	sctpEncapPort = port;
 }
