@@ -10,7 +10,8 @@ backend (server).
 
 For a multihomed SCTP association the addresses (both source and dest)
 are different for the paths but *the ports are always the same*. So
-for SCTP the `nfqlb` hash on ports only.
+for SCTP the `nfqlb` hash on ports only. Another possibility is to use
+IPv6 and the `flow label`. This is not yet implemented though.
 
 The properties, such as scalability, are the same as for tcp/udp but
 distribution will basically be based the on source port (since the
