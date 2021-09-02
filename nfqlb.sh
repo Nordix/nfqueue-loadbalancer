@@ -103,7 +103,7 @@ cmd_update_license() {
 		fi
 	done
 }
-##   mkrelease [--force] <version>
+##   mkrelease <version>
 ##     Create a release archive
 cmd_mkrelease() {
 	test -n "$1" || die "No version"
@@ -116,14 +116,17 @@ cmd_mkrelease() {
 	cmd_libnfqueue_unpack
 	cmd_libnfqueue_build
 	make -C $dir/src -j8 static || die make
-	mkdir -p $tmp/nfqlb-$ver/bin $tmp/nfqlb-$ver/lib $tmp/nfqlb-$ver/include
+	local dst=$tmp/nfqlb-$ver
+	mkdir -p $dst/bin $dst/lib $dst/include
 	local O=/tmp/$USER/nfqlb
-	cp $O/nfqlb/nfqlb $tmp/nfqlb-$ver/bin
-	cp $O/lib/libnfqlb.a $tmp/nfqlb-$ver/lib
-	cp $dir/src/lib/*.h $tmp/nfqlb-$ver/include
+	cp $O/nfqlb/nfqlb $dst/bin
+	cp $O/lib/libnfqlb.a $dst/lib
+	cp $dir/src/lib/*.h $dst/include
+	cp -R $dir/src/nfqlb $dst/src
 	tar -C $tmp -cf /tmp/nfqlb-$ver.tar nfqlb-$ver
+	rm -f /tmp/nfqlb-$ver.tar.xz
 	xz /tmp/nfqlb-$ver.tar
-	echo "Created [/tmp/nfqlb-$ver.tar]"
+	echo "Created [/tmp/nfqlb-$ver.tar.xz]"
 }
 
 ##
