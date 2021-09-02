@@ -35,17 +35,17 @@ LIB_OBJ := $(LIB_SRC:%.c=$(O)/%.o)
 NFQD := $(O)/libnetfilter_queue-1.0.3/sys/usr/local
 
 $(O)/%.o : %.c
-	$(CC) -c $(CFLAGS) -pthread -Wall -Ilib $< -o $@
+	$(CC) -c $(XCFLAGS) $(CFLAGS) -pthread -Wall -Ilib $< -o $@
 
 .PHONY: all static
 all: $(X)
 static: $(X)
 # https://stackoverflow.com/questions/47905554/segmentation-fault-appears-when-i-use-shared-memory-only-from-statically-build-p
-static: LDFLAGS := -static -L$(NFQD)/lib -Wl,--whole-archive -lpthread -Wl,--no-whole-archive
-static: CFLAGS += -I$(NFQD)/include
+static: XLDFLAGS := -static -L$(NFQD)/lib -Wl,--whole-archive -lpthread -Wl,--no-whole-archive
+static: XCFLAGS := -I$(NFQD)/include
 
 $(X): $(LIB) $(OBJ)
-	$(CC) -o $(X) $(OBJ) $(LDFLAGS) -pthread -L$(O)/lib -lnetfilter_queue -lnfqlb -lrt -lmnl
+	$(CC) -o $(X) $(OBJ) $(XLDFLAGS) $(LDFLAGS) -pthread -L$(O)/lib -lnetfilter_queue -lnfqlb -lrt -lmnl
 $(OBJ): | $(DIRS)
 $(LIB): $(LIB_OBJ)
 	@rm -f $(LIB)
