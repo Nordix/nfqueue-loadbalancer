@@ -7,18 +7,36 @@
 ##  static - Build a statically linked binary. Requires local libnetfilter_queue
 ##  clean - Remove built files
 ##
-## The nfqlb release is defined by NFQLB_DIR. Example;
-##  make -j8 NFQLB_DIR=/tmp/$USER/nfqlb-0.3.0
+## For static build "libnetfilter_queue" must be downloaded and built
+## locally (at least on Ubuntu 20). Build with;
+##  ./nfqlb.sh libnfqueue_download
+##  ./nfqlb.sh libnfqueue_unpack
+##  ./nfqlb.sh libnfqueue_build
+##  make -j8 static
 ##
+## Variables;
+##  O - Output directory
+##  X - Executable
+##  NFQLB_DIR - The nfqlb release directory
+##  NFQD - The libnetfilter_queue directory
+##
+## Examples;
+##  make -j8
+##  make -j8 X=$HOME/nfqlb
+##  make -j8 NFQD=$HOME/lib/usr/local static
+##  make -j8 LDFLAGS=$HOME/nfqlb-extension/cmdFeature.o
+##
+
 
 NFQLB_DIR ?= ..
 O ?= /tmp/$(USER)/nfqlb
-X ?= $(O)/nfqlb/nfqlb
+X ?= $(O)/nfqlb
 SRC := $(wildcard *.c)
 OBJ := $(SRC:%.c=$(O)/%.o)
-NFQD := $(O)/libnetfilter_queue-1.0.3/sys/usr/local
+NFQD ?= $(O)/libnetfilter_queue-1.0.3/sys/usr/local
 XCFLAGS := -I$(NFQLB_DIR)/include
 XLDFLAGS := -L$(NFQLB_DIR)/lib
+DIRS := $(O)
 
 $(O)/%.o : %.c
 	$(CC) -c $(XCFLAGS) $(CFLAGS) -pthread -Wall $< -o $@
