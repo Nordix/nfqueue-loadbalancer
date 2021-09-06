@@ -49,6 +49,7 @@ ip route add default via 192.168.1.1 table 1
 * [Testing](test/README.md) - Unit, function and performance testing
 * [Destination Unreachable icmp](destunreach.md) - The PMTU discovery problem
 * [SCTP](sctp.md) - SCTP load-balancing with multihoming
+* [extend/alter](src/README.md) - Extend or alter `nfqlb`
 
 ## Try it
 

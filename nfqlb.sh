@@ -124,6 +124,8 @@ cmd_mkrelease() {
 	cp $dir/src/lib/*.h $dst/include
 	cp -R $dir/src/nfqlb $dst/src
 	cp $me $dst/src
+	cp -R $dir/src/extension $dst/src
+	cp $dir/src/README.md $dst/src
 	tar -C $tmp -cf /tmp/nfqlb-$ver.tar nfqlb-$ver
 	rm -f /tmp/nfqlb-$ver.tar.xz
 	xz /tmp/nfqlb-$ver.tar
