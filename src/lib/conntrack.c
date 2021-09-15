@@ -249,8 +249,8 @@ void ctRemove(
 	while (item != NULL) {
 		if (keyEqual(key, &item->key) == 0) {
 			prev->next = item->next;
-			if (b->data != NULL && ct->freefn != NULL)
-				ct->freefn(ct->user_ref, b->data);
+			if (item->data != NULL && ct->freefn != NULL)
+				ct->freefn(ct->user_ref, item->data);
 			ct->freeBucket(ct->user_ref, item);
 			break;
 		} else {

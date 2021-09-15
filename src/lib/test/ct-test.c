@@ -20,6 +20,7 @@
 static void testConntrack(struct ctStats* stats);
 static void testRefcount(struct ctStats* accumulatedStats);
 static void testLimitedBuckets(struct ctStats* accumulatedStats);
+static void testFreeDataFn(struct ctStats* accumulatedStats);
 
 struct SustainedRateArg {
 	unsigned duration;
@@ -98,6 +99,8 @@ cmdCtBasic(int argc, char* argv[])
 	testConntrack(&stats);
 	testRefcount(&stats);
 	testLimitedBuckets(&stats);
+	testFreeDataFn(&stats);
+
 	sarg.assert = 1;
 	testSustainedRate(&sarg);
 
@@ -470,6 +473,35 @@ static void testLimitedBuckets(struct ctStats* accumulatedStats)
 	ctDestroy(ct);
 	// Allocated buckets shall be freed on "ctDestroy"
 	assert(bucketPool.nfree == 2);
+}
+
+/*
+  Added to verify a bugfix in ctRemove
+ */
+static void testFreeDataFn(struct ctStats* accumulatedStats)
+{
+	struct ct* ct;
+	struct timespec now = {0,0};
+	struct ctKey key = {IN6ADDR_ANY_INIT,IN6ADDR_ANY_INIT,{0ull}};
+	int rc;
+
+	ct = ctCreate(
+		1, 100, freeData, NULL, BUCKET_ALLOC, BUCKET_FREE, NULL);
+	key.id = 1001;
+	rc = ctInsert(ct, &now, &key, (void*)key.id);
+	assert(rc == 0);
+
+	key.id = 1002;
+	rc = ctInsert(ct, &now, &key, (void*)key.id);
+	assert(rc == 0);
+
+	key.id = 1002;
+	expectedFreeData = key.id;
+	ctRemove(ct, &now, &key);
+	expectedFreeData = 0;
+
+	collectStats(accumulatedStats, ctStats(ct, &now));
+	ctDestroy(ct);
 }
 
 /* ----------------------------------------------------------------------
