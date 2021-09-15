@@ -352,8 +352,7 @@ static int ipv6HandleFragment(
 	key.id = fh->ip6f_ident;
 
 	// Check offset to see if this is the first fragment
-	uint16_t fragOffset = (fh->ip6f_offlg & IP6F_OFF_MASK) >> 3;
-	if (fragOffset == 0) {
+	if ((fh->ip6f_offlg & IP6F_OFF_MASK) == 0) {
 		/* First fragment. Find the upper layer header. */
 		uint8_t htype = ip6hdr->ip6_nxt;
 		void const* hdr = data + sizeof(struct ip6_hdr);
