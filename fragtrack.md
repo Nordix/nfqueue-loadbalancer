@@ -33,10 +33,27 @@ reference counter.
 The mutex in `FragData` is used to protect the variables and is held
 for very short times.
 
+
+## Reassembler
+
+Packets are never reassembled by `nfqlb`. However, the book-keeping is
+made so `nfqlb` knows when the whole packet has been processed and the
+bucket can be released. The reassembler is disabled by default and
+must be enabled with option;
+
+```
+nfqlb lb --reassembler=1000 ...
+```
+The example will enable reassembly of max 1000 packets simultaneously.
+
+If fragments must be stored, that is if fragments are reordedred and
+the first fragment doesn't arrive first, reassembly is disabled for
+that packet.
+
+
 ## TTL and GC
 
-The prefered operation of `nfqlb` is to *never* explicitly remove
-fragments from the table. All fragments times out.
+If the reassembler can't be used for a packet the fragments times out.
 
 Buckets have a Time-To-Live (ttl) and a time when they are last
 refered (timeRefered). When
@@ -50,7 +67,7 @@ When a bucket is refered (insert or lookup) a check is made of the
 bucket, and it's linked buckets, and any stale buckets are re-claimed. A
 Garbage Collect (GC) on refer of sorts.
 
-This means that over time stale allocated buckets will be accumulated
+This means that over time stale allocated buckets may be accumulated
 at places in the table.
 
 <img src="fragtrack-stale-buckets.svg" alt="stale-buckets" width="80%" />
@@ -121,3 +138,5 @@ Here we run a simulation of 10000pkt/S rate for a simulated time of
 300s (5m). With C=1 we get ~1% packet loss. A reasonable value may be
 C=2. The simulation itself takes less than 1s.
 
+Remember that if the reassembler is used the only fragments out of
+orded will be subject to timeouts.
