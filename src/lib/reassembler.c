@@ -9,6 +9,7 @@
 #include <stddef.h>
 #include <limits.h>
 #include <netinet/ip.h>
+#include <netinet/ip6.h>
 
 #ifdef VERBOSE
 #include <stdio.h>
@@ -26,7 +27,7 @@
   reassemling the packet, just doing the book-keeping.
  */
 
-int handleFragment(
+static int handleFragment(
 	struct Item* head, unsigned fragmentFirst, unsigned len, int morefragments);
 
 #define INFINITY UINT_MAX
@@ -68,6 +69,7 @@ static void raDestoy(void* r)
 static int raHandleFragment(void* r, void const* data, unsigned len)
 {
 	Dx(printf("Called; raHandleFragment\n"));
+	void const* endp = data + len;
 	// Return 1 will fall-back to the default behavior
 	if (r == NULL)
 		return 1;
@@ -76,7 +78,7 @@ static int raHandleFragment(void* r, void const* data, unsigned len)
 		// IPv4
 		Dx(printf("Reassembler; IPv4 fragment\n"));
 		struct iphdr* hdr = (struct iphdr*)data;
-		if (!IN_BOUNDS(hdr, sizeof(*hdr), data + len))
+		if (!IN_BOUNDS(hdr, sizeof(*hdr), endp))
 			return -1;
 		if (len != ntohs(hdr->tot_len))
 			return -1;
@@ -88,6 +90,28 @@ static int raHandleFragment(void* r, void const* data, unsigned len)
 	case 0x60: {
 		// IPv6
 		Dx(printf("Reassembler; IPv6 fragment\n"));
+		struct ip6_hdr* ip6hdr = (struct ip6_hdr*)data;
+		uint8_t htype = ip6hdr->ip6_nxt;
+		void const* hdr = data + sizeof(struct ip6_hdr);
+		while (ipv6IsExtensionHeader(htype) && htype != IPPROTO_FRAGMENT) {
+			struct ip6_ext const* xh = hdr;
+			if (!IN_BOUNDS(xh, sizeof(*xh), endp))
+				return -1;
+			htype = xh->ip6e_nxt;
+			if (xh->ip6e_len == 0)
+				return -1;						/* Corrupt header */
+			hdr = hdr + (xh->ip6e_len * 8);
+		}
+		if (htype == IPPROTO_FRAGMENT) {
+			struct ip6_frag const* fh = hdr;
+			if (!IN_BOUNDS(fh, sizeof(*fh), endp))
+				return -1;
+			uint16_t fragOffset = ntohs(fh->ip6f_offlg & IP6F_OFF_MASK);
+			unsigned payloadlen = (endp - hdr) - sizeof(struct ip6_frag);
+			return handleFragment(
+				r, fragOffset, payloadlen, fh->ip6f_offlg & IP6F_MORE_FRAG);
+
+		}
 		break;
 	}
 	default:;
@@ -183,7 +207,7 @@ struct ReassemblerStats const* getReassemblerStats(void)
    0 - All fragments received
    1 - More fragments needed
  */
-int handleFragment(
+static int handleFragment(
 	struct Item* head, unsigned fragmentFirst, unsigned len, int morefragments)
 {
 	D(printf("handleFragment: %u, len=%u, MF=%u\n", fragmentFirst, len, morefragments != 0));
