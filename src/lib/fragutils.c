@@ -78,7 +78,9 @@ static void fragDataLock(void* user_ref, void* data)
 static void fragDataUnlock(void* user_ref, void* data)
 {
 	struct FragData* f = data;
-	if (REFDEC(f->referenceCounter) <= 0) {
+	int refCount = REFDEC(f->referenceCounter);
+	assert(refCount >= 0);
+	if (refCount == 0) {
 		/*
 		  If the FragData object is released due to a timeout there
 		  may be stored fragments lingering. Normally these should
@@ -89,7 +91,7 @@ static void fragDataUnlock(void* user_ref, void* data)
 		for (i = f->storedFragments; i != NULL; i = i->next)
 			CNTINC(ft->fstats->fragsDiscarded);
 		itemFree(f->storedFragments);
-		if (ft->reassembler != NULL) {
+		if (ft->reassembler != NULL && f->assemblyData != NULL) {
 			ft->reassembler->destroy(f->assemblyData);
 		}
 		struct Item* item = ITEM_OF(data);
@@ -275,10 +277,10 @@ int fragInsertFirst(
 	// Lock here to avoid a race with fragGetHashOrStore()
 	struct Item* storedFrags;
 	LOCK(&f->mutex);
-	if (ft->reassembler != NULL) {
-		if (ft->reassembler->handleFragment(f->assemblyData, data, len) == 0)
-			ctRemove(ft->ct, now, key);
+	if (ft->reassembler != NULL && f->assemblyData != NULL) {
+		(void)ft->reassembler->handleFragment(f->assemblyData, data, len);
 	}
+
 	if (f->state != FragData_storingFragments) {
 		/* This entry is poisoned (or we have got multiple first
 		 * fragments) */
@@ -334,8 +336,20 @@ int fragGetHashOrStore(
 
 	if (ft->reassembler != NULL) {
 		LOCK(&f->mutex);
-		if (ft->reassembler->handleFragment(f->assemblyData, data, len) == 0)
-			ctRemove(ft->ct, now, key);
+		if (f->assemblyData != NULL) {
+			if (ATOMIC_LOAD(f->state) == FragData_hashValid) {
+				if (ft->reassembler->handleFragment(f->assemblyData, data, len) == 0) {
+					ctRemove(ft->ct, now, key);
+					CNTINC(ft->fstats->reAssembled);
+				}
+			} else {
+				// It we havn't got the first fragment we must store
+				// fragments and we can't use a reassembler.  Destroy
+				// the assembler with the lock held.
+				ft->reassembler->destroy(f->assemblyData);
+				f->assemblyData = NULL;
+			}
+		}
 		UNLOCK(&f->mutex);
 	}
 
@@ -474,12 +488,13 @@ void fragPrintStats(struct fragStats* sft)
 		"  \"fragsMax\":         %u,\n"
 		"  \"fragsAllocated\":   %u,\n"
 		"  \"fragsDiscarded\":   %u\n"
+		"  \"reAssembled\":      %u\n"
 		"}\n",
 		sft->ctstats.size, (unsigned)(sft->ctstats.ttlNanos/1000000),
 		sft->ctstats.collisions, sft->ctstats.inserts,
 		sft->ctstats.rejectedInserts, sft->ctstats.lookups, sft->ctstats.objGC,
 		sft->mtu, sft->bucketsMax, sft->bucketsAllocated, sft->bucketsUsed,
 		sft->fragsMax, sft->fragsAllocated,
-		sft->fragsDiscarded);
+		sft->fragsDiscarded, sft->reAssembled);
 }
 

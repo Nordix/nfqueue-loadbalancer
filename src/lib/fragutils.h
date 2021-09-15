@@ -139,6 +139,7 @@ struct fragStats {
 	unsigned fragsMax;
 	unsigned fragsDiscarded;
 	unsigned fragsAllocated;
+	unsigned reAssembled;
 };
 
 void fragUseStats(struct FragTable* ft, struct fragStats* stats);

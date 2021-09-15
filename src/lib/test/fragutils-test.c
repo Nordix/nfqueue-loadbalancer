@@ -293,12 +293,14 @@ cmdFragutilsBasic(int argc, char* argv[])
 	fragGetStats(ft, &now, &b);
 	a.ctstats.inserts = 1;
 	a.ctstats.lookups = 3;
+	a.reAssembled = 1;
 	assert(statsCmp(&a, &b) == 0);
 
+	// When we must store packets the reassembler should be discarded
 	rc = fragGetHashOrStore(ft, &now, &key, &hash, &key, sizeof(key));
-	assert(reass_data == 1);
+	assert(reass_data == -1);
 	rc = fragGetHashOrStore(ft, &now, &key, &hash, &key, sizeof(key));
-	assert(reass_data == 2);
+	assert(reass_data == -1);
 	rc = fragInsertFirst(ft, &now, &key, 5, NULL, NULL, 0);
 	assert(reass_data == -1);
 	fragGetStats(ft, &now, &b);
@@ -306,6 +308,7 @@ cmdFragutilsBasic(int argc, char* argv[])
 	a.ctstats.lookups += 3;
 	a.fragsAllocated = 2;
 	a.fragsDiscarded = 2;
+	a.ctstats.active = 1;
 	assert(statsCmp(&a, &b) == 0);
 
 	fragTableDestroy(ft);
