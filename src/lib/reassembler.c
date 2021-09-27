@@ -27,7 +27,10 @@
   reassemling the packet, just doing the book-keeping.
  */
 
-static int handleFragment(
+#ifndef UNIT_TEST
+static
+#endif
+int handleFragment(
 	struct Item* head, unsigned fragmentFirst, unsigned len, int morefragments);
 
 #define INFINITY UINT_MAX
@@ -207,7 +210,7 @@ struct ReassemblerStats const* getReassemblerStats(void)
    0 - All fragments received
    1 - More fragments needed
  */
-static int handleFragment(
+int handleFragment(
 	struct Item* head, unsigned fragmentFirst, unsigned len, int morefragments)
 {
 	D(printf("handleFragment: %u, len=%u, MF=%u\n", fragmentFirst, len, morefragments != 0));

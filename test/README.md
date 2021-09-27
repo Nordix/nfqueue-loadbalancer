@@ -11,8 +11,9 @@ test programs must exit with zero on success and non-zero on failure.
 
 ```
 cd src
-make clean; CFLAGS="-Werror" make -j8 test
-make clean; CFLAGS="-DVERBOSE -DSANITY_CHECK -Werror" make -j8 test
+make clean; CFLAGS="-Werror -DUNIT_TEST" make -j8 test
+make clean; CFLAGS="-DVERBOSE -DSANITY_CHECK -Werror -DUNIT_TEST" make -j8 test
+make clean
 ```
 
 Test programs are in `src/lib/test`. Any file with the pattern
