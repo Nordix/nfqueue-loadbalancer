@@ -112,30 +112,32 @@ ft_size = rate * ft_ttl * C
 ft_buckets = ft_size
 ```
 
+And as always with hash tables, *the size should be a prime*.
+
 A good value of `C` can be found with simulations;
 ```
 make -j8 -C src test_progs
 alias ct=/tmp/$USER/nfqlb/lib/test/ct-test
 ct -h
-ct --repeat=1 --duration=300 --rate=10000 --ft_ttl=200 --ft_size=2000 --ft_buckets=2000
+ct --repeat=1 --duration=300 --rate=10000 --ft_ttl=200 --ft_size=1999 --ft_buckets=1999
 {
   "ttlMillis":     200,
-  "size":          2000,
-  "active":        2002,
-  "collisions":    1892035,
-  "inserts":       3000180,
-  "rejected":      25668,
+  "size":          1999,
+  "active":        1991,
+  "collisions":    1581851,
+  "inserts":       3001069,
+  "rejected":      0,
   "lookups":       0,
-  "objGC":         2972510,
-  "bucketsMax":    2000,
-  "bucketsPeak":   2000,
-  "bucketsStale":  1977,
-  "percentLoss":   0.9
+  "objGC":         2999078,
+  "bucketsMax":    1999,
+  "bucketsPeak":   1945,
+  "bucketsStale":  1641,
+  "percentLoss":   0.0
 }
 ```
 
 Here we run a simulation of 10000pkt/S rate for a simulated time of
-300s (5m). With C=1 we get ~1% packet loss. A reasonable value may be
+300s (5m). With C=1 we get no packet loss. A reasonable value may be
 C=2. The simulation itself takes less than 1s.
 
 Remember that if the reassembler is used the only fragments out of

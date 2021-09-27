@@ -39,7 +39,13 @@ to do long virtual time simulations in really short real-time.
 This is a special case of unit tests used to find a
 configuration for the [fragtrack table](../fragtrack.md#configuration).
 
-
+```
+alias ct=/tmp/$USER/nfqlb/lib/test/ct-test
+ct -h
+hsize=223   # (should be a prime)
+ct --ft_size=$hsize --ft_buckets=$hsize --ft_ttl=200 --rate=1000 \
+  --duration=300 --parallel=8 --repeat=16
+```
 
 ## Function test
 
