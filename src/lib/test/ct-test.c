@@ -41,7 +41,7 @@ cmdCtBasic(int argc, char* argv[])
 	char const* ft_ttl = "200";
 	char const* repeat = "0";
 	char const* parallel = "4";
-	char const* duration = "300";
+	char const* duration = "0";
 	char const* rate = "10000";
 	struct Option options[] = {
 		{"help", NULL, 0,
@@ -66,7 +66,7 @@ cmdCtBasic(int argc, char* argv[])
 	sarg.ttl = atoi(ft_ttl);
 	sarg.hsize = atoi(ft_size);
 	sarg.buckets = atoi(ft_buckets);
-	if (rpt > 0) {
+	if (rpt > 0 && sarg.duration > 0) {
 		unsigned j = atoi(parallel);
 		unsigned i;
 		sarg.assert = 0;
@@ -101,8 +101,10 @@ cmdCtBasic(int argc, char* argv[])
 	testLimitedBuckets(&stats);
 	testFreeDataFn(&stats);
 
-	sarg.assert = 1;
-	testSustainedRate(&sarg);
+	if (sarg.duration > 0) {
+		sarg.assert = 1;
+		testSustainedRate(&sarg);
+	}
 
 	printf(
 		"==== ct-test OK. inserts=%u(%u) lookups=%u collisions=%u\n",
