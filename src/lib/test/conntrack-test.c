@@ -45,7 +45,7 @@ cmdCtBasic(int argc, char* argv[])
 	char const* rate = "10000";
 	struct Option options[] = {
 		{"help", NULL, 0,
-		 "ct-test [options]\n"
+		 "conntrack-test [options]\n"
 		 "  Connection/fragment tracker tests"},
 		{"ft_size", &ft_size, 0, "Frag table size"},
 		{"ft_buckets", &ft_buckets, 0, "Extra buckets"},
@@ -107,7 +107,7 @@ cmdCtBasic(int argc, char* argv[])
 	}
 
 	printf(
-		"==== ct-test OK. inserts=%u(%u) lookups=%u collisions=%u\n",
+		"==== conntrack-test OK. inserts=%u(%u) lookups=%u collisions=%u\n",
 		stats.inserts, stats.rejectedInserts, stats.lookups, stats.collisions);
 	return 0;
 }
