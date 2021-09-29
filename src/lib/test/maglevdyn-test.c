@@ -58,9 +58,14 @@ int main(int argc, char* argv[])
 	}
 	free(mem);
 
-	targetAddRemove(100, 20, 10, 24.0); /* perfect = 10% */
-	targetAddRemove(1000, 20, 10, 13.0); /* perfect = 10% */
-	targetAddRemove(10000, 100, 50, 5.0); /* perfect = 2% */
+	/*
+	  These tests has a small probability to fail. It is natural since
+	  they use random data. The proability seem to be < 1/1000. Test with;
+	  i=0; while ./maglevdyn-test; do i=$((i+1)); echo $i; done
+	 */
+	targetAddRemove(109, 20, 10, 24.0); /* perfect = 10% */
+	targetAddRemove(1009, 20, 10, 13.0); /* perfect = 10% */
+	targetAddRemove(10009, 100, 50, 5.0); /* perfect = 2% */
 
 	printf("==== maglevdyn-test OK\n");
 	return 0;
@@ -130,10 +135,12 @@ static void targetAddRemove(
 	void* mem = create(M, N);
 	addTargets(mem, A);
 	F = addTargets(mem, 1);
-	Dx(printf("addTargets M=%u, N=%u, A=%u; %.1f\n", M,N,A,F));
+	if (F >= lim)
+		printf("addTargets M=%u, N=%u, A=%u; %.1f (%.1f)\n", M,N,A,F,lim);
 	assert(F < lim);
 	F = removeTargets(mem, 1);
-	Dx(printf("removeTargets M=%u, N=%u, A=%u; %.1f\n", M,N,A,F));
+	if (F >= lim)
+		printf("addTargets M=%u, N=%u, A=%u; %.1f (%.1f)\n", M,N,A,F,lim);
 	assert(F < lim);
 	free(mem);
 }
