@@ -4,7 +4,6 @@
 */
 
 #include "nfqueue.h"
-#include <fragutils.h>
 #include <iputils.h>
 #include <shmem.h>
 #include <cmd.h>
@@ -18,7 +17,6 @@
 #include <netinet/ip.h>
 #include <netinet/ip6.h>
 #include <unistd.h>
-#include <time.h>
 #include <string.h>
 #include <pthread.h>
 

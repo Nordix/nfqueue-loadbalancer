@@ -6,7 +6,6 @@
 #include "reassembler.h"
 #include <iputils.h>
 
-#include <stddef.h>
 #include <limits.h>
 #include <netinet/ip.h>
 #include <netinet/ip6.h>

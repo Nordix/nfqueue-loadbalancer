@@ -9,8 +9,9 @@
 #include <libmnl/libmnl.h>
 #include <linux/netfilter.h>
 #include <libnetfilter_queue/libnetfilter_queue.h>
-/* only for NFQA_CT, not needed otherwise: */
-//#include <linux/netfilter/nfnetlink_conntrack.h>
+/* only for NFQA_CT, not needed otherwise:
+#include <linux/netfilter/nfnetlink_conntrack.h>
+*/
 #include <stdlib.h>
 
 static packetHandleFn_t handlePacket = NULL;

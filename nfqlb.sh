@@ -42,6 +42,7 @@ cmd_include_check() {
 	local f
 	cd $dir
 	for f in $(find src -name '*.c'); do
+		echo $f | grep -q extension && continue
 		echo $f
 		cmd_include_check_file $f > /dev/null 2>&1
 	done
@@ -61,7 +62,7 @@ cmd_include_check_file() {
 		target=all
 		echo $f | grep -q test && target=test_progs
 		echo $target
-		if ! make -C $dir/src CFLAGS=-Werror $target; then
+		if ! make -C $dir/src CFLAGS="-DVERBOSE -DSANITY_CHECK -Werror" $target; then
 			sed -i -e "s,^//#include <$i>,#include <$i>," $f
 		fi
 	done
