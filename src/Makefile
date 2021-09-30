@@ -15,7 +15,7 @@
 ## Examples;
 ##  make -j8
 ##  make -j8 clean
-##  make -j8 CFLAGS=-DSANITY_CHECK test
+##  make -j8 CFLAGS="-DSANITY_CHECK -DUNIT_TEST" test
 ##  make -j8 X=/tmp/my-nfqlb
 ##  make -j8 O=.       # (you *can*, but don't do that!)
 ##
@@ -54,7 +54,7 @@ $(LIB_OBJ): | $(DIRS)
 
 .PHONY: test test_progs
 $(O)/lib/test/% : lib/test/%.c
-	$(CC) $(CFLAGS) -Wall -Ilib -pthread $< -o $@ -L$(O)/lib -lnfqlb -lrt
+	$(CC) $(CFLAGS) -Wall -Ilib -pthread $< -o $@ -L$(O)/lib -lnfqlb -lrt -lpcap
 TEST_SRC := $(wildcard lib/test/*-test.c)
 TEST_PROGS := $(TEST_SRC:%.c=$(O)/%)
 $(TEST_PROGS): $(LIB)

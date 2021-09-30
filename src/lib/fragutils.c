@@ -438,6 +438,153 @@ int fragGetHashOrStore(
 	return rc;
 }
 
+/* ----------------------------------------------------------------------
+   Packet level functions;
+ */
+
+#include "iputils.h"
+#include <netinet/ip.h>
+#include <netinet/ip6.h>
+
+
+int ipv4Fragment(
+	struct FragTable* ft, struct timespec* now,
+	void (*injectFn)(void const* data, unsigned len),
+	void const* data, unsigned len, unsigned* hash)
+{
+	// Is the packet a fragment?
+	struct iphdr* hdr = (struct iphdr*)data;
+	if (!IN_BOUNDS(hdr, sizeof(*hdr), data + len))
+		return -1;
+	if (!(ntohs(hdr->frag_off) & (IP_OFFMASK|IP_MF)))
+		return -1;
+
+	// Construct the key
+	struct ctKey key = {0};
+	key.src.s6_addr16[5] = 0xffff;
+	key.src.s6_addr32[3] = hdr->saddr;
+	key.dst.s6_addr16[5] = 0xffff;
+	key.dst.s6_addr32[3] = hdr->daddr;
+	key.id = hdr->id;
+
+	// Check offset to see if this is the first fragment
+	if ((ntohs(hdr->frag_off) & IP_OFFMASK) == 0) {
+		// First fragment. contains the protocol header.
+		*hash = ipv4Hash(data, len);
+
+		struct Item* storedFragments;
+		if (fragInsertFirst(
+				ft, now, &key, *hash, &storedFragments, data, len) != 0) {
+			itemFree(storedFragments);
+			return -1;
+		}
+
+		/* Check if we have any stored fragments that should be
+		 * re-injected */
+		if (storedFragments != NULL) {
+			if (injectFn != 0) {
+				struct Item* i;
+				for (i = storedFragments; i != NULL; i = i->next) {
+					injectFn(i->data, i->len);
+				}
+			}
+			itemFree(storedFragments);
+		}
+		return 0;				/* First fragment handled. Hash stored. */
+	}
+
+	/*
+	  Not the first fragment. Get the hash if possible or store this
+	  fragment if not.
+	*/
+
+	return fragGetHashOrStore(ft, now, &key, hash, data, len);
+}
+
+
+int ipv6Fragment(
+	struct FragTable* ft, struct timespec* now,
+	void (*injectFn)(void const* data, unsigned len),
+	void const* data, unsigned len, unsigned* hash)
+{
+	// Is the packet a fragment?
+	void const* endp = data + len;
+	struct ip6_hdr const* ip6hdr = (struct ip6_hdr*)data;
+	if (!IN_BOUNDS(ip6hdr, sizeof(*ip6hdr), endp))
+		return -1;
+
+	struct ip6_frag const* fh = NULL;
+	uint8_t htype = ip6hdr->ip6_nxt;
+	void const* hdr = data + sizeof(struct ip6_hdr);
+	// TODO make a function of this;
+	while (ipv6IsExtensionHeader(htype)) {
+		if (htype == IPPROTO_FRAGMENT) {
+			fh = hdr;
+			break;
+		}
+		struct ip6_ext const* xh = hdr;
+		if (!IN_BOUNDS(xh, sizeof(*xh), endp))
+			return -1;
+		htype = xh->ip6e_nxt;
+		if (xh->ip6e_len == 0)
+			return -1;			/* Corrupt header */
+		hdr = hdr + (xh->ip6e_len * 8);
+	}
+	if (fh == NULL)
+		return -1;
+
+	// Construct the key
+	struct ctKey key;
+	key.dst = ip6hdr->ip6_dst;
+	key.src = ip6hdr->ip6_src;
+	key.id = fh->ip6f_ident;
+
+	// Check offset to see if this is the first fragment
+	if ((fh->ip6f_offlg & IP6F_OFF_MASK) == 0) {
+		/* First fragment. Find the upper layer header. */
+		uint8_t htype = ip6hdr->ip6_nxt;
+		void const* hdr = data + sizeof(struct ip6_hdr);
+		while (ipv6IsExtensionHeader(htype)) {
+			struct ip6_ext const* xh = hdr;
+			htype = xh->ip6e_nxt;
+			hdr = hdr + (xh->ip6e_len * 8);
+		}
+		*hash = ipv6Hash(data, len, htype, hdr);
+
+		struct Item* storedFragments;
+		if (fragInsertFirst(
+				ft, now, &key, *hash, &storedFragments, data, len) != 0) {
+			itemFree(storedFragments);
+			return -1;
+		}
+
+		/* Check if we have any stored fragments that should be
+		 * re-injected */
+		if (storedFragments != NULL) {
+			if (injectFn != NULL) {
+				struct Item* i;
+				for (i = storedFragments; i != NULL; i = i->next) {
+					injectFn(i->data, i->len);
+				}
+			}
+			itemFree(storedFragments);
+		}
+		return 0;				/* First fragment handled. Hash stored. */
+	}
+
+	/*
+	  Not the first fragment. Get the hash if possible or store this
+	  fragment if not.
+	*/
+
+	return fragGetHashOrStore(ft, now, &key, hash, data, len);
+}
+
+
+/* ----------------------------------------------------------------------
+   Stats;
+ */
+
 void fragGetStats(
 	struct FragTable* ft, struct timespec* now, struct fragStats* stats)
 {
