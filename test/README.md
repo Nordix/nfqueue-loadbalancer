@@ -33,7 +33,6 @@ void* ctLookup(
 This makes it possible to test anything down to nano-second level and
 to do long virtual time simulations in really short real-time.
 
-
 ### Simulations
 
 This is a special case of unit tests used to find a
@@ -46,6 +45,40 @@ hsize=223   # (should be a prime)
 ct --ft_size=$hsize --ft_buckets=$hsize --ft_ttl=200 --rate=1000 \
   --duration=300 --parallel=8 --repeat=16
 ```
+
+### Unit test with saved pcap files
+
+To test ip packet handling offline in unit test you need packet
+data. We use stored `tcpdump` captures for this;
+
+```
+XOVLS='' xc mkcdrom network-topology iptools udp-test
+xc start --image=$XCLUSTER_WORKSPACE/xcluster/hd.img --nrouters=1 --nvm=1
+# On vm-001
+udp-test --server
+# On vm-201
+tcpdump -ni eth1 -w /tmp/udp-ipv6.pcap udp
+# On vm-201 in another shell
+udp-test -address [1000::1:192.168.1.1]:6001 -size 30000
+```
+
+Stop `tcpdump` and copy the capture;
+
+```
+scp root@192.168.0.201:/tmp/udp-ipv6.pcap /tmp
+```
+
+Now build the `pcap-test` program and test;
+
+```
+cd src
+make -j8 clean; make -j8 CFLAGS="-DUNIT_TEST" test
+/tmp/$USER/nfqlb/lib/test/pcap-test parse --file=/tmp/udp-ipv6.pcap
+/tmp/$USER/nfqlb/lib/test/pcap-test parse --shuffle --file=/tmp/udp-ipv6.pcap
+```
+
+For now only fragment handling is tested with captured pcap files.
+
 
 ## Function test
 
