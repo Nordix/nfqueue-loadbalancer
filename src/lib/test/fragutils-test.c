@@ -3,6 +3,11 @@
   Copyright (c) 2021 Nordix Foundation
 */
 
+/*
+  The packet handling functions, ipv6Fragment() and ipv4Fragment(),
+  are tested in test-pcap.c.
+*/
+
 #include "fragutils.h"
 #include <assert.h>
 #include <string.h>

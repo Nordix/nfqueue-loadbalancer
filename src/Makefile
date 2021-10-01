@@ -15,7 +15,7 @@
 ## Examples;
 ##  make -j8
 ##  make -j8 clean
-##  make -j8 CFLAGS="-DSANITY_CHECK -DUNIT_TEST" test
+##  make -j8 clean; make -j8 CFLAGS="-DSANITY_CHECK -DUNIT_TEST" test
 ##  make -j8 X=/tmp/my-nfqlb
 ##  make -j8 O=.       # (you *can*, but don't do that!)
 ##
@@ -61,6 +61,8 @@ $(TEST_PROGS): $(LIB)
 test_progs: $(TEST_PROGS)
 test: $(TEST_PROGS)
 	@$(foreach p,$(TEST_PROGS),echo $(p);$(p);)
+	@$(O)/lib/test/pcap-test parse --shuffle --quiet --file=lib/test/udp-ipv4.pcap
+	@$(O)/lib/test/pcap-test parse --shuffle --quiet --file=lib/test/udp-ipv6.pcap
 
 $(DIRS):
 	@mkdir -p $(DIRS)

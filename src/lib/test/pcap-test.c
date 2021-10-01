@@ -16,6 +16,7 @@
 #include <netinet/ether.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <time.h>
 
 // Debug macros
 #define Dx(x) x
@@ -54,6 +55,18 @@ static void readPcapData(char const* file)
         die("pcap_loop() failed: %s\n", pcap_geterr(fp));
 }
 
+static void shuffle(struct Packet* packets, unsigned cnt)
+{
+	for (unsigned shuff = 0; shuff < (cnt * 5); shuff++) {
+		unsigned i1 = rand() % cnt;
+		unsigned i2 = rand() % cnt;
+		struct Packet tmp = packets[i1];
+		packets[i1] = packets[i2];
+		packets[i2] = tmp;
+	}
+}
+
+
 static int
 cmdRead(int argc, char* argv[])
 {
@@ -89,22 +102,25 @@ cmdRead(int argc, char* argv[])
 static int
 cmdParse(int argc, char* argv[])
 {
+	char const* shuffleStr = "no";
+	char const* quietStr = "no";
+	char const* file = "";
 	struct Option options[] = {
 		{"help", NULL, 0,
-		 "parse [file]\n"
+		 "parse [file|-]\n"
 		 "  Read pcap file and parse fragments"},
+		{"file", &file, REQUIRED, "Pcap file. '-' = stdin"},
+		{"shuffle", &shuffleStr, 0, "Shuffle the packets"},
+		{"quiet", &quietStr, 0, "Suspress stats printout"},
 		{0, 0, 0, 0}
 	};
-	int nopt = parseOptionsOrDie(argc, argv, options);
-	argc -= nopt;
-	argv += nopt;
+	(void)parseOptionsOrDie(argc, argv, options);
 
-	char const* file = "-";
-	if (argc > 0) {
-		file = argv[0];
-	}
+	srand(time(NULL));
 
 	readPcapData(file);
+	if (shuffleStr == NULL)
+		shuffle(packets, nPackets);
 
 	struct FragTable* ft = fragTableCreate(109, 100, 1000, 1500, 200);
 	fragRegisterFragReassembler(ft, createReassembler(200));
@@ -123,12 +139,21 @@ cmdParse(int argc, char* argv[])
 			break;
 		default:;
 		}
-		assert(rc == 0);
+		if (rc < 0) {
+			struct fragStats stats;
+			fragGetStats(ft, &now, &stats);
+			fragPrintStats(&stats);
+			assert(0);
+		}
 	}
 
-	struct fragStats stats;
-	fragGetStats(ft, &now, &stats);
-	fragPrintStats(&stats);
+	if (quietStr != NULL) {
+		struct fragStats stats;
+		fragGetStats(ft, &now, &stats);
+		fragPrintStats(&stats);
+	} else {
+		printf("==== pcap-test OK [%s]\n", file);
+	}
 
 	return 0;
 }
