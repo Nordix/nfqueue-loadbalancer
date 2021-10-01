@@ -10,7 +10,7 @@ int handleCmd(int argc, char *argv[]);
 /*
   Example;
 	char const* shuffleStr = "no";   // "no" means no-argument-option
-	char const* fileStr = NULL;
+	char const* fileStr = "";        // Must not be NULL
 	char const* repeatStr = "1";
 	struct Option options[] = {
 		{"help", NULL, 0,
