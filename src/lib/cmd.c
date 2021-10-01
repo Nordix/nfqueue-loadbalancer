@@ -107,8 +107,9 @@ int parseOptions(int argc, char* argv[], struct Option const* options)
 		struct option* lo = long_options + i;
 		lo->name = o->name;
 		lo->has_arg = no_argument;
-		if (o->arg != NULL && strcmp(*o->arg, "no") != 0)
-			lo->has_arg = required_argument;
+		if (o->arg != NULL)
+			if (*o->arg == NULL || strcmp(*o->arg, "no") != 0)
+				lo->has_arg = required_argument;
 		lo->val = i;
 		if (o->flags & REQUIRED)
 			required |= (1 << i);
