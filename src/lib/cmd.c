@@ -87,7 +87,7 @@ static void printUsage(struct Option const* options)
 			continue;
 		printf(
 			"  --%s= %s %s\n",
-			o->name, o->help, o->required ? "(required)":"");
+			o->name, o->help, o->flags & REQUIRED ? "(required)":"");
 	}
 }
 
@@ -106,9 +106,11 @@ int parseOptions(int argc, char* argv[], struct Option const* options)
 		o = options + i;
 		struct option* lo = long_options + i;
 		lo->name = o->name;
-		lo->has_arg = o->arg == NULL ? no_argument : required_argument;
+		lo->has_arg = no_argument;
+		if (o->arg != NULL && strcmp(*o->arg, "no") != 0)
+			lo->has_arg = required_argument;
 		lo->val = i;
-		if (o->required == REQUIRED)
+		if (o->flags & REQUIRED)
 			required |= (1 << i);
 	}
 
