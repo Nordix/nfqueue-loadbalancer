@@ -38,12 +38,20 @@ static struct MagDataDyn magdlb;
 
 #define FW(table) table.active[table.lookup[hash % table.M]]
 
-static int ipv6HandleFragment(
-	struct FragTable* ft, void const* data, unsigned len,
-	struct ip6_frag const* fh, unsigned* hash);
-static int ipv4HandleFragment(
-	struct FragTable* ft, void const* data, unsigned len, unsigned* hash);
-
+static void injectFrag(void const* data, unsigned len)
+{
+#ifdef VERBOSE
+	if (tun_fd >= 0) {
+		int rc = write(tun_fd, data, len);
+		printf("Frag injected, len=%u, rc=%d\n", len, rc);
+	} else {
+		printf("Frag dropped, len=%u\n", len);
+	}
+#else
+	if (tun_fd >= 0)
+		write(tun_fd, data, len);
+#endif
+}
 
 static int handleIpv4(void* data, unsigned len)
 {
@@ -65,7 +73,9 @@ static int handleIpv4(void* data, unsigned len)
 		}
 
 		// We shall handle the frament here
-		int rc = ipv4HandleFragment(ft, data, len, &hash);
+		struct timespec now;
+		clock_gettime(CLOCK_MONOTONIC, &now);
+		int rc = ipv4Fragment(ft, &now, injectFrag, data, len, &hash);
 		if (rc != 0) {
 			Dx(printf("IPv4 fragment %s\n", rc > 0 ? "stored":"dropped"));
 			return -1;
@@ -118,7 +128,9 @@ static int handleIpv6(void const* data, unsigned len)
 		}
 
 		// We shall handle the frament here
-		int rc = ipv6HandleFragment(ft, data, len, hdr, &hash);
+		struct timespec now;
+		clock_gettime(CLOCK_MONOTONIC, &now);
+		int rc = ipv6Fragment(ft, &now, injectFrag, data, len, &hash);
 		if (rc != 0) {
 			Dx(printf("IPv6 fragment %s\n", rc > 0 ? "stored":"dropped"));
 			return -1;
@@ -272,118 +284,3 @@ __attribute__ ((__constructor__)) static void addCommands(void) {
 }
 
 
-static void injectFrag(void const* data, unsigned len)
-{
-#ifdef VERBOSE
-	if (tun_fd >= 0) {
-		int rc = write(tun_fd, data, len);
-		printf("Frag injected, len=%u, rc=%d\n", len, rc);
-	} else {
-		printf("Frag dropped, len=%u\n", len);
-	}
-#else
-	if (tun_fd >= 0)
-		write(tun_fd, data, len);
-#endif
-}
-
-
-static int ipv4HandleFragment(
-	struct FragTable* ft, void const* data, unsigned len, unsigned* hash)
-{
-	struct timespec now;
-	clock_gettime(CLOCK_MONOTONIC, &now);
-
-	// Construct the key
-	struct ctKey key = {0};
-	struct iphdr* hdr = (struct iphdr*)data;
-	key.src.s6_addr16[5] = 0xffff;
-	key.src.s6_addr32[3] = hdr->saddr;
-	key.dst.s6_addr16[5] = 0xffff;
-	key.dst.s6_addr32[3] = hdr->daddr;
-	key.id = hdr->id;
-
-	// Check offset to see if this is the first fragment
-	if ((ntohs(hdr->frag_off) & IP_OFFMASK) == 0) {
-		// First fragment. contains the protocol header.
-		*hash = ipv4Hash(data, len);
-
-		struct Item* storedFragments;
-		if (fragInsertFirst(
-				ft, &now, &key, *hash, &storedFragments, data, len) != 0) {
-			itemFree(storedFragments);
-			return -1;
-		}
-
-		/* Check if we have any stored fragments that should be
-		 * re-injected */
-		if (storedFragments != NULL) {
-			struct Item* i;
-			for (i = storedFragments; i != NULL; i = i->next) {
-				injectFrag(i->data, i->len);
-			}
-			itemFree(storedFragments);
-		}
-		return 0;				/* First fragment handled. Hash stored. */
-	}
-
-	/*
-	  Not the first fragment. Get the hash if possible or store this
-	  fragment if not.
-	*/
-
-	return fragGetHashOrStore(ft, &now, &key, hash, data, len);
-}
-
-static int ipv6HandleFragment(
-	struct FragTable* ft, void const* data, unsigned len,
-	struct ip6_frag const* fh, unsigned* hash)
-{
-	struct timespec now;
-	clock_gettime(CLOCK_MONOTONIC, &now);
-
-	// Construct the key
-	struct ctKey key;
-	struct ip6_hdr* ip6hdr = (struct ip6_hdr*)data;
-	key.dst = ip6hdr->ip6_dst;
-	key.src = ip6hdr->ip6_src;
-	key.id = fh->ip6f_ident;
-
-	// Check offset to see if this is the first fragment
-	if ((fh->ip6f_offlg & IP6F_OFF_MASK) == 0) {
-		/* First fragment. Find the upper layer header. */
-		uint8_t htype = ip6hdr->ip6_nxt;
-		void const* hdr = data + sizeof(struct ip6_hdr);
-		while (ipv6IsExtensionHeader(htype)) {
-			struct ip6_ext const* xh = hdr;
-			htype = xh->ip6e_nxt;
-			hdr = hdr + (xh->ip6e_len * 8);
-		}
-		*hash = ipv6Hash(data, len, htype, hdr);
-
-		struct Item* storedFragments;
-		if (fragInsertFirst(
-				ft, &now, &key, *hash, &storedFragments, data, len) != 0) {
-			itemFree(storedFragments);
-			return -1;
-		}
-
-		/* Check if we have any stored fragments that should be
-		 * re-injected */
-		if (storedFragments != NULL) {
-			struct Item* i;
-			for (i = storedFragments; i != NULL; i = i->next) {
-				injectFrag(i->data, i->len);
-			}
-			itemFree(storedFragments);
-		}
-		return 0;				/* First fragment handled. Hash stored. */
-	}
-
-	/*
-	  Not the first fragment. Get the hash if possible or store this
-	  fragment if not.
-	*/
-
-	return fragGetHashOrStore(ft, &now, &key, hash, data, len);
-}
