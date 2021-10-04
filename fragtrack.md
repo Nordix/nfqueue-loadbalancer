@@ -117,7 +117,7 @@ And as always with hash tables, *the size should be a prime*.
 A good value of `C` can be found with simulations;
 ```
 make -j8 -C src test_progs
-alias ct=/tmp/$USER/nfqlb/lib/test/ct-test
+alias ct=/tmp/$USER/nfqlb/lib/test/conntrack-test
 ct -h
 ct --repeat=1 --duration=300 --rate=10000 --ft_ttl=200 --ft_size=1999 --ft_buckets=1999
 {

@@ -2,7 +2,7 @@
 
 Unit tests are just local programs, function tests uses
 [xcluster](https://github.com/Nordix/xcluster) and performance tests uses
-a Docker container.
+a Docker container or real HW.
 
 ## Unit tests
 
@@ -39,7 +39,7 @@ This is a special case of unit tests used to find a
 configuration for the [fragtrack table](../fragtrack.md#configuration).
 
 ```
-alias ct=/tmp/$USER/nfqlb/lib/test/ct-test
+alias ct=/tmp/$USER/nfqlb/lib/test/conntrack-test
 ct -h
 hsize=223   # (should be a prime)
 ct --ft_size=$hsize --ft_buckets=$hsize --ft_ttl=200 --rate=1000 \
@@ -49,7 +49,8 @@ ct --ft_size=$hsize --ft_buckets=$hsize --ft_ttl=200 --rate=1000 \
 ### Unit test with saved pcap files
 
 To test ip packet handling offline in unit test you need packet
-data. We use stored `tcpdump` captures for this;
+data. We use stored `tcpdump` captures for this. The example below is
+how it may be done using [xcluster](https://github.com/Nordix/xcluster);
 
 ```
 XOVLS='' xc mkcdrom network-topology iptools udp-test
@@ -192,6 +193,7 @@ Iperf3 is not used since it's [not intended for use with load-balancers](https:/
 
 Automatic test using the `nfqlb_performance.sh` script;
 ```
+$ ./nfqlb_performance.sh test
 1. Start iperf servers
 2. Start the test container
 3. Start LB

@@ -43,6 +43,7 @@ for more demanding tests.
 ./nfqlb.sh test --verbose --fragrev --vip=10.0.0.0:5001 udp > $log
 # Multi queue;
 xcluster_LBOPT="--queue=0:3" ./nfqlb.sh test --verbose --fragrev udp > $log
+xcluster_LBOPT="--queue=0:3 --reassembler=1000" ./nfqlb.sh test --verbose udp > $log
 ```
 
 ### PMTU discovery test
