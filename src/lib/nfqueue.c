@@ -15,7 +15,7 @@
 #include <stdlib.h>
 
 static packetHandleFn_t handlePacket = NULL;
-static unsigned queue_length = 8;
+static unsigned queue_length = 1024;
 static unsigned mtu = 1500;
 
 void nfqueueInit(

@@ -195,7 +195,7 @@ static int cmdLb(int argc, char **argv)
 		{"tshm", &targetShm, 0, "Target shared memory"},
 		{"lbshm", &lbShm, 0, "Lb shared memory"},
 		{"queue", &qnum, 0, "NF-queues to listen to (default 2)"},
-		{"qlength", &qlen, 0, "Lenght of queues (default 64)"},
+		{"qlength", &qlen, 0, "Lenght of queues (default 1024)"},
 		{"ft_shm", &ftShm, 0, "Frag table; shared memory stats"},
 		{"ft_size", &ft_size, 0, "Frag table; size"},
 		{"ft_buckets", &ft_buckets, 0, "Frag table; extra buckets"},

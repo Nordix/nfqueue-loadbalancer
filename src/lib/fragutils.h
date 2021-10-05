@@ -8,13 +8,18 @@
 #include "conntrack.h"
 
 /*
-  TCP uses PMTU to avoid fragmentation so fragmentation normally only
-  happens for other protocols like UDP.
+  TCP uses PMTU discovery to avoid fragmentation so fragmentation
+  normally only happens for other protocols like UDP.
 
-  About sizes
+  Fragmentation handling can be subject to a DoS attack, see
+  https://en.wikipedia.org/wiki/IP_fragmentation_attack
 
-  It is of course impossible to give a definite answer, but there are
-  some things to consider.
+  Fragment entries are stored in a hash table with {source, dest, fragid}
+  as key. A "reassembler" can be registered and indicate when the entire
+  packet is processed and the fragment entry can be released. 
+
+  If no reassembler is registered or fragments arrives out of order or
+  if we have a DoS attack, fragment entries will timeout.
 
   The theoretical max of concurrent fragmented packets is (hsize +
   maxBuckets). But hashing is not perfect so a better estimate is
@@ -31,7 +36,7 @@
     max-frag-packet-rate = max-packets / ttl-in-seconds
 
   With this we can make a rough estimate of that hsize is needed for a
-  *sustained* rate of fragmented packets;
+  *sustained* rate of fragmented (un-reassembled) packets;
 
     hsize = rate * ttl * 2, maxBuckets = hsize
 
@@ -47,9 +52,8 @@
 
   The timeout should be set fairly low, e.g. 200ms. This is a
   fragmented packet we are talking about, not some re-send
-  timeout. There is a standard saying 2sec I think, but don't care
-  about that. Remember that we never exlpicitly remove anything from
-  the fragment table, *everything* is removed by a timeout!
+  timeout. There is a standard saying 2sec, but don't care
+  about that.
 
   Fragment entries that has timed out are not automatically
   freed. Instead they are GC'ed when a bucket is re-used. If there are
@@ -59,8 +63,8 @@
   But if we have got collisions and allocated new bucket structures
   they will linger until next time we happen to hash to that same
   bucket (which may be never). This works well over time since buckets
-  will most often be re-used eventually, and in case of high load,
-  more frequently.
+  will be re-used eventually, and in case of high load, more
+  frequently.
 
   However a full GC is trigged by reading the fragmentation stats. A
   reason may be for metrics or for an alarm on over-use of stored

@@ -27,7 +27,7 @@ struct ItemPool {
 	void* mem;
 };
 
-static void itemPoolInit(
+static int itemPoolInit(
 	struct ItemPool* pool, unsigned maxItems, unsigned itemSize,
 	itemFn_t itemInitFn)
 {
@@ -40,13 +40,13 @@ static void itemPoolInit(
 	pool->stats.nFree = 0;
 
 	if (maxItems == 0) {
-		return;
+		return 0;
 	}
 
 	unsigned realItemSize = sizeof(struct Item) + itemSize;
 	pool->mem = malloc(maxItems * realItemSize);
 	if (pool->mem == NULL) {
-		return;
+		return -1;
 	}
 	pool->stats.nFree = maxItems;
 
@@ -60,6 +60,7 @@ static void itemPoolInit(
 			itemInitFn(item);
 		item = (struct Item*)((uint8_t*)item + realItemSize);
 	}
+	return 0;
 }
 
 struct ItemPool* itemPoolCreate(
@@ -68,12 +69,17 @@ struct ItemPool* itemPoolCreate(
 	struct ItemPool* p = malloc(sizeof(*p));
 	if (p == NULL)
 		return NULL;
-	itemPoolInit(p, maxItems, itemSize, itemInitFn);
+	if (itemPoolInit(p, maxItems, itemSize, itemInitFn) != 0) {
+		free(p);
+		return NULL;
+	}
 	return p;
 }
 
 void itemPoolDestroy(struct ItemPool* pool, itemFn_t itemDestroyFn)
 {
+	if (pool == NULL)
+		return;
 	if (itemDestroyFn != NULL) {
 		unsigned realItemSize = sizeof(struct Item) + pool->stats.itemSize;
 		struct Item* item = pool->mem;

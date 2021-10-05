@@ -21,10 +21,10 @@
 
   User data handling
 
-  The connection handles (void*) pointers. When a bucket has timed out
-  or when "ctRemove" is called the "freeDataFn" is called for the
-  data. The user should not free the data until "freeDataFn" is
-  called. The "freeDataFn" is only called once for each user data.
+  When a bucket has timed out or when "ctRemove" is called the
+  "freeDataFn" is called for the data. The user should not free the
+  data until "freeDataFn" is called. The "freeDataFn" is only called
+  once for each user data.
 
   A Garbage Collection procedure is used. User-data for timed out
   buckets is not freed until the bucket is re-used or when "ctStats"
