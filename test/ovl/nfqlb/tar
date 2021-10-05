@@ -22,6 +22,11 @@ src=$(readlink -f $dir/../../../src)
 make -C $src clean > /dev/null
 make -C $src -j8 X=$tmp/bin/nfqlb $MAKEOPT > /dev/null || die make
 
+src=$($XCLUSTER ovld sctp)/src
+make -C $src clean > /dev/null
+make -C $src -j8 X=$tmp/bin/sctpt > /dev/null || die "make sctpt"
+$XCLUSTER cplib --dest=$tmp $tmp/bin/sctpt
+
 for x in mconnect ctraffic; do
 	f=$GOPATH/src/github.com/Nordix/$x/image/$x
 	if test -x $f; then

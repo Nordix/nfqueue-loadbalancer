@@ -157,6 +157,19 @@ cmd_tcase_http() {
 	curl $@ $url > /dev/null || tdie "curl $@ $url"
 }
 
+cmd_tcase_vip_route() {
+	tcase "Setup VIP route to [$1]"
+	ip ro add 10.0.0.0/24 via $1
+	ip -6 ro add 1000::/120 via $PREFIX:$1
+}
+
+cmd_tcase_default_route() {
+	tcase "Setup default route to [$1]"
+	local ip=ip
+	echo $1 | grep -q : && ip="ip -6"
+	$ip route replace default via $1 || tdie
+}
+
 
 
 . /etc/profile

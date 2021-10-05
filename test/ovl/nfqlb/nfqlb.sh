@@ -109,6 +109,24 @@ test_start_hw_setup() {
 	otc 1 "hw_server --vip=$__vip"
 }
 
+##     start_dual_path
+test_start_dual_path() {
+	export TOPOLOGY=dual-path
+	export xcluster_TOPOLOGY=$TOPOLOGY
+	export __ntesters=1
+	export __image=$XCLUSTER_HOME/hd.img
+	echo "$XOVLS" | grep -q private-reg && unset XOVLS
+	. $($XCLUSTER ovld network-topology)/$TOPOLOGY/Envsettings
+	xcluster_start network-topology iptools nfqlb $@
+
+	otc 201 nfqueue_activate_all
+	otc 202 nfqueue_activate_all
+	otc 203 "vip_route 192.168.3.201"
+	otc 204 "vip_route 192.168.5.202"
+	otc 221 "default_route 1000::1:192.168.6.204"
+	otcw "default_route 1000::1:192.168.4.202"
+}
+
 ##     basic
 test_basic() {
 	tlog "=== nfqlb: Basic test"
@@ -145,6 +163,17 @@ test_mtu() {
 	otc 221 "http http://10.0.0.0 -s -m2 --interface 20.0.0.1"
 	sleep 1				# ICMP6 not sent immadiately! Probably some DAD problem.
 	otc 221 "http http://[1000::] -s -m2 --interface $PREFIX:20.0.0.1"
+	xcluster_stop
+}
+
+##     sctp
+test_sctp() {
+	tlog "=== nfqlb: SCTP test"
+	test_start_dual_path
+
+	otc 221 "ping --vip=1000::"
+	otc 221 "ping --vip=10.0.0.0"
+
 	xcluster_stop
 }
 ##

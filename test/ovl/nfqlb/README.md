@@ -67,6 +67,24 @@ tcpdump -ni eth2 icmp6
 curl --interface 1000::1:20.0.0.2 http://[1000::]
 ```
 
+### SCTP test
+
+Manual tests;
+```
+./nfqlb.sh test start_dual_path > $log
+# On vm-221;
+sctpt client --log=6 --addr=10.0.0.0,1000:: --laddr=192.168.2.221,1000::1:192.168.6.221
+# On vm-201/vm-202
+tcpdump -ni eth1 sctp
+iptables -A FORWARD -p sctp -j DROP
+iptables -D FORWARD 1
+# On vm-221
+sctpt stats clear
+watch sctpt stats
+# On vm-221 in another terminal
+sctpt ctraffic --log=6 --addr=10.0.0.0,1000:: --laddr=192.168.2.221,1000::1:192.168.6.221 --clients=8 --rate=10
+```
+
 
 ## Test the HW setup
 

@@ -15,7 +15,66 @@ vm() {
 	return 0
 }
 
+router_dual_path() {
+	# In dual-path only vm-201 and vm-202 (fixed) should be configured.
+	# They use different networks and there is no LB tier.
+	local net
+	case $(hostname) in
+		vm-201)
+			net=1;;
+		vm-202)
+			net=4;;
+		*)
+			return;;
+	esac
+
+	local toffset=100
+	test -n "$__nvm" || __nvm=4
+
+	local queue=2
+	if echo $LBOPT | grep -qE -- '--queue=[0-9]+'; then
+		queue=$(echo $LBOPT | grep -oE -- '--queue=[0-9]+:[0-9]+' | cut -d= -f2)
+		test -n "$queue" || \
+			queue=$(echo $LBOPT | grep -oE -- '--queue=[0-9]+' | cut -d= -f2)
+	fi
+
+	local n t
+	for n in $(seq 1 $__nvm); do
+		t=$((n + toffset))
+		ip rule add fwmark $t table $t
+		ip -6 rule add fwmark $t table $t
+		ip route add default via 192.168.$net.$n table $t
+		ip -6 route add default via 1000::1:192.168.$net.$n table $t
+	done
+
+	for iptables in iptables ip6tables; do
+		$iptables -t mangle -N VIP
+		if echo $queue | grep -q :; then
+			$iptables -t mangle -A VIP -j NFQUEUE --queue-balance $queue
+		else
+			$iptables -t mangle -A VIP -j NFQUEUE --queue-num $queue
+		fi
+	done
+
+	# Add VIPs
+	iptables -t mangle -A PREROUTING -i eth2 -d 10.0.0.0/24 -j VIP
+	ip6tables -t mangle -A PREROUTING -i eth2 -d 1000::/112 -j VIP
+	iptables -t mangle -A PREROUTING -i $tap -d 10.0.0.0/24 -j VIP
+	ip6tables -t mangle -A PREROUTING -i $tap -d 1000::/112 -j VIP
+
+	ethtool -K eth1 gro off gso off tso off
+	ethtool -K eth2 gro off gso off tso off
+
+	nfqlb init --shm=nfqlb --M=900 --N=20
+	nfqlb lb $LBOPT > /var/log/nfqlb.log 2>&1 &
+}
+
 router() {
+	if test "$TOPOLOGY" = "dual-path"; then
+		router_dual_path
+		return
+	fi
+
 	local toffset=100
 	local lboffset=200
 	test -n "$__nvm" || __nvm=4

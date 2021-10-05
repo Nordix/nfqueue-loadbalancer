@@ -23,6 +23,7 @@ vm() {
 	ip -6 ro add local 1000::/120 dev lo
 	mconnect -address [::]:5001 -udp -server > /var/log/mconnect.log 2>&1 &
 	ctraffic -address [::]:5003 -udp -server > /var/log/ctraffic.log 2>&1 &
+	sctpt server --log=6 --addr=10.0.0.0,1000:: > /var/log/sctpt.log 2>&1 &
 }
 
 router() {
@@ -63,6 +64,7 @@ tester() {
 	ip -6 ro add local $PREFIX:$XADDR/112 dev lo
 	sysctl -w net.ipv4.ip_nonlocal_bind=1
 	sysctl -w net.ipv6.ip_nonlocal_bind=1
+	sctpt stats init
 }
 
 echo 0 > /proc/sys/net/ipv4/fib_multipath_hash_policy
