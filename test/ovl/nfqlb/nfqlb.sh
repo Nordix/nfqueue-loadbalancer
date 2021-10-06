@@ -169,11 +169,22 @@ test_mtu() {
 ##     sctp
 test_sctp() {
 	tlog "=== nfqlb: SCTP test"
-	test_start_dual_path
+	test_start
 
-	otc 221 "ping --vip=1000::"
-	otc 221 "ping --vip=10.0.0.0"
+	otc 221 "sctpt_start -- --addr=10.0.0.0,1000:: --clients=16 --rate=16 --duration=30"
+	tlog "Sleep 10..."
+	sleep 10
+	otcr "iptables -A FORWARD -p sctp -j DROP"
+	tlog "Sleep 10..."
+	sleep 10
+	otcr "iptables -D FORWARD 1"
+	tlog "Sleep 5..."
+	sleep 5
 
+	otc 221 "sctpt_wait --timeout=15"
+	otc 221 sctpt_stats
+	otcw nsctpconn
+	
 	xcluster_stop
 }
 ##

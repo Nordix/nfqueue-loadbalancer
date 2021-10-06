@@ -69,7 +69,11 @@ curl --interface 1000::1:20.0.0.2 http://[1000::]
 
 ### SCTP test
 
-Manual tests;
+```
+./nfqlb.sh test sctp > $log
+```
+
+Manual test with dual-path;
 ```
 ./nfqlb.sh test start_dual_path > $log
 # On vm-221;

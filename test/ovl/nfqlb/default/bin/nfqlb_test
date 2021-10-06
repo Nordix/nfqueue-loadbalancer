@@ -170,6 +170,45 @@ cmd_tcase_default_route() {
 	$ip route replace default via $1 || tdie
 }
 
+cmd_tcase_sctpt_start() {
+	tcase "Start SCTP traffic in background [$@]"
+	test -n "$__out" || __out=/tmp/sctpt.out
+	sctpt stats clear
+	sctpt ctraffic --log=6 --laddr=192.168.2.221,1000::1:192.168.6.221 $@ \
+		> $__out 2> /dev/null &
+}
+cmd_tcase_sctpt_wait() {
+	test -n "$__timeout" || __timeout=60
+	pushv $__timeout
+	tcase "Wait for all sctpt processes to stop ($__timeout)"
+	tex check_sctpt
+	sctpt stats json
+}
+check_sctpt() {
+	if ps www | grep -v grep | grep -F 'sctpt '; then
+		tlog "Sctpt still running..."
+		return 1
+	fi
+	return 0
+}
+cmd_tcase_sctpt_stats() {
+	tcase "Check sctpt stats"
+	local sent=$(sctpt stats json | jq .sent)
+	local received=$(sctpt stats json | jq .received)
+	local maxrtt=$(sctpt stats json | jq .maxRtt)
+	tlog "Sent=$sent, received=$received, maxrtt=$maxrtt"
+	test $sent -eq $received || tdie
+}
+cmd_tcase_iptables() {
+	tcase "Iptables [$@]"
+	iptables $@
+	return 0
+}
+cmd_tcase_nsctpconn() {
+	local n=$(grep -F 'Got a new connection' /var/log/sctpt.log | wc -l)
+	tcase "SCTP connections [$n]"
+	test $n -gt 0 || tdie
+}
 
 
 . /etc/profile
@@ -191,6 +230,10 @@ while echo "$1" | grep -q '^--'; do
 		v=$(echo "$1" | cut -d= -f2-)
 		eval "$o=\"$v\""
 	else
+		if echo "$1" | grep -q '^--$'; then
+			shift
+			break
+		fi
 		o=$(echo "$1" | sed -e 's,-,_,g')
 		eval "$o=yes"
 	fi
