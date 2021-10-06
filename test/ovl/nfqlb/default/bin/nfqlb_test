@@ -198,6 +198,7 @@ cmd_tcase_sctpt_stats() {
 	local maxrtt=$(sctpt stats json | jq .maxRtt)
 	tlog "Sent=$sent, received=$received, maxrtt=$maxrtt"
 	test $sent -eq $received || tdie
+	test $maxrtt -lt 5000 || tdie
 }
 cmd_tcase_iptables() {
 	tcase "Iptables [$@]"
