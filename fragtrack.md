@@ -141,4 +141,4 @@ Here we run a simulation of 10000pkt/S rate for a simulated time of
 C=2. The simulation itself takes less than 1s.
 
 Remember that if the reassembler is used the only fragments out of
-orded will be subject to timeouts.
+order will be subject to timeouts.
