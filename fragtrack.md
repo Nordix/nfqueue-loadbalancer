@@ -123,15 +123,15 @@ ct --repeat=1 --duration=300 --rate=10000 --ft_ttl=200 --ft_size=1999 --ft_bucke
 {
   "ttlMillis":     200,
   "size":          1999,
-  "active":        1991,
-  "collisions":    1581851,
-  "inserts":       3001069,
+  "active":        1999,
+  "collisions":    1580599,
+  "inserts":       2998902,
   "rejected":      0,
   "lookups":       0,
-  "objGC":         2999078,
+  "objGC":         2996903,
   "bucketsMax":    1999,
-  "bucketsPeak":   1945,
-  "bucketsStale":  1641,
+  "bucketsPeak":   1947,
+  "bucketsStale":  1649,
   "percentLoss":   0.0
 }
 ```
