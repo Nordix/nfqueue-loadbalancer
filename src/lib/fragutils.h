@@ -139,6 +139,7 @@ int fragGetHash(
  */
 int ipv4Fragment(
 	struct FragTable* ft, struct timespec* now,
+	unsigned (*hashFn)(void const* data, unsigned len),
 	void (*injectFn)(void const* data, unsigned len),
 	void const* data, unsigned len, unsigned* hash);
 
@@ -151,6 +152,7 @@ int ipv4Fragment(
  */
 int ipv6Fragment(
 	struct FragTable* ft, struct timespec* now,
+	unsigned (*hashFn)(void const* data, unsigned len, unsigned htype, void const* hdr),
 	void (*injectFn)(void const* data, unsigned len),
 	void const* data, unsigned len, unsigned* hash);
 

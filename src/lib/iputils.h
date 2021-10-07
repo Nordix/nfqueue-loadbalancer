@@ -6,15 +6,23 @@
 
 #define IN_BOUNDS(p,o,e) (((void const*)p + o) < (void const*)(e))
 
+// L4 hash; UDP, TCP, SCTP, ICMP, UDP-encap-SCTP
+// Prerequisite; The ip-header fits in the packet (IN_BOUNDS)
 unsigned ipv4Hash(void const* data, unsigned len);
 
-// Prerequisite; The header fits in the packet (IN_BOUNDS)
+// L3 hash
+// Prerequisite; The ip-header fits in the packet (IN_BOUNDS)
 unsigned ipv4AddressHash(void const* data, unsigned len);
 
+
+// L4 hash; UDP, TCP, SCTP, ICMP6, UDP-encap-SCTP
+// Prerequisite; The ip-header fits in the packet (IN_BOUNDS)
+// TODO; drop "unsigned htype, void const* hdr".
 unsigned ipv6Hash(
 	void const* data, unsigned len, unsigned htype, void const* hdr);
 
-// Prerequisite; The header fits in the packet (IN_BOUNDS)
+// L3 hash
+// Prerequisite; The ip-header fits in the packet (IN_BOUNDS)
 unsigned ipv6AddressHash(void const* data, unsigned len);
 
 int ipv6IsExtensionHeader(unsigned htype);

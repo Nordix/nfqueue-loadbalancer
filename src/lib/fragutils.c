@@ -449,6 +449,7 @@ int fragGetHashOrStore(
 
 int ipv4Fragment(
 	struct FragTable* ft, struct timespec* now,
+	unsigned (*hashFn)(void const* data, unsigned len),
 	void (*injectFn)(void const* data, unsigned len),
 	void const* data, unsigned len, unsigned* hash)
 {
@@ -470,7 +471,7 @@ int ipv4Fragment(
 	// Check offset to see if this is the first fragment
 	if ((ntohs(hdr->frag_off) & IP_OFFMASK) == 0) {
 		// First fragment. contains the protocol header.
-		*hash = ipv4Hash(data, len);
+		*hash = hashFn(data, len);
 
 		struct Item* storedFragments;
 		if (fragInsertFirst(
@@ -504,6 +505,7 @@ int ipv4Fragment(
 
 int ipv6Fragment(
 	struct FragTable* ft, struct timespec* now,
+	unsigned (*hashFn)(void const* data, unsigned len, unsigned htype, void const* hdr),
 	void (*injectFn)(void const* data, unsigned len),
 	void const* data, unsigned len, unsigned* hash)
 {
@@ -549,7 +551,7 @@ int ipv6Fragment(
 			htype = xh->ip6e_nxt;
 			hdr = hdr + (xh->ip6e_len * 8);
 		}
-		*hash = ipv6Hash(data, len, htype, hdr);
+		*hash = hashFn(data, len, htype, hdr);
 
 		struct Item* storedFragments;
 		if (fragInsertFirst(

@@ -75,7 +75,7 @@ static int handleIpv4(void* data, unsigned len)
 		// We shall handle the frament here
 		struct timespec now;
 		clock_gettime(CLOCK_MONOTONIC, &now);
-		int rc = ipv4Fragment(ft, &now, injectFrag, data, len, &hash);
+		int rc = ipv4Fragment(ft, &now, ipv4Hash, injectFrag, data, len, &hash);
 		if (rc != 0) {
 			Dx(printf("IPv4 fragment %s\n", rc > 0 ? "stored":"dropped"));
 			return -1;
@@ -130,7 +130,7 @@ static int handleIpv6(void const* data, unsigned len)
 		// We shall handle the frament here
 		struct timespec now;
 		clock_gettime(CLOCK_MONOTONIC, &now);
-		int rc = ipv6Fragment(ft, &now, injectFrag, data, len, &hash);
+		int rc = ipv6Fragment(ft, &now, ipv6Hash, injectFrag, data, len, &hash);
 		if (rc != 0) {
 			Dx(printf("IPv6 fragment %s\n", rc > 0 ? "stored":"dropped"));
 			return -1;

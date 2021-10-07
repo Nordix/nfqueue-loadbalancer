@@ -5,6 +5,7 @@
 
 #include "die.h"
 #include "conntrack.h"
+#include "iputils.h"
 #include "fragutils.h"
 #include "reassembler.h"
 #include <cmd.h>
@@ -132,10 +133,10 @@ cmdParse(int argc, char* argv[])
 		struct Packet* p = packets + i;
 		switch (p->protocol) {
 		case ETH_P_IP:
-			rc = ipv4Fragment(ft, &now, NULL, p->data, p->len, &hash);
+			rc = ipv4Fragment(ft, &now, ipv4Hash, NULL, p->data, p->len, &hash);
 			break;
 		case ETH_P_IPV6:
-			rc = ipv6Fragment(ft, &now, NULL, p->data, p->len, &hash);
+			rc = ipv6Fragment(ft, &now, ipv6Hash, NULL, p->data, p->len, &hash);
 			break;
 		default:;
 		}

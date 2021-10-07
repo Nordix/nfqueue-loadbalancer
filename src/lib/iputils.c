@@ -302,6 +302,7 @@ unsigned ipv6Hash(
 				}
 			}
 		}
+		/* fall through */
 	case IPPROTO_TCP:
 		if (!IN_BOUNDS(hdr, 4, data + len))
 			return -1;
