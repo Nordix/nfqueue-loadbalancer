@@ -269,7 +269,7 @@ performance.
 
 ### UDP
 
-It is not simple to test UPD bandwidth with `iperf`. Basically you
+It is not simple to test UDP bandwidth with `iperf`. Basically you
 have to set the bandwidth using the `-b` flag and check what happens
 ([report](report-udp2G.md));
 
