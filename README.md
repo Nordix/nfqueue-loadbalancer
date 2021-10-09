@@ -124,8 +124,9 @@ make -C src -j8
 
 ```
 Linked with `-lmnl -lnetfilter_queue` so you must install those.
+Libpcap is used in unit-tests.
 ```
-sudo apt install -y libmnl-dev libnetfilter-queue-dev
+sudo apt install -y libmnl-dev libnetfilter-queue-dev libpcap-dev
 ```
 
 Static binary;
