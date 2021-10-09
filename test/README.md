@@ -96,12 +96,18 @@ export XCLUSTER_OVLPATH=$(readlink -f .)/ovl:$nfqlb_dir/test/ovl
 The function test will use the
 [mconnect](https://github.com/Nordix/mconnect) and
 [ctraffic](https://github.com/Nordix/ctraffic) tests programs and the
-*awsome* [jq](https://stedolan.github.io/jq/) utility.
+[jq](https://stedolan.github.io/jq/) and `ethtool` utilities.
 
 ```
 curl -L https://github.com/Nordix/mconnect/releases/download/v2.2.0/mconnect.xz > $HOME/Downloads/mconnect.xz
 curl -L https://github.com/Nordix/ctraffic/releases/download/v1.4.0/ctraffic.gz > $HOME/Downloads/ctraffic.gz
-sudo apt install jq
+sudo apt install jq ethtool
+```
+
+The `ovl/sctp` also needs a `nfqlb` release and `libsctp-dev`;
+```
+sudo apt install libsctp-dev
+curl -L https://github.com/Nordix/nfqueue-loadbalancer/releases/download/0.4.0/nfqlb-0.4.0.tar.xz > $HOME/Downloads/nfqlb-0.4.0.tar.xz
 ```
 
 
