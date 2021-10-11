@@ -95,7 +95,7 @@ cmd_start_lb() {
 ##   iperf <params...>
 ##     Run iperf in the test container
 cmd_iperf() {
-	docker exec -it nfqlb iperf $@
+	docker exec nfqlb iperf $@
 }
 
 ##   qstats [container]
