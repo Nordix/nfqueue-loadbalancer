@@ -236,11 +236,11 @@ static int cmdLb(int argc, char **argv)
 	} else {
 		/*
 		  We can't inject stored fragments. Disable storing of
-		  fragments and set the MTU to 1280 to avoid copy unnecessary
-		  data to user-space.
+		  fragments. The MTU *may* be set to to 1280 to avoid copy unnecessary
+		  data to user-space, but then reassembly will not work since the
+		  original packet lenght is lost.
 		 */
 		ft_frag = "0";
-		mtu = 1280;
 	}
 
 	ft = fragTableCreate(
