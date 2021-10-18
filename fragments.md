@@ -42,7 +42,7 @@ use a [tun](https://en.wikipedia.org/wiki/TUN/TAP) device.
 
 ## The unwanted re-assembly problem
 
-If we *want* the `nfqlb` to handle fragments we must turn off
+If we *want* the `nfqlb` to handle fragments we must avoid
 functions in Linux that will "help" you by doing packet
 re-assembly. For instance:
 
@@ -55,59 +55,6 @@ re-assembly. For instance:
 * OVS connection tracker. If the `openvswitch-switch` service is
   activated packets are re-assembled in *all* network name-spaces!
 
-
-### The Linux conntracker
-
-The problem is described
-[here](https://unix.stackexchange.com/questions/650790/unwanted-defragmentation-of-forwarded-ipv4-packets).
-
-This also means that if DNAT (uses conntrack) based load-balancing is
-used `nfqlb` can't handle fragments.
-
-Before linux-5.13 if the Linux conntracker has *ever* been used in a
-netns (including the main netns) packets are re-assembed by the
-kernel forever. In linux-5.13 the re-assembly seem to be disabled
-if all CT rules are removed from iptables.
-
-We must have a way to detect if the re-assembly functions are
-active. You *can* test on real HW, and eventually you must, but for
-test we use [xcluster](https://github.com/Nordix/xcluster) described
-in the nfqlb
-[function-test](https://github.com/Nordix/nfqueue-loadbalancer/tree/master/test#function-test).
-
-```
-XOVLS='' xc mkcdrom xnet iptools
-xc start --image=$XCLUSTER_WORKSPACE/xcluster/hd.img --nvm=2 --nrouters=0
-# On vm-001;
-iptables -t raw -A PREROUTING -i eth1 -j ACCEPT
-iptables -t raw -Z PREROUTING
-# On vm-002
-ping -c1 -W1 -s 10000 192.168.1.1
-# Back on vm-001
-iptables -t raw -L PREROUTING -nv
-iptables -t nat -A POSTROUTING -o eth1 -j MASQUERADE
-# Re-test the ping
-```
-
-The listing shows the difference;
-```
-vm-001 ~ # iptables -t raw -L PREROUTING -nv
-Chain PREROUTING (policy ACCEPT 9 packets, 503 bytes)
- pkts bytes target     prot opt in     out     source               destination
-    7 10148 ACCEPT     all  --  eth1   *       0.0.0.0/0            0.0.0.0/0
-# But with the MASQUERADE rule;
-vm-001 ~ # iptables -t raw -L PREROUTING -nv
-Chain PREROUTING (policy ACCEPT 7 packets, 399 bytes)
- pkts bytes target     prot opt in     out     source               destination
-    1 10028 ACCEPT     all  --  eth1   *       0.0.0.0/0            0.0.0.0/0
-```
-
-The MASQUERADE rule has trigged the "conntrack" which re-assembles
-packets. Note that you will still see all fragments with `tcpdump`.
-The conntrack re-assembly take part later in the flow;
-
-
-<img src="https://upload.wikimedia.org/wikipedia/commons/3/37/Netfilter-packet-flow.svg" alt="Linux kernel packet flow" width="95%" />
 
 
 ### HW offload
@@ -157,7 +104,7 @@ Chain PREROUTING (policy ACCEPT 91 packets, 4768 bytes)
    75  106K ACCEPT     all  --  eth1   *       0.0.0.0/0            0.0.0.0/0
 ```
 
-On bare-metal this should be pretty stright forward, but in a virtual
+On bare-metal this should be pretty straight forward, but in a virtual
 environment it becomes complicated. You may have noticed that you must
 turn off HW offload in the *client*. Why?? That's because the virtual
 network used by `xcluster` (Linux bridge+tap) sectetly allows larger
@@ -177,8 +124,80 @@ responsibility to deliver all fragments to the same place in correct
 order.
 
 
-## OVS connection tracker
 
-To be investigated.
+### The Linux conntracker
 
-To just load the ovs kernel module does *not* trig re-assembly.
+The problem is described
+[here](https://unix.stackexchange.com/questions/650790/unwanted-defragmentation-of-forwarded-ipv4-packets).
+
+Before linux-5.13 if the Linux conntracker has *ever* been used in a
+netns (including the main netns) packets are re-assembed by the
+kernel forever. In linux-5.13 the re-assembly seem to be disabled
+if all CT rules are removed from iptables.
+
+The OVS connection tracker seems to trig re-assembly in *all* namespaces!
+Just having the service `openvswitch-switch` active is enough.
+
+
+#### By-pass the Linux conntracker using nft
+
+With `nft` (the successor to iptables) we can add a rule to the nfqueue
+*before* the Linux conntracker. It is described in the
+[stackexchange post](https://unix.stackexchange.com/questions/650790/unwanted-defragmentation-of-forwarded-ipv4-packets);
+
+```
+nft add table inet handlefrag
+nft add chain inet handlefrag vip '{ type filter hook prerouting priority -450; policy accept; }'
+nft add rule inet handlefrag vip iifname eth2 ip daddr 10.0.0.0/24 counter queue num 2 bypass
+nft add rule inet handlefrag vip iifname eth2 ip6 daddr 1000::/112 counter queue num 2 bypass
+nft add rule inet handlefrag vip iifname nfqlb0 ip daddr 10.0.0.0/24 counter queue num 2 bypass
+nft add rule inet handlefrag vip iifname nfqlb0 ip6 daddr 1000::/112 counter queue num 2 bypass
+```
+
+The example is from the `nfqlb` [function test](test/ovl/nfqlb/README.md).
+Note that the tap-device used for fragment injection (nfqlb0) must be configured.
+
+
+This is the preferred option if you want fragment handling.
+
+
+#### Detect re-assembly
+
+We must have a way to detect if the re-assembly functions are
+active. You *can* test on real HW, and eventually you must, but for
+test we use [xcluster](https://github.com/Nordix/xcluster) described
+in the nfqlb
+[function-test](https://github.com/Nordix/nfqueue-loadbalancer/tree/master/test#function-test).
+
+```
+XOVLS='' xc mkcdrom xnet iptools
+xc start --image=$XCLUSTER_WORKSPACE/xcluster/hd.img --nvm=2 --nrouters=0
+# On vm-001;
+iptables -t raw -A PREROUTING -i eth1 -j ACCEPT
+iptables -t raw -Z PREROUTING
+# On vm-002
+ping -c1 -W1 -s 10000 192.168.1.1
+# Back on vm-001
+iptables -t raw -L PREROUTING -nv
+iptables -t nat -A POSTROUTING -o eth1 -j MASQUERADE
+# Re-test the ping
+```
+
+The listing shows the difference;
+```
+vm-001 ~ # iptables -t raw -L PREROUTING -nv
+Chain PREROUTING (policy ACCEPT 9 packets, 503 bytes)
+ pkts bytes target     prot opt in     out     source               destination
+    7 10148 ACCEPT     all  --  eth1   *       0.0.0.0/0            0.0.0.0/0
+# But with the MASQUERADE rule;
+vm-001 ~ # iptables -t raw -L PREROUTING -nv
+Chain PREROUTING (policy ACCEPT 7 packets, 399 bytes)
+ pkts bytes target     prot opt in     out     source               destination
+    1 10028 ACCEPT     all  --  eth1   *       0.0.0.0/0            0.0.0.0/0
+```
+
+The MASQUERADE rule has trigged the "conntrack" which re-assembles
+packets. Note that you will still see all fragments with `tcpdump`.
+The conntrack re-assembly take part later in the
+[flow](https://upload.wikimedia.org/wikipedia/commons/3/37/Netfilter-packet-flow.svg).
+
