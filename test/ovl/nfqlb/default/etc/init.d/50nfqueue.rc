@@ -118,19 +118,29 @@ router() {
 		ip6tables -t mangle -A PREROUTING -i eth2 -d 1000::/112 -j VIP
 		ip6tables -t mangle -A POSTROUTING -d 1000::/112 -j VIPOUT
 	else
-		for iptables in iptables ip6tables; do
-			$iptables -t mangle -N VIP
-			if echo $queue | grep -q :; then
-				$iptables -t mangle -A VIP -j NFQUEUE --queue-balance $queue
-			else
-				$iptables -t mangle -A VIP -j NFQUEUE --queue-num $queue
-			fi
-		done
-		# Add VIPs
-		iptables -t mangle -A PREROUTING -i eth2 -d 10.0.0.0/24 -j VIP
-		ip6tables -t mangle -A PREROUTING -i eth2 -d 1000::/112 -j VIP
-		iptables -t mangle -A PREROUTING -i $tap -d 10.0.0.0/24 -j VIP
-		ip6tables -t mangle -A PREROUTING -i $tap -d 1000::/112 -j VIP
+		if test "$QMODE" = "iptables"; then
+			for iptables in iptables ip6tables; do
+				$iptables -t mangle -N VIP
+				if echo $queue | grep -q :; then
+					$iptables -t mangle -A VIP -j NFQUEUE --queue-balance $queue
+				else
+					$iptables -t mangle -A VIP -j NFQUEUE --queue-num $queue
+				fi
+			done
+			# Add VIPs
+			iptables -t mangle -A PREROUTING -i eth2 -d 10.0.0.0/24 -j VIP
+			ip6tables -t mangle -A PREROUTING -i eth2 -d 1000::/112 -j VIP
+			iptables -t mangle -A PREROUTING -i $tap -d 10.0.0.0/24 -j VIP
+			ip6tables -t mangle -A PREROUTING -i $tap -d 1000::/112 -j VIP
+		else
+			echo $queue | grep -q : && queue=$(echo $queue | tr : -)
+			nft add table inet handlefrag
+			nft add chain inet handlefrag vip '{ type filter hook prerouting priority -450; policy accept; }'
+			nft add rule inet handlefrag vip iifname eth2 ip daddr 10.0.0.0/24 counter queue num $queue bypass
+			nft add rule inet handlefrag vip iifname eth2 ip6 daddr 1000::/112 counter queue num $queue bypass
+			nft add rule inet handlefrag vip iifname $tap ip daddr 10.0.0.0/24 counter queue num $queue bypass
+			nft add rule inet handlefrag vip iifname $tap ip6 daddr 1000::/112 counter queue num $queue bypass
+		fi
 	fi
 
 	local net=2
