@@ -136,10 +136,10 @@ router() {
 			echo $queue | grep -q : && queue=$(echo $queue | tr : -)
 			nft add table inet handlefrag
 			nft add chain inet handlefrag vip '{ type filter hook prerouting priority -450; policy accept; }'
-			nft add rule inet handlefrag vip iifname eth2 ip daddr 10.0.0.0/24 counter queue num $queue bypass
-			nft add rule inet handlefrag vip iifname eth2 ip6 daddr 1000::/112 counter queue num $queue bypass
-			nft add rule inet handlefrag vip iifname $tap ip daddr 10.0.0.0/24 counter queue num $queue bypass
-			nft add rule inet handlefrag vip iifname $tap ip6 daddr 1000::/112 counter queue num $queue bypass
+			nft add rule inet handlefrag vip iifname eth2 ip daddr 10.0.0.0/24 counter notrack queue num $queue bypass
+			nft add rule inet handlefrag vip iifname eth2 ip6 daddr 1000::/112 counter notrack queue num $queue bypass
+			nft add rule inet handlefrag vip iifname $tap ip daddr 10.0.0.0/24 counter notrack queue num $queue bypass
+			nft add rule inet handlefrag vip iifname $tap ip6 daddr 1000::/112 counter notrack queue num $queue bypass
 		fi
 	fi
 

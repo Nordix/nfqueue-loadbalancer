@@ -148,10 +148,10 @@ With `nft` (the successor to iptables) we can add a rule to the nfqueue
 ```
 nft add table inet handlefrag
 nft add chain inet handlefrag vip '{ type filter hook prerouting priority -450; policy accept; }'
-nft add rule inet handlefrag vip iifname eth2 ip daddr 10.0.0.0/24 counter queue num 2 bypass
-nft add rule inet handlefrag vip iifname eth2 ip6 daddr 1000::/112 counter queue num 2 bypass
-nft add rule inet handlefrag vip iifname nfqlb0 ip daddr 10.0.0.0/24 counter queue num 2 bypass
-nft add rule inet handlefrag vip iifname nfqlb0 ip6 daddr 1000::/112 counter queue num 2 bypass
+nft add rule inet handlefrag vip iifname eth2 ip daddr 10.0.0.0/24 counter notrack queue num 2 bypass
+nft add rule inet handlefrag vip iifname eth2 ip6 daddr 1000::/112 counter notrack queue num 2 bypass
+nft add rule inet handlefrag vip iifname nfqlb0 ip daddr 10.0.0.0/24 counter notrack queue num 2 bypass
+nft add rule inet handlefrag vip iifname nfqlb0 ip6 daddr 1000::/112 counter notrack queue num 2 bypass
 ```
 
 The example is from the `nfqlb` [function test](test/ovl/nfqlb/README.md).
