@@ -140,5 +140,5 @@ Here we run a simulation of 10000pkt/S rate for a simulated time of
 300s (5m). With C=1 we get no packet loss. A reasonable value may be
 C=2. The simulation itself takes less than 1s.
 
-Remember that if the reassembler is used the only fragments out of
-order will be subject to timeouts.
+Remember that if the reassembler is used only fragments out of order
+will be subject to timeouts.
