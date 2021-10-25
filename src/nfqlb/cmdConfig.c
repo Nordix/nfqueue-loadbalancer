@@ -47,24 +47,21 @@ static int cmdActivate(int argc, char **argv)
 		return 0;
 	}
 
-	int i, fw, found, changed = 0;
+	int i, fw, found, changed = 0, first_empty = -1;
 	while (argc-- > 0) {
 		fw = atoi(*argv++);		
 		found = 0;
 		for (i = 0; i < magd.N; i++) {
+			if (first_empty < 0 && magd.active[i] < 0)
+				first_empty = i;
 			if (magd.active[i] == fw) {
 				found = 1;
 				break;
 			}
 		}
-		if (!found) {
-			for (i = 0; i < magd.N; i++) {
-				if (magd.active[i] < 0) {
-					magd.active[i] = fw;
-					changed = 1;
-					break;
-				}
-			}
+		if (!found && first_empty >= 0) {
+			magd.active[first_empty] = fw;
+			changed = 1;
 		}
 	}
 	if (changed)
