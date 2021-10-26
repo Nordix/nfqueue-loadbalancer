@@ -14,7 +14,8 @@ other commands configures the shared memory. This decouples the
 traffic handling from configuration.
 
 The `fwmark` represents a real-target and forwarding of packets is
-done by Linux routing based on the `fwmark`. A basic setup example;
+done by Linux routing or NAT based on the `fwmark`. A basic
+setup example;
 
 ```
 # initiate the shared mem structure
@@ -22,9 +23,15 @@ nfqlb init
 # Redirect packets to the VIP address to the nfqueue
 iptables -t mangle -A PREROUTING -d 10.0.0.1/32 -j NFQUEUE --queue-num 2
 
-# Add routing and activate fwmark (repeat for all real-targets)
-ip rule add fwmark 1 table 1
-ip route add default via 192.168.1.1 table 1
+# Add NAT/routing and activate fwmark (repeat for all real-targets)
+if test "$DSR" = "yes"; then
+  # Use routing for Direct Server Return (DSR)
+  ip rule add fwmark 1 table 1
+  ip route add default via 192.168.1.1 table 1
+else
+  # NAT based load-balancing
+  iptables -t nat -A POSTROUTING -m mark --mark 1 -j DNAT --to-destination 192.168.1.1
+fi
 nfqlb activate 1
 
 # Check the config and start load-balancing
@@ -90,20 +97,22 @@ configuration.
 docker run --privileged -it --rm registry.nordix.org/cloud-native/nfqlb:latest /bin/sh
 ```
 
-Use the `nfqlb.sh lb` script to setup load-balancing and then check
-the setup. Later you can make your own setup and/or check the
-`nfqlb.sh` script.
+Use the `nfqlb.sh lb` script to setup load-balancing.  The setup is
+NAT based like the example above, check the `cmd_lb()` function in
+[nfqlb.sh](nfqlb.sh) for details.
+
 
 In the test container;
 ```
 PATH=$PATH:/opt/nfqlb/bin
-nfqlb.sh lb --vip=10.0.0.0/32 <your container targets here...>
+nfqlb.sh lb --vip=10.0.0.0/32 <your container ip addresses here...>
+# (example; nfqlb.sh lb --vip=10.0.0.0/32 172.17.0.3 172.17.0.4 172.17.0.5)
 
 # Check load-balancing;
 for n in $(seq 1 20); do echo | nc 10.0.0.0 8888; done
 
 # Check some things
-iptables -t nat -S    # OUTPUT chain for local origin, forwarding is not setup
+iptables -t nat -S    # OUTPUT chain for local origin, forwarding is not setup!
 iptables -t mangle -S # The VIP is routed to user-space
 nfqlb show            # Shows the Maglev hash lookup
 nfqlb deactivate 101  # Deactivates a target. Check load-balancing again!
