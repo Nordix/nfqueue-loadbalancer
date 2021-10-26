@@ -11,8 +11,29 @@ user-space program. The program can analyze the packet and set
 The `nfqlb lb` program receives packets and uses a configuration in
 shared memory to compute a `fwmark`. The `nfqlb` program invoked with
 other commands configures the shared memory. This decouples the
-traffic handling from configuration. For instance when a real-target
-is lost it must be removed from the configuration with;
+traffic handling from configuration.
+
+The `fwmark` represents a real-target and forwarding of packets is
+done by Linux routing based on the `fwmark`. A basic setup example;
+
+```
+# initiate the shared mem structure
+nfqlb init
+# Redirect packets to the VIP address to the nfqueue
+iptables -t mangle -A PREROUTING -d 10.0.0.1/32 -j NFQUEUE --queue-num 2
+
+# Add routing and activate fwmark (repeat for all real-targets)
+ip rule add fwmark 1 table 1
+ip route add default via 192.168.1.1 table 1
+nfqlb activate 1
+
+# Check the config and start load-balancing
+nfqlb show
+nfqlb lb
+```
+
+When a real-target is lost it must be removed from the configuration
+with;
 
 ```
 nfqlb deactivate 5
@@ -30,15 +51,6 @@ load-balancer; [Maglev](maglev.md). `nfqlb` is stateless and since
 the configuration is the same for all instances it does not matter where
 packets are received. This makes `nfqlb` scalable.
 
-
-The forwarding of packets is done by normal Linux routing, `nfqlb lb`
-just sets a `fwmark`. That let you use any Linux function to route
-packets to your targets. Example;
-
-```
-ip rule add fwmark 1 table 1
-ip route add default via 192.168.1.1 table 1
-```
 
 ### More info
 
