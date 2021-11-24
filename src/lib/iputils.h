@@ -4,29 +4,30 @@
   Copyright (c) 2021 Nordix Foundation
 */
 
+#include <conntrack.h>
+
 #define IN_BOUNDS(p,o,e) (((void const*)p + o) < (void const*)(e))
-
-// L4 hash; UDP, TCP, SCTP, ICMP, UDP-encap-SCTP
-// Prerequisite; The ip-header fits in the packet (IN_BOUNDS)
-unsigned ipv4Hash(void const* data, unsigned len);
-
-// L3 hash
-// Prerequisite; The ip-header fits in the packet (IN_BOUNDS)
-unsigned ipv4AddressHash(void const* data, unsigned len);
-
-
-// L4 hash; UDP, TCP, SCTP, ICMP6, UDP-encap-SCTP
-// Prerequisite; The ip-header fits in the packet (IN_BOUNDS)
-// TODO; drop "unsigned htype, void const* hdr".
-unsigned ipv6Hash(
-	void const* data, unsigned len, unsigned htype, void const* hdr);
-
-// L3 hash
-// Prerequisite; The ip-header fits in the packet (IN_BOUNDS)
-unsigned ipv6AddressHash(void const* data, unsigned len);
 
 int ipv6IsExtensionHeader(unsigned htype);
 
-// If set to non-zero UDP packets to the passed port will be handled
-// as encapsulated SCTP and hash will be on SCTP-ports only.
-void sctpUdpEncapsulation(unsigned port);
+/*
+  Get the key used for hashing.
+
+  Returns;
+  <0 - Failed
+  0  - Normal packet. Ports are valid
+  1  - First fragment. Ports are valid, *fragid is returned
+  2  - Sub-sequent fragment. Id is valid
+  4  - UDP packet, dport matching the "udpEncap" port. The proto is set
+       to sctp and the ports are taken from the (inner) sctp header
+  8  - ICMP packet with inner header (e.g packet too big). The addresses
+       and ports are taken from the inner packet and reversed.
+  16 - ICMP without inner header, e.g "ping". Id may be valid.
+  32 - Only addresses are valid
+ */
+int getHashKey(
+	struct ctKey* key, unsigned udpEncap, uint64_t* fragid,
+	unsigned proto, void const* data, unsigned len);
+
+unsigned hashKey(struct ctKey* key);
+unsigned hashKeyAddresses(struct ctKey* key);

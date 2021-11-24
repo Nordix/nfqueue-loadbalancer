@@ -27,6 +27,7 @@ static int tun_fd = -1;
 static struct fragStats* sft;
 static struct MagDataDyn magd;
 static struct MagDataDyn magdlb;
+static unsigned udpEncap;
 
 #ifdef VERBOSE
 #define D(x)
@@ -53,114 +54,51 @@ static void injectFrag(void const* data, unsigned len)
 #endif
 }
 
-static int handleIpv4(void* data, unsigned len)
-{
-	struct iphdr* hdr = (struct iphdr*)data;
-	unsigned hash = 0;
-
-	if (!IN_BOUNDS(hdr, sizeof(*hdr), data + len))
-		return -1;
-
-	if (ntohs(hdr->frag_off) & (IP_OFFMASK|IP_MF)) {
-		// Make an addres-hash and check if we shall forward to the LB tier
-		if (slb != NULL) {
-			hash = ipv4AddressHash(data, len);
-			int fw = FW(magdlb);
-			if (fw >= 0 && fw != slb->ownFwmark) {
-				Dx(printf("IPv4 fragment to LB tier. fw=%d\n", fw));
-				return fw; /* To the LB tier */
-			}
-		}
-
-		// We shall handle the frament here
-		struct timespec now;
-		clock_gettime(CLOCK_MONOTONIC, &now);
-		int rc = ipv4Fragment(ft, &now, ipv4Hash, injectFrag, data, len, &hash);
-		if (rc != 0) {
-			Dx(printf("IPv4 fragment %s\n", rc > 0 ? "stored":"dropped"));
-			return -1;
-		}
-		Dx(printf(
-			   "Handle IPv4 frag locally hash=%u, fwmark=%u\n",hash, FW(magd)));
-	} else {
-		hash = ipv4Hash(data, len);
-	}
-	return FW(magd);
-}
-
-static int handleIpv6(void const* data, unsigned len)
-{
-	unsigned hash;
-	void const* endp = data + len;
-	/*
-	  Find the fragment header or the upper-layer header
-	  https://datatracker.ietf.org/doc/html/rfc2460#section-4.1
-	 */
-	struct ip6_hdr* ip6hdr = (struct ip6_hdr*)data;
-	if (!IN_BOUNDS(ip6hdr, sizeof(*ip6hdr), endp))
-		return -1;
-
-	uint8_t htype = ip6hdr->ip6_nxt;
-	void const* hdr = data + sizeof(struct ip6_hdr);
-	while (ipv6IsExtensionHeader(htype)) {
-		if (htype == IPPROTO_FRAGMENT)
-			break;
-		struct ip6_ext const* xh = hdr;
-		if (!IN_BOUNDS(xh, sizeof(*xh), endp))
-			return -1;
-		htype = xh->ip6e_nxt;
-		if (xh->ip6e_len == 0)
-			return -1;			/* Corrupt header */
-		hdr = hdr + (xh->ip6e_len * 8);
-	}
-
-	if (htype == IPPROTO_FRAGMENT) {
-
-		// Do we have an lb-tier?
-		if (slb != NULL) {
-			// Make an addres-hash and check if we shall forward to the LB tier
-			hash = ipv6AddressHash(data, len);
-			int fw = FW(magdlb);
-			if (fw >= 0 && fw != slb->ownFwmark) {
-				Dx(printf("IPv6 fragment to LB tier. fw=%d\n", fw));
-				return fw; /* To the LB tier */
-			}
-		}
-
-		// We shall handle the frament here
-		struct timespec now;
-		clock_gettime(CLOCK_MONOTONIC, &now);
-		int rc = ipv6Fragment(ft, &now, ipv6Hash, injectFrag, data, len, &hash);
-		if (rc != 0) {
-			Dx(printf("IPv6 fragment %s\n", rc > 0 ? "stored":"dropped"));
-			return -1;
-		}
-		Dx(printf(
-			   "Handle IPv6 frag locally hash=%u, fwmark=%u\n",hash, FW(magd)));
-	} else {
-		hash = ipv6Hash(data, len, htype, hdr);
-	}
-	return FW(magd);
-}
 
 static int packetHandleFn(
-	unsigned short proto, void* payload, unsigned plen)
+	unsigned short proto, void* data, unsigned len)
 {
-	int fw;
-	switch (proto) {
-	case ETH_P_IP:
-		fw = handleIpv4(payload, plen);
-		break;
-	case ETH_P_IPV6:
-		fw = handleIpv6(payload, plen);
-		break;
-	default:;
-		// We should not get here because ip(6)tables handles only ip (4/6)
-		Dx(printf("Unexpected protocol 0x%04x\n", proto));
-		fw = -1;
+	struct ctKey key;
+	uint64_t fragid;
+	int rc = getHashKey(&key, udpEncap, &fragid, proto, data, len);
+	if (rc < 0)
+		return -1;
+
+	unsigned hash;
+	if (rc & 3) {
+		// Fragment. Check if we shall forward to the lb-tier
+		if (slb != NULL) {
+			hash = hashKeyAddresses(&key);
+			int fw = FW(magdlb);
+			if (fw >= 0 && fw != slb->ownFwmark) {
+				Dx(printf("Fragment to LB tier. fw=%d\n", fw));
+				return fw; /* To the LB tier */
+			}
+		}
+
+		// We shall handle the fragment here
+		struct timespec now;
+		clock_gettime(CLOCK_MONOTONIC, &now);
+		if (rc & 1) {
+			hash = hashKey(&key);
+			key.id = fragid;
+			if (handleFirstFragment(ft, &now, &key, hash, data, len) != 0)
+				return -1;
+		} else {
+			rc = handleSubsequentFragment(ft, &now, &key, &hash, data, len);
+			if (rc != 0) {
+				Dx(printf("Fragment %s\n", rc > 0 ? "stored":"dropped"));
+				return -1;
+			}
+			Dx(printf(
+				   "Handle frag locally hash=%u, fwmark=%u\n",hash, FW(magd)));
+		}
+	} else {
+		hash = hashKey(&key);
 	}
-	Dx(printf("Packet; len=%u, fw=%d\n", plen, fw));
-	return fw;
+
+	Dx(printf("Packet; len=%u, fw=%d\n", len, FW(magd)));
+	return FW(magd);
 }
 
 static void *packetHandleThread(void* Q)
@@ -222,7 +160,7 @@ static int cmdLb(int argc, char **argv)
 		die("Invalid MTU; %d\n", mtu);
 
 	// SCTP encapsulation. 0 - No encapsulation (default)
-	sctpUdpEncapsulation(atoi(sctpEncap));
+	udpEncap = atoi(sctpEncap);
 
 	/* Open the "tun" device if specified. Check that the mtu is at
 	 * least as large as for the ingress device */
@@ -233,6 +171,7 @@ static int cmdLb(int argc, char **argv)
 		int tun_mtu = get_mtu(tun);
 		if (tun_mtu < mtu)
 			die("Tun mtu too small; %d < %d\n", tun_mtu, mtu);
+		setInjectFn(injectFrag);
 	} else {
 		/*
 		  We can't inject stored fragments. Disable storing of

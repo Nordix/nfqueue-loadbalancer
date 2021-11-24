@@ -7,6 +7,7 @@
 #include <hash.h>
 #include <netinet/ip_icmp.h>
 #include <netinet/ip6.h>
+#include <netinet/ether.h>
 #include <netinet/icmp6.h>
 #include <netinet/udp.h>
 
@@ -17,161 +18,6 @@
 #define Dx(x)
 #endif
 #define D(x)
-
-static unsigned sctpEncapPort = 0;
-
-static unsigned ipv4TcpUdpHash(void const* data, unsigned len)
-{
-	// We hash on addresses and ports
-	struct iphdr* hdr = (struct iphdr*)data;
-	if (hdr->ihl < 5)
-		return ipv4AddressHash(data, len); /* Corrupt packet */
-	uint32_t const* ports = (uint32_t*)data + hdr->ihl;
-	if (!IN_BOUNDS(ports, sizeof(*ports), data + len))
-		return ipv4AddressHash(data, len);
-
-	uint32_t hashData[3];
-	hashData[0] = hdr->saddr;
-	hashData[1] = hdr->daddr;
-	hashData[2] = *ports;
-	return HASH(hashData, sizeof(hashData));
-}
-static uint32_t flip16(uint32_t v)
-{
-	uint16_t* p = (uint16_t*)&v;
-	return (p[0] << 16) + p[1];
-}
-static unsigned ipv4IcmpInnerHash(void const* data, unsigned len)
-{
-	void const* endp = data + len;
-
-	/*
-	  We must use the *inner* header to make sure the origial sender
-	  gets the reply.
-	*/
-	struct iphdr* hdr = (struct iphdr*)data;
-	struct icmphdr* ihdr = (struct icmphdr*)((uint32_t*)data + hdr->ihl);
-	Dx(printf(
-		   "ipv4IcmpInnerHash; len=%u, code=%u, mtu=%u\n",
-		   len, ihdr->code, ntohs(ihdr->un.frag.mtu)));
-
-	/*
-	  The original datagram is found on offset 8 in this icmp
-	  header. But since the original datagram is outgoing we must
-	  switch src<->dst for both addresses and port before we calculate
-	  the hash.
-	 */
-	hdr = (void*)ihdr + 8;
-	if (hdr->ihl < 5)
-		return ipv4AddressHash(data, len);
-	if (!IN_BOUNDS(hdr, sizeof(*hdr), endp))
-		return ipv4AddressHash(data, len);
-
-	uint32_t hashData[3];
-	hashData[0] = hdr->daddr;
-	hashData[1] = hdr->saddr;
-	uint32_t const* ports = (uint32_t*)hdr + hdr->ihl;
-
-	switch (hdr->protocol) {
-	case IPPROTO_UDP:
-		// TODO: Check for encapsulated SCTP
-	case IPPROTO_TCP:
-		if (!IN_BOUNDS(ports, sizeof(*ports), endp))
-			return ipv4AddressHash(data, len);
-		hashData[2] = flip16(*ports);
-		D(printf(
-			  "  %u %08x %08x %08x\n", hdr->protocol,
-			  ntohl(hashData[0]), ntohl(hashData[1]), ntohl(hashData[2])));
-		return HASH(hashData, sizeof(hashData));
-	case IPPROTO_SCTP: {
-		/* Reverse ports (only) and hash */
-		uint32_t const* ports = (uint32_t const*)hdr;
-		if (IN_BOUNDS(ports, sizeof(*ports), endp)) {
-			uint32_t revPorts = flip16(*ports);
-			D(printf("SCTP Ports %08x\n", ntohl(revPorts)));
-			return HASH(&revPorts, sizeof(uint32_t));
-		}
-	}
-	default:;
-	}
-	// Hash on flipped addresses
-	return HASH(hashData, sizeof(uint32_t) * 2);
-}
-static unsigned ipv4IcmpHash(void const* data, unsigned len)
-{
-	struct iphdr* hdr = (struct iphdr*)data;
-	if (hdr->ihl < 5)
-		return ipv4AddressHash(data, len); /* Corrupt packet */
-	struct icmphdr* ihdr = (struct icmphdr*)((uint32_t*)data + hdr->ihl);
-	if (!IN_BOUNDS(ihdr, sizeof(*ihdr), data + len))
-		return ipv4AddressHash(data, len);
-	
-	D(printf("ipv4IcmpHash; type=%u\n", ihdr->type));
-	switch (ihdr->type) {
-	case ICMP_ECHO: {
-		// We hash on addresses and id
-		uint32_t hashData[3];
-		hashData[0] = hdr->saddr;
-		hashData[1] = hdr->daddr;
-		hashData[2] = ihdr->un.echo.id;
-		return HASH((uint8_t const*)hashData, sizeof(hashData));
-	}
-	case ICMP_DEST_UNREACH:
-	case ICMP_SOURCE_QUENCH:
-	case ICMP_REDIRECT:
-	case ICMP_TIME_EXCEEDED:
-		return ipv4IcmpInnerHash(data, len);
-	default:;
-	}
-	return ipv4AddressHash(data, len);
-}
-static unsigned ipv4SctpHash(void const* data, unsigned len)
-{
-	// We hash on ports only!
-	struct iphdr* hdr = (struct iphdr*)data;
-	if (hdr->ihl < 5)
-		return ipv4AddressHash(data, len); /* Corrupt packet */
-	uint32_t const* ports = (uint32_t*)data + hdr->ihl;
-	if (!IN_BOUNDS(ports, sizeof(*ports), data + len))
-		return ipv4AddressHash(data, len);
-
-	return HASH(ports, sizeof(uint32_t));
-}
-unsigned ipv4Hash(void const* data, unsigned len)
-{
-	struct iphdr* hdr = (struct iphdr*)data;
-	switch (hdr->protocol) {
-	case IPPROTO_UDP:
-		if (sctpEncapPort != 0) {
-			/* Check if this is an encapsulated SCTP */
-			struct udphdr const* h = (struct udphdr const*)((uint32_t*)data + hdr->ihl);
-			D(printf("IPv4 sctpEncapPort=%u (%u)\n", sctpEncapPort, htons(h->uh_dport)));
-			if (htons(h->uh_dport) == sctpEncapPort) {
-				if (IN_BOUNDS(h, sizeof(*h) + sizeof(uint32_t), data + len)) {
-					uint32_t const* ports;
-					ports = (void const*)h + sizeof(struct udphdr);
-					return HASH(ports, sizeof(*ports));
-				}
-			}
-		}
-	case IPPROTO_TCP:
-		return ipv4TcpUdpHash(data, len);
-	case IPPROTO_ICMP:
-		return ipv4IcmpHash(data, len);
-	case IPPROTO_SCTP:
-		return ipv4SctpHash(data, len);
-	default:;
-	}
-	return ipv4AddressHash(data, len);
-}
-
-unsigned ipv4AddressHash(void const* data, unsigned len)
-{
-	struct iphdr* hdr = (struct iphdr*)data;
-	return HASH((uint8_t const*)&hdr->saddr, 8);
-}
-
- 
 
 int ipv6IsExtensionHeader(unsigned hdr)
 {
@@ -186,149 +32,344 @@ int ipv6IsExtensionHeader(unsigned hdr)
 	return 0;
 }
 
-static unsigned
-ipv6TcpUdpHash(struct ip6_hdr const* h, uint32_t const* ports)
+
+static inline void keySetAddr4(struct ctKey* key, struct iphdr* hdr)
 {
-	int32_t hashData[9];
-	memcpy(hashData, &h->ip6_src, 32);
-	hashData[8] = *ports;
-	return HASH(hashData, sizeof(hashData));
+	key->src.s6_addr16[5] = 0xffff;
+	key->src.s6_addr32[3] = hdr->saddr;
+	key->dst.s6_addr16[5] = 0xffff;
+	key->dst.s6_addr32[3] = hdr->daddr;
 }
 
-/*
-  https://datatracker.ietf.org/doc/html/rfc4443#section-3.2
-*/
-static unsigned ipv6IcmpInnerHash(
-	void const* data, unsigned len,
-	struct ip6_hdr const* h, struct icmp6_hdr const* ih)
+// Get the HashKey from the "inner" header in an ICMP reply
+// Prerequisite; the packet is icmp with an inner header
+static int getInnerHashKeyIpv4(
+	struct ctKey* key, unsigned udpEncap, struct icmphdr* ihdr,
+	void const* data, unsigned len)
 {
 	void const* endp = data + len;
+	int rc = 8;
 
 	/*
-	  The original datagram is found on offset 8 in this icmp6
-	  header. But since the original datagram is outgoing we must
-	  switch src<->dst for both addresses and port before we calculate
-	  the hash.
+	  The original datagram is found on offset 8 in the icmp
+	  header. Since the original datagram is outgoing we must
+	  switch src<->dst for both addresses and ports.
 	 */
-	h = (void*)ih + 8;			/* Now at the "inner" header */
-	if (!IN_BOUNDS(h, sizeof(*h), endp))
-		return ipv6AddressHash(data, len);
+	struct iphdr* hdr = (void*)ihdr + 8;
+	if (!IN_BOUNDS(hdr, sizeof(*hdr), endp) || hdr->ihl < 5)
+		return -1;
+
+	// (swapped!)
+	key->src.s6_addr16[5] = 0xffff;
+	key->src.s6_addr32[3] = hdr->daddr;
+	key->dst.s6_addr16[5] = 0xffff;
+	key->dst.s6_addr32[3] = hdr->saddr;
+	key->ports.proto = hdr->protocol;
+
+	switch (hdr->protocol) {
+	case IPPROTO_TCP:
+	case IPPROTO_UDP:
+	case IPPROTO_SCTP:
+		break;
+	default:
+		return rc + 32;			/* Only addresses */
+	}
+
+	uint16_t const* ports = (uint16_t const*)((uint32_t*)hdr + hdr->ihl);
+	if (!IN_BOUNDS(ports, sizeof(uint16_t) * 2, endp))
+		return -1;
 	
-	/* Skip all extension headers */
-	uint8_t htype = h->ip6_nxt;
-	void const* hdr = (void*)h + sizeof(struct ip6_hdr);
+	// Check if we have a udp-encapsulated sctp packet.
+	// NOTE; we must check the sport!
+	if (udpEncap != 0) {
+		if (hdr->protocol == IPPROTO_UDP && ntohs(ports[0]) == udpEncap) {
+			ports += 4;			/* Skip the udp header */
+			if (!IN_BOUNDS(ports, sizeof(uint16_t) * 2, endp))
+				return -1;
+			key->ports.proto = IPPROTO_SCTP;
+			rc += 4;
+		}
+	}
+
+	// (swapped!)
+	key->ports.src = ports[1];
+	key->ports.dst = ports[0];
+	D(printf("getInnerHashKeyIpv4: rc=%d, hash=%u\n", rc, hashKey(key)));
+	return rc;
+}
+
+static int getHashKeyIpv4(
+	struct ctKey* key, unsigned udpEncap, uint64_t* fragid,
+	void const* data, unsigned len)
+{
+	void const* endp = data + len;
+	int rc = 0;
+	struct iphdr* hdr = (struct iphdr*)data;
+
+	if (!IN_BOUNDS(hdr, sizeof(*hdr), endp))
+		return -1;				/* Truncated packet */
+	if (hdr->ihl < 5)
+		return -1;				/* Invalid packet */
+
+	memset(key, 0, sizeof(*key));
+
+	if (ntohs(hdr->frag_off) & (IP_OFFMASK|IP_MF)) {
+		// Fragment
+		if ((ntohs(hdr->frag_off) & IP_OFFMASK) == 0) {
+			// First fragment
+			if (fragid != NULL)
+				*fragid = hdr->id;
+			rc += 1;
+		} else {
+			keySetAddr4(key, hdr);
+			key->id = hdr->id;
+			return 2;			/* <-- Non-first frag */
+		}
+	}
+
+	if (hdr->protocol == IPPROTO_ICMP) {
+		struct icmphdr* ihdr = (struct icmphdr*)((uint32_t*)data + hdr->ihl);
+		switch (ihdr->type) {
+		case ICMP_DEST_UNREACH:
+		case ICMP_SOURCE_QUENCH:
+		case ICMP_REDIRECT:
+		case ICMP_TIME_EXCEEDED:
+			if (rc & 1)
+				return -1;		/* A fragmented icmp reply */
+			return getInnerHashKeyIpv4(key, udpEncap, ihdr, data, len);
+		default:;
+		}
+		keySetAddr4(key, hdr);
+		if (ihdr->type == ICMP_ECHO)
+			key->id = ihdr->un.echo.id;
+		else
+			key->ports.proto = IPPROTO_ICMP;
+		return rc + 16;			/* <-- Normal ICMP return */
+	}
+
+	// We have a non-icmp message, possibly first-fragment. Addresses
+	// are OK.
+	keySetAddr4(key, hdr);
+	key->ports.proto = hdr->protocol;
+	switch (hdr->protocol) {
+	case IPPROTO_TCP:
+	case IPPROTO_UDP:
+	case IPPROTO_SCTP:
+		break;
+	default:
+		return rc + 32;			/* Only addresses */
+	}
+
+	uint16_t const* ports = (uint16_t const*)((uint32_t*)data + hdr->ihl);
+	if (!IN_BOUNDS(ports, sizeof(uint16_t) * 2, endp))
+		return -1;
+	
+	// Check if we have a udp-encapsulated sctp packet.
+	if (udpEncap != 0) {
+		if (hdr->protocol == IPPROTO_UDP && ntohs(ports[1]) == udpEncap) {
+			ports += 4;			/* Skip the udp header */
+			if (!IN_BOUNDS(ports, sizeof(uint16_t) * 2, endp))
+				return -1;
+			key->ports.proto = IPPROTO_SCTP;
+			rc += 4;
+		}
+	}
+
+	key->ports.src = ports[0];
+	key->ports.dst = ports[1];
+	D(printf("getHashKeyIpv4: rc=%d, hash=%u\n", rc, hashKey(key)));
+	return rc;
+}
+
+// Get the HashKey from the "inner" header in an ICMP reply
+// Prerequisite; the packet is icmp with an inner header
+static int getInnerHashKeyIpv6(
+	struct ctKey* key, unsigned udpEncap, struct icmp6_hdr const* ihdr,
+	void const* data, unsigned len)
+{
+	void const* endp = data + len;
+	int rc = 8;
+
+	/*
+	  The original datagram is found on offset 8 in the icmp
+	  header. Since the original datagram is outgoing we must
+	  switch src<->dst for both addresses and ports.
+	 */
+	struct ip6_hdr* ip6hdr = (void*)ihdr + 8;
+	if (!IN_BOUNDS(ip6hdr, sizeof(*ip6hdr), endp))
+		return -1;
+
+	uint8_t htype = ip6hdr->ip6_nxt;
+	void const* hdr = (void*)ip6hdr + sizeof(struct ip6_hdr);
 	while (ipv6IsExtensionHeader(htype)) {
 		struct ip6_ext const* xh = hdr;
 		if (!IN_BOUNDS(xh, sizeof(*xh), endp))
-			return ipv6AddressHash(data, len);
+			return -1;
 		htype = xh->ip6e_nxt;
 		if (xh->ip6e_len == 0)
-			return ipv6AddressHash(data, len);
+			return -1;			/* Corrupt header */
 		hdr = hdr + (xh->ip6e_len * 8);
 	}
 
-	Dx(printf("ipv6IcmpInnerHash; len=%u, inner-type=%u\n", len,htype));
-	uint32_t hashData[9];
-	memcpy(hashData, &h->ip6_dst, 16);
-	memcpy(hashData + 4, &h->ip6_src, 16);
+	// (swapped!)
+	key->dst = ip6hdr->ip6_src;
+	key->src = ip6hdr->ip6_dst;
+	key->ports.proto = htype;
 
 	switch (htype) {
-	case IPPROTO_UDP:
-		// TODO: Check for encapsulated SCTP
-	case IPPROTO_TCP: {
-		/* Reverse addresses and ports and hash */
-		uint32_t const* ports = (uint32_t const*)hdr;
-		if (IN_BOUNDS(ports, sizeof(*ports), endp)) {
-			hashData[8] = flip16(*ports);
-			D(printf("Ports %08x\n", ntohl(hashData[8])));
-			return HASH(hashData, sizeof(hashData));
-		}
-	}
-	case IPPROTO_SCTP: {
-		/* Reverse ports (only) and hash */
-		uint32_t const* ports = (uint32_t const*)hdr;
-		if (IN_BOUNDS(ports, sizeof(*ports), endp)) {
-			uint32_t revPorts = flip16(*ports);
-			D(printf("SCTP Ports %08x\n", ntohl(revPorts)));
-			return HASH(&revPorts, sizeof(uint32_t));
-		}
-	}
-	default:;
-	}
-	// Hash on inner (flipped) addresses by default
-	return HASH(hashData, sizeof(uint32_t) * 8);
-}
-static unsigned
-ipv6IcmpHash(
-	void const* data, unsigned len,
-	struct ip6_hdr const* h, struct icmp6_hdr const* ih)
-{
-	D(printf("ipv6IcmpHash; type=%u\n", ih->icmp6_type));
-	switch (ih->icmp6_type) {
-	case ICMP6_DST_UNREACH:
-	case ICMP6_PACKET_TOO_BIG:
-		// TODO; More types here?
-		return ipv6IcmpInnerHash(data, len, h, ih);
-	case ICMP6_ECHO_REQUEST: {
-		if (!IN_BOUNDS(ih, sizeof(*ih), data + len))
-			ipv6AddressHash(data, len);
-		int32_t hashData[9];
-		memcpy(hashData, &h->ip6_src, 32);
-		hashData[8] = ih->icmp6_id;
-		return HASH(hashData, sizeof(hashData));
-	}
-	default:;
-	}
-	return ipv6AddressHash(data, len);
-}
-
-unsigned ipv6Hash(
-	void const* data, unsigned len, unsigned htype, void const* hdr)
-{
-	D(printf("ipv6Hash; type=%u\n", htype));
-	struct ip6_hdr* ip6hdr = (struct ip6_hdr*)data;
-
-	switch (htype) {
-	case IPPROTO_UDP:
-		if (sctpEncapPort != 0) {
-			/* Check if this is an encapsulated SCTP */
-			struct udphdr const* h = (struct udphdr const*)hdr;
-			D(printf("IPv6 sctpEncapPort=%u (%u)\n", sctpEncapPort, htons(h->uh_dport)));
-			if (htons(h->uh_dport) == sctpEncapPort) {
-				if (IN_BOUNDS(h, sizeof(*h) + sizeof(uint32_t), data + len)) {
-					uint32_t const* ports;
-					ports = (void const*)h + sizeof(struct udphdr);
-					return HASH(ports, sizeof(*ports));
-				}
-			}
-		}
-		/* fall through */
 	case IPPROTO_TCP:
-		if (!IN_BOUNDS(hdr, 4, data + len))
-			return -1;
-		return ipv6TcpUdpHash(ip6hdr, hdr);
-	case IPPROTO_ICMPV6:
-		return ipv6IcmpHash(data, len, ip6hdr, hdr);
+	case IPPROTO_UDP:
 	case IPPROTO_SCTP:
-		if (!IN_BOUNDS(hdr, 4, data + len))
-			return -1;
-		return HASH(hdr, sizeof(uint32_t)); /* Hash on ports only */
-	default:;
+		break;
+	default:
+		return rc + 32;			/* Only addresses */
 	}
-	return ipv6AddressHash(data, len);
-}
-unsigned ipv6AddressHash(void const* data, unsigned len)
-{
-	// Including the flow-label
-	struct ip6_hdr const* hdr = data;
-	uint32_t hdata[9];
-	memcpy(hdata, &hdr->ip6_src, 32);
-	hdata[8] = ntohl(hdr->ip6_flow) & 0xfffff;
-	return HASH(hdata, sizeof(hdata));
+
+	uint16_t const* ports = (uint16_t const*)hdr;
+	if (!IN_BOUNDS(ports, sizeof(uint16_t) * 2, endp))
+		return -1;
+
+	// Check if we have a udp-encapsulated sctp packet.
+	// NOTE; we must check the sport!
+	if (udpEncap != 0) {
+		if (htype == IPPROTO_UDP && ntohs(ports[0]) == udpEncap) {
+			ports += 4;			/* Skip the udp header */
+			if (!IN_BOUNDS(ports, sizeof(uint16_t) * 2, endp))
+				return -1;
+			key->ports.proto = IPPROTO_SCTP;
+			rc += 4;
+		}
+	}
+
+	// (swapped!)
+	key->ports.src = ports[1];
+	key->ports.dst = ports[0];
+	D(printf("getInnerHashKeyIpv6: rc=%d, hash=%u\n", rc, hashKey(key)));
+	return rc;
 }
 
-void sctpUdpEncapsulation(unsigned port)
+static int getHashKeyIpv6(
+	struct ctKey* key, unsigned udpEncap, uint64_t* fragid,
+	void const* data, unsigned len)
 {
-	D(printf("Set sctpEncapPort=%u\n", port));
-	sctpEncapPort = port;
+	void const* endp = data + len;
+	int rc = 0;
+
+	struct ip6_hdr* ip6hdr = (struct ip6_hdr*)data;
+	if (!IN_BOUNDS(ip6hdr, sizeof(*ip6hdr), endp))
+		return -1;
+
+	uint8_t htype = ip6hdr->ip6_nxt;
+	void const* hdr = data + sizeof(struct ip6_hdr);
+	while (ipv6IsExtensionHeader(htype)) {
+		if (htype == IPPROTO_FRAGMENT)
+			break;
+		struct ip6_ext const* xh = hdr;
+		if (!IN_BOUNDS(xh, sizeof(*xh), endp))
+			return -1;
+		htype = xh->ip6e_nxt;
+		if (xh->ip6e_len == 0)
+			return -1;			/* Corrupt header */
+		hdr = hdr + (xh->ip6e_len * 8);
+	}
+	
+	if (htype == IPPROTO_FRAGMENT) {
+		struct ip6_frag const* fh = hdr;
+		if ((fh->ip6f_offlg & IP6F_OFF_MASK) == 0) {
+			// First fragment
+			if (fragid != NULL)
+				*fragid = fh->ip6f_ident;
+			while (ipv6IsExtensionHeader(htype)) {
+				struct ip6_ext const* xh = hdr;
+				htype = xh->ip6e_nxt;
+				hdr = hdr + (xh->ip6e_len * 8);
+			}
+			rc += 1;
+		} else {
+			key->dst = ip6hdr->ip6_dst;
+			key->src = ip6hdr->ip6_src;
+			key->id = fh->ip6f_ident;
+			return 2;			/* <-- Non-first frag */
+		}
+	}
+
+	if (htype == IPPROTO_ICMPV6) {
+		struct icmp6_hdr const* ih = hdr;
+		switch (ih->icmp6_type) {
+		case ICMP6_DST_UNREACH:
+		case ICMP6_PACKET_TOO_BIG:
+			// TODO; More types here?
+			if (rc & 1)
+				return -1;		/* A fragmented icmp reply */
+			return getInnerHashKeyIpv6(key, udpEncap, ih, data, len);
+		default:;
+		}
+		key->dst = ip6hdr->ip6_dst;
+		key->src = ip6hdr->ip6_src;
+		if (ih->icmp6_type == ICMP6_ECHO_REQUEST)
+			key->id = ih->icmp6_id;
+		else
+			key->ports.proto = IPPROTO_ICMPV6;
+		return rc + 16;			/* <-- Normal ICMP return */		
+	}
+
+	// We have a non-icmp message, possibly first-fragment. Addresses
+	// are OK.
+	key->dst = ip6hdr->ip6_dst;
+	key->src = ip6hdr->ip6_src;
+	key->ports.proto = htype;
+	switch (htype) {
+	case IPPROTO_TCP:
+	case IPPROTO_UDP:
+	case IPPROTO_SCTP:
+		break;
+	default:
+		return rc + 32;			/* Only addresses */
+	}
+
+	uint16_t const* ports = (uint16_t const*)hdr;
+	if (!IN_BOUNDS(ports, sizeof(uint16_t) * 2, endp))
+		return -1;
+
+	// Check if we have a udp-encapsulated sctp packet.
+	if (udpEncap != 0) {
+		if (htype == IPPROTO_UDP && ntohs(ports[1]) == udpEncap) {
+			ports += 4;			/* Skip the udp header */
+			if (!IN_BOUNDS(ports, sizeof(uint16_t) * 2, endp))
+				return -1;
+			key->ports.proto = IPPROTO_SCTP;
+			rc += 4;
+		}
+	}
+
+	key->ports.src = ports[0];
+	key->ports.dst = ports[1];
+	D(printf("getHashKeyIpv6: rc=%d, hash=%u\n", rc, hashKey(key)));
+	return rc;
+}
+
+int getHashKey(
+	struct ctKey* key, unsigned udpEncap, uint64_t* fragid,
+	unsigned proto, void const* data, unsigned len)
+{
+	switch (proto) {
+	case ETH_P_IP:
+		return getHashKeyIpv4(key, udpEncap, fragid, data, len);
+	case ETH_P_IPV6:
+		return getHashKeyIpv6(key, udpEncap, fragid, data, len);
+	default:;
+		// We should not get here because ip(6)tables handles only ip (4/6)
+	}
+	return -1;
+}
+
+unsigned hashKey(struct ctKey* key)
+{
+	if (key->ports.proto == IPPROTO_SCTP)
+		return HASH(&key->ports.src, sizeof(uint16_t) * 2);
+	return HASH(key, sizeof(*key));
+}
+unsigned hashKeyAddresses(struct ctKey* key)
+{
+	return HASH(key, sizeof(struct in6_addr) * 2);
 }

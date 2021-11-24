@@ -131,14 +131,17 @@ cmdParse(int argc, char* argv[])
 	struct timespec now = {0};
 	for (unsigned i = 0; i < nPackets; i++) {
 		struct Packet* p = packets + i;
-		switch (p->protocol) {
-		case ETH_P_IP:
-			rc = ipv4Fragment(ft, &now, ipv4Hash, NULL, p->data, p->len, &hash);
-			break;
-		case ETH_P_IPV6:
-			rc = ipv6Fragment(ft, &now, ipv6Hash, NULL, p->data, p->len, &hash);
-			break;
-		default:;
+		struct ctKey key;
+		uint64_t fragid;
+		rc = getHashKey(&key, 0, &fragid, p->protocol, p->data, p->len);
+		if (rc & 1) {
+			hash = hashKey(&key);
+			key.id = fragid;
+			rc = handleFirstFragment(ft, &now, &key, hash, p->data, p->len);
+		} else if (rc & 2) {
+			rc = handleSubsequentFragment(ft, &now, &key, &hash, p->data, p->len);
+		} else {
+			rc = 0;
 		}
 		if (rc < 0) {
 			struct fragStats stats;

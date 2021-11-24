@@ -130,31 +130,16 @@ int fragGetHash(
 	struct FragTable* ft, struct timespec* now,
 	struct ctKey* key, unsigned* hash);
 
-/*
-  Handle a IPv4 fragment.
-  return:
-   0 - Hash is valid.
-   1 - Hash is NOT valid. The fragment is stored.
-  -1 - Hash is NOT valid.
- */
-int ipv4Fragment(
-	struct FragTable* ft, struct timespec* now,
-	unsigned (*hashFn)(void const* data, unsigned len),
-	void (*injectFn)(void const* data, unsigned len),
-	void const* data, unsigned len, unsigned* hash);
+void setInjectFn(void (*injectFn)(void const* data, unsigned len));
 
-/*
-  Handle a IPv6 fragment.
-  return:
-   0 - Hash is valid.
-   1 - Hash is NOT valid. The fragment is stored.
-  -1 - Hash is NOT valid.
- */
-int ipv6Fragment(
+int handleFirstFragment(
 	struct FragTable* ft, struct timespec* now,
-	unsigned (*hashFn)(void const* data, unsigned len, unsigned htype, void const* hdr),
-	void (*injectFn)(void const* data, unsigned len),
-	void const* data, unsigned len, unsigned* hash);
+	struct ctKey* key, unsigned hash,
+	void const* data, unsigned len);
+
+int handleSubsequentFragment(
+	struct FragTable* ft, struct timespec* now, struct ctKey* key,
+	unsigned* hash, void const* data, unsigned len);
 
 struct fragStats {
 	// Conntrack stats
