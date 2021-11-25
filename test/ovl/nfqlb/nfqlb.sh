@@ -13,14 +13,14 @@ me=$dir/$prg
 tmp=/tmp/${prg}_$$
 
 die() {
-    echo "ERROR: $*" >&2
-    rm -rf $tmp
-    exit 1
+	echo "ERROR: $*" >&2
+	rm -rf $tmp
+	exit 1
 }
 help() {
-    grep '^##' $0 | cut -c3-
-    rm -rf $tmp
-    exit 0
+	grep '^##' $0 | cut -c3-
+	rm -rf $tmp
+	exit 0
 }
 test -n "$1" || help
 echo "$1" | grep -qi "^help\|-h" && help
@@ -54,27 +54,51 @@ cmd_env() {
 ##   Tests;
 cmd_test() {
 	if test "$__list" = "yes"; then
-        grep '^test_' $me | cut -d'(' -f1 | sed -e 's,test_,,'
-        return 0
-    fi
+		grep '^test_' $me | cut -d'(' -f1 | sed -e 's,test_,,'
+		return 0
+	fi
 
 	cmd_env
-    start=starts
-    test "$__xterm" = "yes" && start=start
-    rm -f $XCLUSTER_TMP/cdrom.iso
+	start=starts
+	test "$__xterm" = "yes" && start=start
+	rm -f $XCLUSTER_TMP/cdrom.iso
 
-    if test -n "$1"; then
-        for t in $@; do
-            test_$t
-        done
-    else
-        for t in basic; do
-            test_$t
-        done
-    fi      
+	if test -n "$1"; then
+		for t in $@; do
+			test_$t
+		done
+	else
+		unset __fragrev
+		test_basic || tdie
 
-    now=$(date +%s)
-    tlog "Xcluster test ended. Total time $((now-begin)) sec"
+		test_udp || tdie
+		__vip=10.0.0.0:5001
+		test_udp || tdie
+
+		unset __vip
+		__fragrev=yes
+		test_udp || tdie
+		__vip=10.0.0.0:5001
+		test_udp || tdie
+
+		export xcluster_LBOPT="--queue=0:3 --reassembler=1000"
+		unset __vip
+		unset __fragrev
+		test_udp || tdie
+		__vip=10.0.0.0:5001
+		test_udp || tdie
+
+		
+		unset __fragrev
+		unset __vip
+		test_mtu || tdie
+
+		unset __nrouters
+		test_sctp || tdie
+	fi		
+
+	now=$(date +%s)
+	tlog "Xcluster test ended. Total time $((now-begin)) sec"
 
 }
 
@@ -140,11 +164,11 @@ test_basic() {
 	otc 221 "mconnect_udp --vip=10.0.0.0:5001"
 	xcluster_stop
 }
-##     [--verbose] udp
+##	   [--verbose] udp
 test_udp() {
-	tlog "=== nfqlb: UDP test"
-	test_start
 	test -n "$__vip" || __vip="[1000::]:5003"
+	tlog "=== nfqlb: UDP test, vip=$__vip, fragrev=$__fragrev"
+	test_start
 	#export xcluster_LBOPT="--ft_size=500 --ft_buckets=500 --ft_frag=100"
 	#__copt="-monitor -psize 2048 -rate 1000 -nconn 40 -timeout 20s"
 	otc 221 "udp --copt='$__copt' --vip=$__vip --verbose=$__verbose"
@@ -220,15 +244,15 @@ shift
 grep -q "^cmd_$cmd()" $0 $hook || die "Invalid command [$cmd]"
 
 while echo "$1" | grep -q '^--'; do
-    if echo $1 | grep -q =; then
-	o=$(echo "$1" | cut -d= -f1 | sed -e 's,-,_,g')
-	v=$(echo "$1" | cut -d= -f2-)
-	eval "$o=\"$v\""
-    else
-	o=$(echo "$1" | sed -e 's,-,_,g')
-	eval "$o=yes"
-    fi
-    shift
+	if echo $1 | grep -q =; then
+		o=$(echo "$1" | cut -d= -f1 | sed -e 's,-,_,g')
+		v=$(echo "$1" | cut -d= -f2-)
+		eval "$o=\"$v\""
+	else
+		o=$(echo "$1" | sed -e 's,-,_,g')
+		eval "$o=yes"
+	fi
+	shift
 done
 unset o v
 long_opts=`set | grep '^__' | cut -d= -f1`

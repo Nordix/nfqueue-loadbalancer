@@ -14,7 +14,7 @@ Basic tests;
 ```
 test -n "$log" || log=/tmp/$USER/xcluster-test.log
 # Fast TCP/UDP/ping test with ipv4 and ipv6
-./nfqlb.sh test > $log
+./nfqlb.sh test basic > $log
 
 # For experiments, just start and use only one load-balancer;
 __nrouters=1 ./nfqlb.sh test start > $log
