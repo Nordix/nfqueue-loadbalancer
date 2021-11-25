@@ -111,8 +111,6 @@ static int getHashKeyIpv4(
 	if (hdr->ihl < 5)
 		return -1;				/* Invalid packet */
 
-	memset(key, 0, sizeof(*key));
-
 	if (ntohs(hdr->frag_off) & (IP_OFFMASK|IP_MF)) {
 		// Fragment
 		if ((ntohs(hdr->frag_off) & IP_OFFMASK) == 0) {
@@ -344,7 +342,7 @@ static int getHashKeyIpv6(
 
 	key->ports.src = ports[0];
 	key->ports.dst = ports[1];
-	D(printf("getHashKeyIpv6: rc=%d, hash=%u\n", rc, hashKey(key)));
+	D(printf("getHashKeyIpv6: rc=%d, hash=%u (%u,%u)\n", rc, hashKey(key), ntohs(ports[0]), ntohs(ports[1])));
 	return rc;
 }
 
@@ -352,6 +350,8 @@ int getHashKey(
 	struct ctKey* key, unsigned udpEncap, uint64_t* fragid,
 	unsigned proto, void const* data, unsigned len)
 {
+	memset(key, 0, sizeof(*key));
+
 	switch (proto) {
 	case ETH_P_IP:
 		return getHashKeyIpv4(key, udpEncap, fragid, data, len);
