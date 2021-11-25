@@ -14,8 +14,6 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-#include <netinet/ip.h>
-#include <netinet/ip6.h>
 #include <unistd.h>
 #include <string.h>
 #include <pthread.h>

@@ -443,8 +443,6 @@ int fragGetHashOrStore(
  */
 
 #include "iputils.h"
-#include <netinet/ip.h>
-#include <netinet/ip6.h>
 
 static void (*injectFragmentFn)(void const* data, unsigned len) = NULL;
 void setInjectFn(void (*injectFn)(void const* data, unsigned len))

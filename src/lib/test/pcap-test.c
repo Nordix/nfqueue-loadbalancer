@@ -139,7 +139,7 @@ cmdParse(int argc, char* argv[])
 			key.id = fragid;
 			rc = handleFirstFragment(ft, &now, &key, hash, p->data, p->len);
 		} else if (rc & 2) {
-			rc = handleSubsequentFragment(ft, &now, &key, &hash, p->data, p->len);
+			rc = fragGetHashOrStore(ft, &now, &key, &hash, p->data, p->len);
 		} else {
 			rc = 0;
 		}

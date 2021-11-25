@@ -9,7 +9,6 @@
 #include <netinet/ip6.h>
 #include <netinet/ether.h>
 #include <netinet/icmp6.h>
-#include <netinet/udp.h>
 
 #ifdef VERBOSE
 #include "stdio.h"
