@@ -34,46 +34,17 @@ static struct MagDataDyn magd;
 #define FW(table) table.active[table.lookup[hash % table.M]]
 
 
-static int handleIpv4(void* data, unsigned len)
-{
-	struct iphdr const* hdr = data;
-
-	if (!IN_BOUNDS(hdr, sizeof(*hdr), data + len))
-		return -1;
-
-	unsigned hash = ipv4AddressHash(data, len);
-	return FW(magd);
-}
-
-static int handleIpv6(void const* data, unsigned len)
-{
-	struct ip6_hdr const* hdr = data;
-
-	if (!IN_BOUNDS(hdr, sizeof(*hdr), data + len))
-		return -1;
-
-	unsigned hash = ipv6AddressHash(data, len);
-	return FW(magd);
-}
-
 static int packetHandleFn(
-	unsigned short proto, void* payload, unsigned plen)
+	unsigned short proto, void* data, unsigned len)
 {
-	int fw;
-	switch (proto) {
-	case ETH_P_IP:
-		fw = handleIpv4(payload, plen);
-		break;
-	case ETH_P_IPV6:
-		fw = handleIpv6(payload, plen);
-		break;
-	default:;
-		// We should not get here because ip(6)tables handles only ip (4/6)
-		Dx(printf("Unexpected protocol 0x%04x\n", proto));
-		fw = -1;
-	}
-	Dx(printf("Packet; len=%u, fw=%d\n", plen, fw));
-	return fw;
+	struct ctKey key;
+	uint64_t fragid;
+	int rc = getHashKey(&key, 0, &fragid, proto, data, len);
+	if (rc < 0)
+		return -1;
+	unsigned hash = hashKeyAddresses(&key);
+	Dx(printf("Packet; len=%u, fw=%d\n", len, FW(magd)));
+	return FW(magd);
 }
 
 static void *packetHandleThread(void* Q)
