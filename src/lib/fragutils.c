@@ -474,12 +474,6 @@ int handleFirstFragment(
 	}
 	return 0;
 }
-int handleSubsequentFragment(
-	struct FragTable* ft, struct timespec* now, struct ctKey* key,
-	unsigned* hash, void const* data, unsigned len)
-{
-	return fragGetHashOrStore(ft, now, key, hash, data, len);
-}
 
 /* ----------------------------------------------------------------------
    Stats;

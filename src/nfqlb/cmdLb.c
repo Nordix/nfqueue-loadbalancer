@@ -85,7 +85,7 @@ static int packetHandleFn(
 			if (handleFirstFragment(ft, &now, &key, hash, data, len) != 0)
 				return -1;
 		} else {
-			rc = handleSubsequentFragment(ft, &now, &key, &hash, data, len);
+			rc = fragGetHashOrStore(ft, &now, &key, &hash, data, len);
 			if (rc != 0) {
 				Dx(printf("Fragment %s\n", rc > 0 ? "stored":"dropped"));
 				return -1;

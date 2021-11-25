@@ -29,5 +29,10 @@ int getHashKey(
 	struct ctKey* key, unsigned udpEncap, uint64_t* fragid,
 	unsigned proto, void const* data, unsigned len);
 
-unsigned hashKey(struct ctKey* key);
+// Hash on addresses only
 unsigned hashKeyAddresses(struct ctKey* key);
+
+// The default hash function.
+// Hashes on the entire key, unless proto=sctp in which case we hash on
+// ports only.
+unsigned hashKey(struct ctKey* key);

@@ -130,16 +130,17 @@ int fragGetHash(
 	struct FragTable* ft, struct timespec* now,
 	struct ctKey* key, unsigned* hash);
 
+/*
+  The injectFn is used to re-inject stored sub-sequent fragments when
+  the first fragment arrives.
+ */
 void setInjectFn(void (*injectFn)(void const* data, unsigned len));
 
+// Sets the hash and re-injects any stored sub-sequent fragments.
 int handleFirstFragment(
 	struct FragTable* ft, struct timespec* now,
 	struct ctKey* key, unsigned hash,
 	void const* data, unsigned len);
-
-int handleSubsequentFragment(
-	struct FragTable* ft, struct timespec* now, struct ctKey* key,
-	unsigned* hash, void const* data, unsigned len);
 
 struct fragStats {
 	// Conntrack stats
