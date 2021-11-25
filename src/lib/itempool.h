@@ -34,7 +34,7 @@ struct ItemPoolStats {
   "data[0]" pointer "p", e.g. passed from a user, get the Item with;
   struct Item* item = ITEM_OF(p);
 */
-#define ITEM_OF(p) (struct Item*)(p - offsetof(struct Item, data))
+#define ITEM_OF(p) (struct Item*)((void*)(p) - offsetof(struct Item, data))
 
 /*
   If passed a itemFn_t function is called for every item on
