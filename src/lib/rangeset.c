@@ -5,11 +5,12 @@
 
 #include <rangeset.h>
 #include <die.h>
+#define _GNU_SOURCE				/* (for strndupa) */
 #include <stdlib.h>
-#include <string.h>
 #include <stdio.h>
 #include <stddef.h>
 #include <limits.h>
+#include <string.h>
 
 #ifndef UNIT_TEST
 #define NDEBUG
@@ -89,7 +90,7 @@ int rangeSetAdd(struct RangeSet* t, unsigned first, unsigned last)
 
 int rangeSetAddStr(struct RangeSet* t, char const* _str)
 {
-	char* str = strndup(_str, 1024);
+	char* str = strndupa(_str, 1024);
 	char* tok = strtok(str, ", ");
 	while (tok != NULL) {
 		unsigned first, last;
