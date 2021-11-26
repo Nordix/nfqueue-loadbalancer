@@ -4,16 +4,24 @@
   Copyright (c) 2021 Nordix Foundation
 */
 
+/*
+  Implements a set of integer (port) ranges.
+  Delete operations are not supported.
+ */
+
 struct RangeSet;
 
-// max=0 will set the default (256). An itempool is used so don't go crazy.
-struct RangeSet* rangeSetCreate(unsigned max);
+struct RangeSet* rangeSetCreate(void);
 void rangeSetDestroy(struct RangeSet* t);
+
+// Returns true (!=0) if the value is in the set.
 int rangeSetIn(struct RangeSet* t, unsigned value);
 
 /*
   The added ranges are not inserted until the RangeSet is updated. On
-  update overlapping ranges are merged.
+  update overlapping ranges are merged. rangeSetAddStr() accepts
+  comma (or space) separated values, example; "0,222-333, 55".
+  Returns 0 on success, -1 on failure.
  */
 int rangeSetAdd(struct RangeSet* t, unsigned first, unsigned last);
 int rangeSetAddStr(struct RangeSet* t, char const* str);
@@ -23,6 +31,7 @@ void rangeSetUpdate(struct RangeSet* t);
 unsigned rangeSetSize(struct RangeSet* t);
 
 /*
+  Prints the set as comma-separated values (same as used in rangeSetAddStr()).
   Returns;
    0 - Ok
    1 - Can't fit in the passed string

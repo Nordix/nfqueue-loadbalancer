@@ -5,11 +5,11 @@
 
 #include <rangeset.h>
 #include <die.h>
-#include <itempool.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 #include <stddef.h>
+#include <limits.h>
 
 #ifndef UNIT_TEST
 #define NDEBUG
@@ -19,12 +19,6 @@
 #define Dx(x) x
 #define D(x)
 
-/*
-  We assume that rangeSetString() will be used with a 1024 char string.
-  I every other number is used approx 1024/4 will fit in that string.
- */
-#define DEFAULT_MAX 256
-
 struct Node {
 	unsigned first, last;
 	struct Node* left;
@@ -32,33 +26,33 @@ struct Node {
 };
 
 struct RangeSet {
-	unsigned max;
 	unsigned count;
-	struct ItemPool* pool;
 	struct Node* root;
 	struct Node* added;
 };
 
-struct RangeSet* rangeSetCreate(unsigned max)
+struct RangeSet* rangeSetCreate(void)
 {
 	struct RangeSet* t = calloc(1, sizeof(struct RangeSet));
 	if (t == NULL)
 		die("OOM");
-	if (max == 0)
-		t->max = DEFAULT_MAX;
-	else
-		t->max = max;
-	t->pool = itemPoolCreate(t->max, sizeof(struct Node), NULL);
-	if (t->pool == NULL)
-		die("OOM");
 	return t;
 }
 
+static void treeFree(struct Node* n)
+{
+	if (n == NULL)
+		return;
+	treeFree(n->left);
+	treeFree(n->right);
+	free(n);
+}
 void rangeSetDestroy(struct RangeSet* t)
 {
 	if (t == NULL)
 		return;
-	itemPoolDestroy(t->pool, NULL);
+	treeFree(t->root);
+	treeFree(t->added);
 	free(t);
 }
 
@@ -82,14 +76,12 @@ int rangeSetAdd(struct RangeSet* t, unsigned first, unsigned last)
 {
 	if (last < first)
 		return -1;
-	struct Item* item = itemAllocate(t->pool);
-	if (item == NULL)
-		return -1;
-	struct Node* n = (struct Node*)item->data;
+	struct Node* n = calloc(1, sizeof(struct Node));
+	if (n == NULL)
+		die("OOM");
 	n->first = first;
 	n->last = last;
 	n->left = t->added;
-	n->right = NULL;
 	t->added = n;
 	t->count++;
 	return 0;
@@ -123,27 +115,7 @@ unsigned rangeSetSize(struct RangeSet* t)
 	return t->count;
 }
 
-static unsigned storeNodes(struct Node** pos, struct Node* n)
-{
-	if (n == NULL)
-		return 0;
-	unsigned cnt = storeNodes(pos, n->left);
-	cnt += storeNodes(pos, n->right);
-	pos += cnt;
-	*pos = n;
-	return cnt + 1;
-}
-static int cmpNodes(const void* a, const void* b)
-{
-	struct Node* const* n1 = a;
-	struct Node* const* n2 = b;
-	if ((*n1)->first == (*n2)->first)
-		return 0;
-	if ((*n1)->first > (*n2)->first)
-		return 1;
-	return -1;
-}
-
+// Prerequisite; left/right pointers are NULL
 static void insertNode(struct Node* parent, struct Node* n)
 {
 	if (n->first < parent->first) {
@@ -159,6 +131,31 @@ static void insertNode(struct Node* parent, struct Node* n)
 		} else
 			insertNode(parent->right, n);
 	}
+}
+
+// https://medium.com/swlh/how-do-we-get-a-balanced-binary-tree-a25e72a9cd58
+// Used to collect all nodes in an array
+static unsigned storeNodes(struct Node** pos, struct Node* n)
+{
+	if (n == NULL)
+		return 0;
+	unsigned cnt = storeNodes(pos, n->left);
+	cnt += storeNodes(pos, n->right);
+	pos += cnt;
+	*pos = n;
+	return cnt + 1;
+}
+
+// Used to qsort the node array
+static int cmpNodes(const void* a, const void* b)
+{
+	struct Node* const* n1 = a;
+	struct Node* const* n2 = b;
+	if ((*n1)->first == (*n2)->first)
+		return 0;
+	if ((*n1)->first > (*n2)->first)
+		return 1;
+	return -1;
 }
 
 static struct Node* insertSorted(
@@ -183,6 +180,7 @@ void rangeSetUpdate(struct RangeSet* t)
 {
 	if (t->count == 0)
 		return;
+
 	// Create a Node array
 	struct Node* nodes[t->count];
 	unsigned cnt = storeNodes(nodes, t->root);
@@ -197,11 +195,14 @@ void rangeSetUpdate(struct RangeSet* t)
 	// Merge ranges
 	unsigned i = 0;
 	while ((i + 1) < t->count) {
-		if (nodes[i]->last >= (nodes[i+1]->first - 1)) {
+		struct Node* n = nodes[i];
+		struct Node* nextn = nodes[i+1];
+		// UINT_MAX is special since we can't +1 on it!
+		if (n->last == UINT_MAX || (n->last + 1) >= nextn->first) {
 			// Merge!
-			if (nodes[i+1]->last > nodes[i]->last)
-				nodes[i]->last = nodes[i+1]->last;
-			itemFree(ITEM_OF(nodes[i+1]));
+			if (nextn->last > n->last)
+				n->last = nextn->last;
+			free(nextn);
 			// Pack the array
 			for (unsigned j = i + 1; (j + 1) < t->count; j++)
 				nodes[j] = nodes[j+1];
@@ -211,8 +212,6 @@ void rangeSetUpdate(struct RangeSet* t)
 		}
 	}
 
-	assert(t->count ==
-		   (itemPoolStats(t->pool)->size - itemPoolStats(t->pool)->nFree));
 	D(for (unsigned i = 0; i < t->count; i++)
 		  printf("  %u-%u\n", nodes[i]->first, nodes[i]->last));
 
@@ -239,13 +238,18 @@ static char* printTree(struct Node* n, char* buf, char const* endp)
 
 int rangeSetString(struct RangeSet* t, char* str, unsigned len)
 {
+	if (t->root == NULL) {
+		*str = 0;
+		return 0;
+	}
 	if (printTree(t->root, str, str + len) == NULL)
 		return 1;
 	return 0;
 }
 
+// White-box unit-test functions
 #ifdef UNIT_TEST
-unsigned treeDepth(struct Node* n)
+static unsigned treeDepth(struct Node* n)
 {
 	if (n == NULL)
 		return 0;
@@ -256,5 +260,25 @@ unsigned treeDepth(struct Node* n)
 unsigned rangeTreeDepth(struct RangeSet* t)
 {
 	return treeDepth(t->root);
+}
+static void printIndentTree(struct Node* n, unsigned indent)
+{
+	if (n == NULL)
+		return;
+	printIndentTree(n->left, indent + 2);
+	char pad[indent+1];
+	memset(pad, ' ', indent);
+	pad[indent] = 0;
+	if (n->first == n->last)
+		printf("%s%u\n", pad, n->first);
+	else
+		printf("%s%u-%u\n", pad, n->first, n->last);
+	printIndentTree(n->right, indent + 2);
+}
+
+
+void rangeTreePrint(struct RangeSet* t)
+{
+	printIndentTree(t->root, 2);
 }
 #endif
