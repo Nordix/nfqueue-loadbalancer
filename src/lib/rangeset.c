@@ -3,6 +3,11 @@
   Copyright (c) 2021 Nordix Foundation
 */
 
+/*
+  Recursive functions are used. The tree is balanced so depth<=log(n).
+  The intended use is for 16-bit ports, which mean max 16 recursions.
+ */
+
 #include <rangeset.h>
 #include <die.h>
 #define _GNU_SOURCE				/* (for strndupa) */
@@ -116,7 +121,6 @@ unsigned rangeSetSize(struct RangeSet* t)
 	return t->count;
 }
 
-// Prerequisite; left/right pointers are NULL
 static void insertNode(struct Node* parent, struct Node* n)
 {
 	if (n->first < parent->first) {
@@ -134,7 +138,6 @@ static void insertNode(struct Node* parent, struct Node* n)
 	}
 }
 
-// https://medium.com/swlh/how-do-we-get-a-balanced-binary-tree-a25e72a9cd58
 // Used to collect all nodes in an array
 static unsigned storeNodes(struct Node** pos, struct Node* n)
 {
@@ -159,6 +162,7 @@ static int cmpNodes(const void* a, const void* b)
 	return -1;
 }
 
+// Create a balanced BST tree from a sorted array
 static struct Node* insertSorted(
 	struct Node* parent, struct Node** nodes, unsigned len)
 {
@@ -182,6 +186,7 @@ void rangeSetUpdate(struct RangeSet* t)
 	if (t->count == 0)
 		return;
 
+	// https://medium.com/swlh/how-do-we-get-a-balanced-binary-tree-a25e72a9cd58
 	// Create a Node array
 	struct Node* nodes[t->count];
 	unsigned cnt = storeNodes(nodes, t->root);
@@ -216,6 +221,7 @@ void rangeSetUpdate(struct RangeSet* t)
 	D(for (unsigned i = 0; i < t->count; i++)
 		  printf("  %u-%u\n", nodes[i]->first, nodes[i]->last));
 
+	// Create a balanced BST tree from the sorted array
 	t->root = insertSorted(t->root, nodes, t->count);
 }
 
