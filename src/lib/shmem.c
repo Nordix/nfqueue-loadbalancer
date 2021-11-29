@@ -50,5 +50,22 @@ void* mapSharedDataOrDie(char const* name, int mode)
 		die("FAILED mapSharedData: %s\n", name);
 	return m;
 }
+void* mapSharedDataRead(char const* name, /*out*/int* _fd)
+{
+	int fd = shm_open(name, O_RDONLY, 0400);
+	if (fd < 0)
+		return NULL;
+	struct stat statbuf;
+	if (fstat(fd, &statbuf) != 0)
+		die("fstat shared mem; %s\n", name);
+	void* m = mmap(NULL, statbuf.st_size, PROT_READ, MAP_SHARED, fd, 0);
+	if (m == MAP_FAILED) {
+		close(fd);
+		return NULL;
+	}
+	*_fd = fd;
+	return m;
+
+}
 
 

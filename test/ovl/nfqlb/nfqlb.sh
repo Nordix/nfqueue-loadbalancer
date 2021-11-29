@@ -102,8 +102,14 @@ cmd_test() {
 
 }
 
-##     [--fragrev] start
-test_start() {
+test_flows() {
+	export xcluster_FLOW=yes
+	test_basic_flows
+	test_mtu_flow
+	test_port64
+}
+
+test_start_empty() {
 	export __image=$XCLUSTER_HOME/hd.img
 	echo "$XOVLS" | grep -q private-reg && unset XOVLS
 	export xcluster_DISABLE_MASQUERADE=yes
@@ -113,8 +119,16 @@ test_start() {
 	local OVLS
 	test "$__fragrev" = "yes" && OVLS=tap-scrambler
 	xcluster_start network-topology iptools nfqlb $OVLS $@
-	otcr nfqueue_activate_all
 	test "$__fragrev" = "yes" && otc 222 fragrev
+}
+##     [--fragrev] start
+test_start() {
+	test_start_empty $@
+	if test "$xcluster_FLOW" != "yes"; then
+		otcr nfqueue_activate_all
+	else
+		otcr nfqueue_activate_default_flow
+	fi
 }
 ##     [--vip=] start_hw_setup
 test_start_hw_setup() {
@@ -164,6 +178,17 @@ test_basic() {
 	otc 221 "mconnect_udp --vip=10.0.0.0:5001"
 	xcluster_stop
 }
+##     basic_flows
+test_basic_flows() {
+	tlog "=== nfqlb: Basic flow test"
+	export xcluster_FLOW=yes
+	test_start_empty
+	otcr nfqueue_flow_vms
+	otc 221 mconnect_vmflow
+	otc 221 "mconnect_vmflow udp"
+	xcluster_stop
+}
+
 ##	   [--verbose] udp
 test_udp() {
 	test -n "$__vip" || __vip="[1000::]:5003"
@@ -179,6 +204,23 @@ test_udp() {
 test_mtu() {
 	tlog "=== nfqlb: MTU test"
 	test_start mtu
+	otc 221 "http http://10.0.0.0 -s -m2 --interface 20.0.0.1"
+	otc 221 "http http://[1000::] -s -m2 --interface $PREFIX:20.0.0.1"
+	otcprog=mtu_test
+	otc 222 squeeze_chain
+	unset otcprog
+	otc 221 "http http://10.0.0.0 -s -m2 --interface 20.0.0.1"
+	sleep 1				# ICMP6 not sent immadiately! Probably some DAD problem.
+	otc 221 "http http://[1000::] -s -m2 --interface $PREFIX:20.0.0.1"
+	xcluster_stop
+}
+
+##     mtu_flow
+test_mtu_flow() {
+	tlog "=== nfqlb: MTU test with flows"
+	export xcluster_FLOW=yes
+	test_start_empty mtu
+	otcr nfqueue_flow_vms
 	otc 221 "http http://10.0.0.0 -s -m2 --interface 20.0.0.1"
 	otc 221 "http http://[1000::] -s -m2 --interface $PREFIX:20.0.0.1"
 	otcprog=mtu_test
@@ -211,6 +253,15 @@ test_sctp() {
 	
 	xcluster_stop
 }
+##     port64
+test_port64() {
+	tlog "=== nfqlb: Create a flow with a 64 ranges dports"
+	export xcluster_FLOW=yes
+	test_start
+	otcr range64
+	xcluster_stop
+}
+
 ##
 
 #  rexec [--expand=x|y] <cmd>

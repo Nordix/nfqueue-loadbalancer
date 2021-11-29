@@ -33,6 +33,8 @@ struct Node {
 
 struct RangeSet {
 	unsigned count;
+	unsigned lowest;
+	unsigned highest;
 	struct Node* root;
 	struct Node* added;
 };
@@ -42,9 +44,20 @@ struct RangeSet* rangeSetCreate(void)
 	struct RangeSet* t = calloc(1, sizeof(struct RangeSet));
 	if (t == NULL)
 		die("OOM");
+	t->highest = UINT_MAX;
 	return t;
 }
-
+struct RangeSet* rangeSetCreateLimited(unsigned lowest, unsigned highest)
+{
+	if (lowest >= highest)
+		return NULL;
+	struct RangeSet* t = calloc(1, sizeof(struct RangeSet));
+	if (t == NULL)
+		die("OOM");
+	t->lowest = lowest;
+	t->highest = highest;
+	return t;
+}
 static void treeFree(struct Node* n)
 {
 	if (n == NULL)
@@ -82,6 +95,11 @@ int rangeSetAdd(struct RangeSet* t, unsigned first, unsigned last)
 {
 	if (last < first)
 		return -1;
+	if (t->lowest > 0 && first < t->lowest)
+		return -1;
+	if (t->highest < UINT_MAX && last > t->highest)
+		return -1;
+
 	struct Node* n = calloc(1, sizeof(struct Node));
 	if (n == NULL)
 		die("OOM");
