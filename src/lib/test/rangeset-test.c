@@ -131,6 +131,18 @@ int main(int argc, char* argv[])
 	}
 	rangeSetDestroy(t);
 
+	// Limited range set
+	assert(rangeSetCreateLimited(1, 1) == NULL);
+	assert(rangeSetCreateLimited(2, 1) == NULL);
+	t = rangeSetCreateLimited(10, 20);
+	assert(t != NULL);
+	assert(rangeSetAddStr(t, "9") != 0);
+	assert(rangeSetAddStr(t, "10") == 0);
+	assert(rangeSetAddStr(t, "20") == 0);
+	assert(rangeSetAddStr(t, "21") != 0);
+	assert(rangeSetAddStr(t, "10-20") == 0);
+	rangeSetDestroy(t);
+	
 	printf("==== rangeset-test OK.\n");
 	return 0;
 }

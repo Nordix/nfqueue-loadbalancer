@@ -139,8 +139,7 @@ static int getHashKeyIpv4(
 		keySetAddr4(key, hdr);
 		if (ihdr->type == ICMP_ECHO)
 			key->id = ihdr->un.echo.id;
-		else
-			key->ports.proto = IPPROTO_ICMP;
+		key->ports.proto = IPPROTO_ICMP;
 		return rc + 16;			/* <-- Normal ICMP return */
 	}
 
@@ -305,8 +304,7 @@ static int getHashKeyIpv6(
 		key->src = ip6hdr->ip6_src;
 		if (ih->icmp6_type == ICMP6_ECHO_REQUEST)
 			key->id = ih->icmp6_id;
-		else
-			key->ports.proto = IPPROTO_ICMPV6;
+		key->ports.proto = IPPROTO_ICMPV6;
 		return rc + 16;			/* <-- Normal ICMP return */		
 	}
 

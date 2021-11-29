@@ -47,6 +47,50 @@ cmd_tcase_nfqueue_activate_all() {
 	done
 }
 
+cmd_tcase_nfqueue_activate_default_flow() {
+	tcase "nfqueue activate default flow"
+	nfqlb init --shm=nfqlb --M=900 --N=20
+	nfqlb flow-set --name=default --target=nfqlb || tdie
+	cmd_tcase_nfqueue_activate_all
+}
+
+cmd_tcase_nfqueue_flow_vms() {
+	tcase "Create flows to individual vm's"
+	local target
+	for n in $(seq 1 $__nvm); do
+		target=$(printf "vm-%03u" $n)
+		nfqlb init --shm=$target --M=900 --N=20
+		nfqlb activate --shm=$target $((n + 100))
+		nfqlb flow-set --name=$target --target=$target --protocols=tcp,udp \
+			--prio=100 --srcs=20.0.0.$n/32,1000::1:20.0.0.$n/128
+	done
+	nfqlb flow-list
+}
+
+mconnect_check_vm() {
+	cat $tmp/out | jq
+	cat $tmp/out | jq ".hosts.\"$1\"" | grep '^100$' || tdie "$1"
+}
+cmd_tcase_mconnect_vmflow() {
+	local proto=tcp
+	test -n "$1" && proto=$1
+	tcase "Mconnect to vm's using flows [$proto]"
+	mkdir -p $tmp
+	local vm arg
+	test "$proto" = "udp" && arg=-udp
+	for n in $(seq 1 $__nvm); do
+		vm=$(printf "vm-%03u" $n)
+		echo "Flow to $vm"
+		mconnect -address 10.0.0.0:5001 -nconn 100 $arg \
+			-srccidr=20.0.0.$n/32 -output json > $tmp/out || tdie
+		mconnect_check_vm $vm
+		mconnect -address [1000::]:5001 -nconn 100 $arg \
+			-srccidr=1000::1:20.0.0.$n/128 -output json > $tmp/out || tdie
+		mconnect_check_vm $vm
+	done
+}
+
+
 cmd_tcase_mconnect() {
 	test -n "$__vip" || __vip="[1000::]:5001"
 	tcase "Mconnect to; $__vip"
@@ -209,6 +253,26 @@ cmd_tcase_nsctpconn() {
 	local n=$(grep -F 'Got a new connection' /var/log/sctpt.log | wc -l)
 	tcase "SCTP connections [$n]"
 	test $n -gt 0 || tdie
+}
+
+cmd_range64() {
+	local i=0
+	local range="80-500,5000-5010"
+	local first=10000
+	while test $i -lt 62; do
+		range="$range,$first-$((first+10))"
+		first=$((first + 20))
+		i=$((i + 1))
+	done
+	echo $range
+}
+
+cmd_tcase_range64() {
+	tcase "Define a port range with 64 entries"
+	nfqlb flow-set --name=port64 --target=nfqlb --protocols=tcp --prio=200 \
+		--dports=$(cmd_range64) || tdie
+	nfqlb flow-list --name port64
+	test $(nfqlb flow-list --name port64 | jq '.dports | length') -eq 64 || tdie
 }
 
 

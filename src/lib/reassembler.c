@@ -71,7 +71,7 @@ static void raDestoy(void* r)
 
 static int raHandleFragment(void* r, void const* data, unsigned len)
 {
-	Dx(printf("Called; raHandleFragment\n"));
+	D(printf("Called; raHandleFragment\n"));
 	void const* endp = data + len;
 	// Return 1 will fall-back to the default behavior
 	if (r == NULL)
@@ -79,7 +79,7 @@ static int raHandleFragment(void* r, void const* data, unsigned len)
 	switch (*((unsigned char const*)data) & 0xf0) {
 	case 0x40: {
 		// IPv4
-		Dx(printf("Reassembler; IPv4 fragment\n"));
+		D(printf("Reassembler; IPv4 fragment\n"));
 		struct iphdr* hdr = (struct iphdr*)data;
 		if (!IN_BOUNDS(hdr, sizeof(*hdr), endp))
 			return -1;
@@ -92,7 +92,7 @@ static int raHandleFragment(void* r, void const* data, unsigned len)
 	}
 	case 0x60: {
 		// IPv6
-		Dx(printf("Reassembler; IPv6 fragment\n"));
+		D(printf("Reassembler; IPv6 fragment\n"));
 		struct ip6_hdr* ip6hdr = (struct ip6_hdr*)data;
 		uint8_t htype = ip6hdr->ip6_nxt;
 		void const* hdr = data + sizeof(struct ip6_hdr);
@@ -124,7 +124,7 @@ static int raHandleFragment(void* r, void const* data, unsigned len)
 
 struct FragReassembler* createReassembler(unsigned int size)
 {
-	Dx(printf("Called; createReassembler\n"));
+	D(printf("Called; createReassembler\n"));
 	obj.holePool = itemPoolCreate(size, sizeof(struct hole), NULL);
 	obj.stats.pool = itemPoolStats(obj.holePool);
 	static struct FragReassembler ra = {raNew, raHandleFragment, raDestoy};

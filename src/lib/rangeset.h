@@ -12,6 +12,7 @@
 struct RangeSet;
 
 struct RangeSet* rangeSetCreate(void);
+struct RangeSet* rangeSetCreateLimited(unsigned lowest, unsigned highest);
 void rangeSetDestroy(struct RangeSet* t);
 
 // Returns true (!=0) if the value is in the set.
