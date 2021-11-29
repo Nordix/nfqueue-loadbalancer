@@ -21,10 +21,12 @@ int rangeSetIn(struct RangeSet* t, unsigned value);
   The added ranges are not inserted until the RangeSet is updated. On
   update overlapping ranges are merged. rangeSetAddStr() accepts
   comma (or space) separated values, example; "0,222-333, 55".
+  rangeSetAddArgv() accepts a null terminated array of strings.
   Returns 0 on success, -1 on failure.
  */
 int rangeSetAdd(struct RangeSet* t, unsigned first, unsigned last);
 int rangeSetAddStr(struct RangeSet* t, char const* str);
+int rangeSetAddArgv(struct RangeSet* t, char const* argv[]);
 void rangeSetUpdate(struct RangeSet* t);
 
 // Returns the total number of items (including added but not updated)

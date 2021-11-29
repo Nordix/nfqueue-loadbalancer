@@ -93,25 +93,43 @@ int rangeSetAdd(struct RangeSet* t, unsigned first, unsigned last)
 	return 0;
 }
 
+static int rangeSetAddOneStr(struct RangeSet* t, char const* tok)
+{
+	unsigned first, last;
+	if (strchr(tok, '-')) {
+		if (sscanf(tok, "%u-%u", &first, &last) != 2)
+			return -1;
+		if (last < first)
+			return -1;
+	} else {
+		if (sscanf(tok, "%u", &first) != 1)
+			return -1;
+		last = first;
+	}
+	if (rangeSetAdd(t, first, last) != 0)
+		return -1;
+	return 0;
+}
 int rangeSetAddStr(struct RangeSet* t, char const* _str)
 {
 	char* str = strndupa(_str, 1024);
 	char* tok = strtok(str, ", ");
 	while (tok != NULL) {
-		unsigned first, last;
-		if (strchr(tok, '-')) {
-			if (sscanf(tok, "%u-%u", &first, &last) != 2)
-				return -1;
-			if (last < first)
-				return -1;
-		} else {
-			if (sscanf(tok, "%u", &first) != 1)
-				return -1;
-			last = first;
-		}
-		if (rangeSetAdd(t, first, last) != 0)
+		if (rangeSetAddOneStr(t, tok) != 0)
 			return -1;
 		tok = strtok(NULL, ", ");
+	}
+	return 0;
+}
+
+int rangeSetAddArgv(struct RangeSet* t, char const* argv[])
+{
+	if (argv == NULL)
+		return 0;
+	while (*argv != NULL) {
+		if (rangeSetAddOneStr(t, *argv) != 0)
+			return -1;
+		argv++;
 	}
 	return 0;
 }

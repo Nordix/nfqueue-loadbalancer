@@ -44,6 +44,23 @@ int main(int argc, char* argv[])
 	assert(rangeSetSize(t) == 9);
 	rangeSetDestroy(t);
 
+	// Argv parsing
+	t = rangeSetCreate();
+	char const* a01[] = {
+		NULL
+	};
+	assert(rangeSetAddArgv(t, NULL) == 0);
+	assert(rangeSetAddArgv(t, a01) == 0);
+	char const* a02[] = {
+		"20-30", "10", "11", "20-30",
+		NULL
+	};
+	assert(rangeSetAddArgv(t, a02) == 0);
+	assert(rangeSetSize(t) == 4);
+	rangeSetUpdate(t);
+	assert(rangeSetSize(t) == 2);
+	rangeSetDestroy(t);
+
 	// Update
 	t = rangeSetCreate();
 	assert(rangeSetAddStr(t, "20-30, 10, 11, 20-30") == 0);
