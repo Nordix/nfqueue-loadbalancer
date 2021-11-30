@@ -35,7 +35,7 @@ static unsigned udpEncap;
 #define Dx(x)
 #endif
 
-#define FW(table) table.active[table.lookup[hash % table.M]]
+#define FW(table) *table.lookup < 0 ? -1 : table.active[table.lookup[hash % table.M]]
 
 static void injectFrag(void const* data, unsigned len)
 {

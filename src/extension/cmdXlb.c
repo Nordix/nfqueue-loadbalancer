@@ -31,8 +31,7 @@ static struct MagDataDyn magd;
 #define Dx(x)
 #endif
 
-#define FW(table) table.active[table.lookup[hash % table.M]]
-
+#define FW(table) *table.lookup < 0 ? -1 : table.active[table.lookup[hash % table.M]]
 
 static int packetHandleFn(
 	unsigned short proto, void* data, unsigned len)
