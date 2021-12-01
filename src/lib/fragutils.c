@@ -62,7 +62,7 @@ struct FragData {
 	int referenceCounter;
 	MUTEX(mutex);
 	enum FragDataState state;
-	unsigned hash;
+	int value;
 	struct Item* storedFragments;
 	void* assemblyData;
 };
@@ -265,7 +265,7 @@ void fragUseStats(struct FragTable* ft, struct fragStats* stats)
 
 int fragInsertFirst(
 	struct FragTable* ft, struct timespec* now,
-	struct ctKey* key, unsigned hash, struct Item** storedFragments,
+	struct ctKey* key, int value, struct Item** storedFragments,
 	void const* data, unsigned len)
 {
 	struct FragData* f = fragDataLookup(ft, now, key);
@@ -290,7 +290,7 @@ int fragInsertFirst(
 		fragDataUnlock(ft, f);
 		return -1;
 	}
-	f->hash = hash;
+	f->value = value;
 	ATOMIC_STORE(f->state, FragData_hashValid);
 	storedFrags = f->storedFragments;
 	f->storedFragments = NULL;
@@ -308,15 +308,15 @@ int fragInsertFirst(
 	return 0;					/* OK return */
 }
 
-int fragGetHash(
+int fragGetValue(
 	struct FragTable* ft, struct timespec* now,
-	struct ctKey* key, unsigned* hash)
+	struct ctKey* key, int* value)
 {
 	struct FragData* f = ctLookup(ft->ct, now, key);
 	if (f == NULL)
 		return -1;
 	if (ATOMIC_LOAD(f->state) == FragData_hashValid) {
-		*hash = f->hash;
+		*value = f->value;
 		fragDataUnlock(ft, f);
 		return 0;
 	}
@@ -324,9 +324,9 @@ int fragGetHash(
 	return -1;
 }
 
-int fragGetHashOrStore(
+int fragGetValueOrStore(
 	struct FragTable* ft, struct timespec* now,
-	struct ctKey* key, unsigned* hash,
+	struct ctKey* key, int* value,
 	void const* data, unsigned len)
 {
 	struct FragData* f = fragDataLookup(ft, now, key);
@@ -356,7 +356,7 @@ int fragGetHashOrStore(
 	/* No lock here! We will re-check with the lock later */
 	switch (ATOMIC_LOAD(f->state)) {
 	case FragData_hashValid:
-		*hash = f->hash;
+		*value = f->value;
 		fragDataUnlock(ft, f);
 		return 0;				/* OK return (the normal case) */
 	case FragData_poisoned:
@@ -409,7 +409,7 @@ int fragGetHashOrStore(
 		  The first-fragment has arrived in another thread while we
 		  were working.
 		*/
-		*hash = f->hash;
+		*value = f->value;
 		rc = 0;
 		break;
 	case FragData_poisoned:
@@ -452,12 +452,12 @@ void setInjectFn(void (*injectFn)(void const* data, unsigned len))
 	
 int handleFirstFragment(
 	struct FragTable* ft, struct timespec* now,
-	struct ctKey* key, unsigned hash,
+	struct ctKey* key, int value,
 	void const* data, unsigned len)
 {
 	struct Item* storedFragments;
 	if (fragInsertFirst(
-			ft, now, key, hash, &storedFragments, data, len) != 0) {
+			ft, now, key, value, &storedFragments, data, len) != 0) {
 		itemFree(storedFragments);
 		return -1;
 	}

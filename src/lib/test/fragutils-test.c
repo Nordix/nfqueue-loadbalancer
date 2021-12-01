@@ -80,7 +80,7 @@ cmdFragutilsBasic(int argc, char* argv[])
 	struct fragStats b;
 	struct ctKey key = {IN6ADDR_ANY_INIT,IN6ADDR_ANY_INIT,{0ull}};
 	int rc;
-	unsigned hash;
+	int hash;
 	struct Item* item;
 	struct FragTable* ft;
 
@@ -98,7 +98,7 @@ cmdFragutilsBasic(int argc, char* argv[])
 	// Unsuccesful lookup
 	fragGetStats(ft, &now, &a);
 	a.ctstats.lookups++;
-	rc = fragGetHash(ft, &now, &key, &hash);
+	rc = fragGetValue(ft, &now, &key, &hash);
 	assert(rc == -1);
 	fragGetStats(ft, &now, &b);
 	assert(statsCmp(&a, &b) == 0);
@@ -115,7 +115,7 @@ cmdFragutilsBasic(int argc, char* argv[])
 
 	fragGetStats(ft, &now, &a);
 	a.ctstats.lookups++;
-	rc = fragGetHash(ft, &now, &key, &hash);
+	rc = fragGetValue(ft, &now, &key, &hash);
 	assert(rc == 0);
 	assert(hash == 5);
 	fragGetStats(ft, &now, &b);
@@ -135,7 +135,7 @@ cmdFragutilsBasic(int argc, char* argv[])
 	a.ctstats.lookups++;
 	a.ctstats.inserts++;
 	a.fragsAllocated++;
-	rc = fragGetHashOrStore(ft, &now, &key, &hash, &key, sizeof(key));
+	rc = fragGetValueOrStore(ft, &now, &key, &hash, &key, sizeof(key));
 	assert(rc == 1);
 	fragGetStats(ft, &now, &b);
 	assert(statsCmp(&a, &b) == 0);
@@ -143,7 +143,7 @@ cmdFragutilsBasic(int argc, char* argv[])
 	fragGetStats(ft, &now, &a);
 	a.ctstats.lookups++;
 	a.fragsAllocated++;
-	rc = fragGetHashOrStore(ft, &now, &key, &hash, &key, sizeof(key));
+	rc = fragGetValueOrStore(ft, &now, &key, &hash, &key, sizeof(key));
 	assert(rc == 1);
 	fragGetStats(ft, &now, &b);
 	assert(statsCmp(&a, &b) == 0);
@@ -151,7 +151,7 @@ cmdFragutilsBasic(int argc, char* argv[])
 	fragGetStats(ft, &now, &a);
 	a.ctstats.lookups++;
 	a.fragsAllocated++;
-	rc = fragGetHashOrStore(ft, &now, &key, &hash, &key, sizeof(key));
+	rc = fragGetValueOrStore(ft, &now, &key, &hash, &key, sizeof(key));
 	assert(rc == 1);
 	fragGetStats(ft, &now, &b);
 	assert(statsCmp(&a, &b) == 0);
@@ -171,7 +171,7 @@ cmdFragutilsBasic(int argc, char* argv[])
 	a.ctstats.lookups++;
 	a.ctstats.inserts++;
 	a.fragsAllocated++;
-	rc = fragGetHashOrStore(ft, &now, &key, &hash, &key, sizeof(key));
+	rc = fragGetValueOrStore(ft, &now, &key, &hash, &key, sizeof(key));
 	assert(rc == 1);
 	fragGetStats(ft, &now, &b);
 	assert(statsCmp(&a, &b) == 0);
@@ -179,7 +179,7 @@ cmdFragutilsBasic(int argc, char* argv[])
 	fragGetStats(ft, &now, &a);
 	a.ctstats.lookups++;
 	a.fragsAllocated++;
-	rc = fragGetHashOrStore(ft, &now, &key, &hash, &key, sizeof(key));
+	rc = fragGetValueOrStore(ft, &now, &key, &hash, &key, sizeof(key));
 	assert(rc == 1);
 	fragGetStats(ft, &now, &b);
 	assert(statsCmp(&a, &b) == 0);
@@ -187,7 +187,7 @@ cmdFragutilsBasic(int argc, char* argv[])
 	fragGetStats(ft, &now, &a);
 	a.ctstats.lookups++;
 	a.fragsAllocated++;
-	rc = fragGetHashOrStore(ft, &now, &key, &hash, &key, sizeof(key));
+	rc = fragGetValueOrStore(ft, &now, &key, &hash, &key, sizeof(key));
 	assert(rc == 1);
 	fragGetStats(ft, &now, &b);
 	assert(statsCmp(&a, &b) == 0);
@@ -218,7 +218,7 @@ cmdFragutilsBasic(int argc, char* argv[])
 	a.ctstats.lookups++;
 	a.ctstats.inserts++;
 	a.fragsAllocated++;
-	rc = fragGetHashOrStore(ft, &now, &key, &hash, &key, sizeof(key));
+	rc = fragGetValueOrStore(ft, &now, &key, &hash, &key, sizeof(key));
 	assert(rc == 1);
 	fragGetStats(ft, &now, &b);
 	assert(statsCmp(&a, &b) == 0);
@@ -226,7 +226,7 @@ cmdFragutilsBasic(int argc, char* argv[])
 	fragGetStats(ft, &now, &a);
 	a.ctstats.lookups++;
 	a.fragsAllocated++;
-	rc = fragGetHashOrStore(ft, &now, &key, &hash, &key, sizeof(key));
+	rc = fragGetValueOrStore(ft, &now, &key, &hash, &key, sizeof(key));
 	assert(rc == 1);
 	fragGetStats(ft, &now, &b);
 	assert(statsCmp(&a, &b) == 0);
@@ -234,7 +234,7 @@ cmdFragutilsBasic(int argc, char* argv[])
 	fragGetStats(ft, &now, &a);
 	a.ctstats.lookups++;
 	a.fragsAllocated++;
-	rc = fragGetHashOrStore(ft, &now, &key, &hash, &key, sizeof(key));
+	rc = fragGetValueOrStore(ft, &now, &key, &hash, &key, sizeof(key));
 	assert(rc == 1);
 	fragGetStats(ft, &now, &b);
 	assert(statsCmp(&a, &b) == 0);
@@ -242,7 +242,7 @@ cmdFragutilsBasic(int argc, char* argv[])
 	fragGetStats(ft, &now, &a);
 	a.ctstats.lookups++;
 	a.fragsAllocated++;
-	rc = fragGetHashOrStore(ft, &now, &key, &hash, &key, sizeof(key));
+	rc = fragGetValueOrStore(ft, &now, &key, &hash, &key, sizeof(key));
 	assert(rc == 1);
 	fragGetStats(ft, &now, &b);
 	assert(statsCmp(&a, &b) == 0);
@@ -252,7 +252,7 @@ cmdFragutilsBasic(int argc, char* argv[])
 	fragGetStats(ft, &now, &a);
 	a.ctstats.lookups++;
 	a.fragsDiscarded += 4;
-	rc = fragGetHashOrStore(ft, &now, &key, &hash, &key, sizeof(key));
+	rc = fragGetValueOrStore(ft, &now, &key, &hash, &key, sizeof(key));
 	assert(rc == -1);
 	fragGetStats(ft, &now, &b);
 	assert(statsCmp(&a, &b) == 0);
@@ -260,7 +260,7 @@ cmdFragutilsBasic(int argc, char* argv[])
 	// Try to store more fragments once we have lost one should fail
 	fragGetStats(ft, &now, &a);
 	a.ctstats.lookups++;
-	rc = fragGetHashOrStore(ft, &now, &key, &hash, &key, sizeof(key));
+	rc = fragGetValueOrStore(ft, &now, &key, &hash, &key, sizeof(key));
 	assert(rc == -1);
 	fragGetStats(ft, &now, &b);
 	assert(statsCmp(&a, &b) == 0);
@@ -291,9 +291,9 @@ cmdFragutilsBasic(int argc, char* argv[])
 
 	rc = fragInsertFirst(ft, &now, &key, 5, NULL, NULL, 0);
 	assert(reass_data == 1);
-	rc = fragGetHashOrStore(ft, &now, &key, &hash, &key, sizeof(key));
+	rc = fragGetValueOrStore(ft, &now, &key, &hash, &key, sizeof(key));
 	assert(reass_data == 2);
-	rc = fragGetHashOrStore(ft, &now, &key, &hash, &key, sizeof(key));
+	rc = fragGetValueOrStore(ft, &now, &key, &hash, &key, sizeof(key));
 	assert(reass_data == -1);
 	fragGetStats(ft, &now, &b);
 	a.ctstats.inserts = 1;
@@ -302,9 +302,9 @@ cmdFragutilsBasic(int argc, char* argv[])
 	assert(statsCmp(&a, &b) == 0);
 
 	// When we must store packets the reassembler should be discarded
-	rc = fragGetHashOrStore(ft, &now, &key, &hash, &key, sizeof(key));
+	rc = fragGetValueOrStore(ft, &now, &key, &hash, &key, sizeof(key));
 	assert(reass_data == -1);
-	rc = fragGetHashOrStore(ft, &now, &key, &hash, &key, sizeof(key));
+	rc = fragGetValueOrStore(ft, &now, &key, &hash, &key, sizeof(key));
 	assert(reass_data == -1);
 	rc = fragInsertFirst(ft, &now, &key, 5, NULL, NULL, 0);
 	assert(reass_data == -1);

@@ -9,7 +9,7 @@ fragment/connection tracker is implemented as a hash table;
 The key is the tuple `{source, dest, fragid}`. This is the same, and
 unique, for all fragments of a packet. The FragData `state` can be;
 
-* Hash valid - We have seen the first fragment
+* Valid - We have seen the first fragment
 * Storing fragments - We have not seen the first fragment
 * Poisoned - We have lost a fragment (or something worse)
 

@@ -95,7 +95,7 @@ void fragRegisterFragReassembler(
 
 
 /*
-  Inserts the first fragment and stores the passed hash to be used for
+  Inserts the first fragment and stores the passed value to be used for
   sub-sequent fragments. The caller must call itemFree() on returned
   stored fragment Items. 
   return:
@@ -104,31 +104,30 @@ void fragRegisterFragReassembler(
 */
 int fragInsertFirst(
 	struct FragTable* ft, struct timespec* now,
-	struct ctKey* key, unsigned hash, struct Item** storedFragments,
+	struct ctKey* key, int value, struct Item** storedFragments,
 	void const* data, unsigned len);
 
 /*
   Called for non-first fragments.
   return:
-   0 - Hash is valid. Fragment is not stored.
-   1 - Hash is NOT valid. The fragment is stored.
-  -1 - Hash is NOT valid. Failed to store the fragment.
+   0 - Value is valid. Fragment is not stored.
+   1 - Value is NOT valid. The fragment is stored.
+  -1 - Value is NOT valid. Failed to store the fragment.
 */
-int fragGetHashOrStore(
+int fragGetValueOrStore(
 	struct FragTable* ft, struct timespec* now,
-	struct ctKey* key, unsigned* hash,
+	struct ctKey* key, int* value,
 	void const* data, unsigned len);
 
 /*
   Called for non-first fragments when we don't want to store the fragment.
-  Returns: hash
   return:
-   0 - Hash is valid.
-  -1 - Hash is NOT valid.
+   0 - Value is valid.
+  -1 - Value is NOT valid.
 */
-int fragGetHash(
+int fragGetValue(
 	struct FragTable* ft, struct timespec* now,
-	struct ctKey* key, unsigned* hash);
+	struct ctKey* key, int* value);
 
 /*
   The injectFn is used to re-inject stored sub-sequent fragments when
@@ -136,10 +135,10 @@ int fragGetHash(
  */
 void setInjectFn(void (*injectFn)(void const* data, unsigned len));
 
-// Sets the hash and re-injects any stored sub-sequent fragments.
+// Sets the value and re-injects any stored sub-sequent fragments.
 int handleFirstFragment(
 	struct FragTable* ft, struct timespec* now,
-	struct ctKey* key, unsigned hash,
+	struct ctKey* key, int value,
 	void const* data, unsigned len);
 
 struct fragStats {

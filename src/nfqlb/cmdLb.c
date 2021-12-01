@@ -63,11 +63,12 @@ static int packetHandleFn(
 		return -1;
 
 	unsigned hash;
+	int fw;
 	if (rc & 3) {
 		// Fragment. Check if we shall forward to the lb-tier
 		if (slb != NULL) {
 			hash = hashKeyAddresses(&key);
-			int fw = FW(magdlb);
+			fw = FW(magdlb);
 			if (fw >= 0 && fw != slb->ownFwmark) {
 				Dx(printf("Fragment to LB tier. fw=%d\n", fw));
 				return fw; /* To the LB tier */
@@ -78,25 +79,28 @@ static int packetHandleFn(
 		struct timespec now;
 		clock_gettime(CLOCK_MONOTONIC, &now);
 		if (rc & 1) {
+			// First fragment
 			hash = hashKey(&key);
+			fw = FW(magd);
 			key.id = fragid;
-			if (handleFirstFragment(ft, &now, &key, hash, data, len) != 0)
+			if (handleFirstFragment(ft, &now, &key, fw, data, len) != 0)
 				return -1;
-		} else {
-			rc = fragGetHashOrStore(ft, &now, &key, &hash, data, len);
-			if (rc != 0) {
-				Dx(printf("Fragment %s\n", rc > 0 ? "stored":"dropped"));
-				return -1;
-			}
-			Dx(printf(
-				   "Handle frag locally hash=%u, fwmark=%u\n",hash, FW(magd)));
+			Dx(printf("First fragment; len=%u, fw=%d\n", len, fw));
+			return fw;
 		}
-	} else {
-		hash = hashKey(&key);
+		rc = fragGetValueOrStore(ft, &now, &key, &fw, data, len);
+		if (rc != 0) {
+			Dx(printf("Fragment %s\n", rc > 0 ? "stored":"dropped"));
+			return -1;
+		}
+		Dx(printf("Handle frag locally fwmark=%u\n", fw));
+		return fw;
 	}
 
-	Dx(printf("Packet; len=%u, fw=%d\n", len, FW(magd)));
-	return FW(magd);
+	hash = hashKey(&key);
+	fw = FW(magd);
+	Dx(printf("Packet; len=%u, fw=%d\n", len, fw));
+	return fw;
 }
 
 static void *packetHandleThread(void* Q)
