@@ -160,6 +160,7 @@ router() {
 	local ownfw=$((i - 200 + lboffset))
 	nfqlb init --shm=nfqlbLb --ownfw=$ownfw --M=400 --N=10
 
+	ulimit -c 10000000
 	if test "$FLOW" = "yes"; then
 		nfqlb flowlb --lbshm=nfqlbLb --tun=$tap $LBOPT > /var/log/nfqlb.log 2>&1 &
 	else

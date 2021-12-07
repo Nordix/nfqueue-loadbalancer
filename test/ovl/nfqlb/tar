@@ -20,7 +20,8 @@ cp -R $dir/default/* $tmp
 
 src=$(readlink -f $dir/../../../src)
 make -C $src clean > /dev/null
-make -C $src -j8 X=$tmp/bin/nfqlb $MAKEOPT > /dev/null || die make
+make -C $src -j8 $MAKEOPT > /dev/null || die make
+cp /tmp/$USER/nfqlb/nfqlb/nfqlb $tmp/bin
 
 src=$($XCLUSTER ovld sctp)/src
 make -C $src clean > /dev/null
