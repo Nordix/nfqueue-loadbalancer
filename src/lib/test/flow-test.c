@@ -145,7 +145,7 @@ int main(int argc, char* argv[])
 	printf("=== flow-test OK\n");
 	f = flowSetCreate(NULL);
 	rc = flowDefine(f, "u01", 1, (void*)2, NULL,NULL,NULL,NULL,NULL, 1234);
-	unsigned udpencap = 0;
+	unsigned short udpencap = 0;
 	memset(&key, 0, sizeof(key));
 	assert(flowLookup(f, &key, &udpencap) == (void*)2);
 	assert(udpencap == 1234);

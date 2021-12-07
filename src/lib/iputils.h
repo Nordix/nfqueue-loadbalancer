@@ -12,7 +12,7 @@ int ipv6IsExtensionHeader(unsigned htype);
 
 /*
   Get the key used for hashing.
-
+  udpencap - UDP encapsulated SCTP. IN HOST BYTE ORDER!!!!
   Returns;
   <0 - Failed
   0  - Normal packet. Ports are valid
@@ -26,7 +26,7 @@ int ipv6IsExtensionHeader(unsigned htype);
   32 - Only addresses are valid
  */
 int getHashKey(
-	struct ctKey* key, unsigned udpEncap, uint64_t* fragid,
+	struct ctKey* key, unsigned short udpencap, uint64_t* fragid,
 	unsigned proto, void const* data, unsigned len);
 
 // Hash on addresses only

@@ -43,7 +43,7 @@ static inline void keySetAddr4(struct ctKey* key, struct iphdr* hdr)
 // Get the HashKey from the "inner" header in an ICMP reply
 // Prerequisite; the packet is icmp with an inner header
 static int getInnerHashKeyIpv4(
-	struct ctKey* key, unsigned udpEncap, struct icmphdr* ihdr,
+	struct ctKey* key, unsigned short udpencap, struct icmphdr* ihdr,
 	void const* data, unsigned len)
 {
 	void const* endp = data + len;
@@ -80,8 +80,8 @@ static int getInnerHashKeyIpv4(
 	
 	// Check if we have a udp-encapsulated sctp packet.
 	// NOTE; we must check the sport!
-	if (udpEncap != 0) {
-		if (hdr->protocol == IPPROTO_UDP && ntohs(ports[0]) == udpEncap) {
+	if (udpencap != 0) {
+		if (hdr->protocol == IPPROTO_UDP && ntohs(ports[0]) == udpencap) {
 			ports += 4;			/* Skip the udp header */
 			if (!IN_BOUNDS(ports, sizeof(uint16_t) * 2, endp))
 				return -1;
@@ -98,7 +98,7 @@ static int getInnerHashKeyIpv4(
 }
 
 static int getHashKeyIpv4(
-	struct ctKey* key, unsigned udpEncap, uint64_t* fragid,
+	struct ctKey* key, unsigned short udpencap, uint64_t* fragid,
 	void const* data, unsigned len)
 {
 	void const* endp = data + len;
@@ -133,7 +133,7 @@ static int getHashKeyIpv4(
 		case ICMP_TIME_EXCEEDED:
 			if (rc & 1)
 				return -1;		/* A fragmented icmp reply */
-			return getInnerHashKeyIpv4(key, udpEncap, ihdr, data, len);
+			return getInnerHashKeyIpv4(key, udpencap, ihdr, data, len);
 		default:;
 		}
 		keySetAddr4(key, hdr);
@@ -161,8 +161,8 @@ static int getHashKeyIpv4(
 		return -1;
 	
 	// Check if we have a udp-encapsulated sctp packet.
-	if (udpEncap != 0) {
-		if (hdr->protocol == IPPROTO_UDP && ntohs(ports[1]) == udpEncap) {
+	if (udpencap != 0) {
+		if (hdr->protocol == IPPROTO_UDP && ntohs(ports[1]) == udpencap) {
 			ports += 4;			/* Skip the udp header */
 			if (!IN_BOUNDS(ports, sizeof(uint16_t) * 2, endp))
 				return -1;
@@ -180,7 +180,7 @@ static int getHashKeyIpv4(
 // Get the HashKey from the "inner" header in an ICMP reply
 // Prerequisite; the packet is icmp with an inner header
 static int getInnerHashKeyIpv6(
-	struct ctKey* key, unsigned udpEncap, struct icmp6_hdr const* ihdr,
+	struct ctKey* key, unsigned short udpencap, struct icmp6_hdr const* ihdr,
 	void const* data, unsigned len)
 {
 	void const* endp = data + len;
@@ -227,8 +227,8 @@ static int getInnerHashKeyIpv6(
 
 	// Check if we have a udp-encapsulated sctp packet.
 	// NOTE; we must check the sport!
-	if (udpEncap != 0) {
-		if (htype == IPPROTO_UDP && ntohs(ports[0]) == udpEncap) {
+	if (udpencap != 0) {
+		if (htype == IPPROTO_UDP && ntohs(ports[0]) == udpencap) {
 			ports += 4;			/* Skip the udp header */
 			if (!IN_BOUNDS(ports, sizeof(uint16_t) * 2, endp))
 				return -1;
@@ -245,7 +245,7 @@ static int getInnerHashKeyIpv6(
 }
 
 static int getHashKeyIpv6(
-	struct ctKey* key, unsigned udpEncap, uint64_t* fragid,
+	struct ctKey* key, unsigned short udpencap, uint64_t* fragid,
 	void const* data, unsigned len)
 {
 	void const* endp = data + len;
@@ -297,7 +297,7 @@ static int getHashKeyIpv6(
 			// TODO; More types here?
 			if (rc & 1)
 				return -1;		/* A fragmented icmp reply */
-			return getInnerHashKeyIpv6(key, udpEncap, ih, data, len);
+			return getInnerHashKeyIpv6(key, udpencap, ih, data, len);
 		default:;
 		}
 		key->dst = ip6hdr->ip6_dst;
@@ -327,8 +327,8 @@ static int getHashKeyIpv6(
 		return -1;
 
 	// Check if we have a udp-encapsulated sctp packet.
-	if (udpEncap != 0) {
-		if (htype == IPPROTO_UDP && ntohs(ports[1]) == udpEncap) {
+	if (udpencap != 0) {
+		if (htype == IPPROTO_UDP && ntohs(ports[1]) == udpencap) {
 			ports += 4;			/* Skip the udp header */
 			if (!IN_BOUNDS(ports, sizeof(uint16_t) * 2, endp))
 				return -1;
@@ -344,16 +344,16 @@ static int getHashKeyIpv6(
 }
 
 int getHashKey(
-	struct ctKey* key, unsigned udpEncap, uint64_t* fragid,
+	struct ctKey* key, unsigned short udpencap, uint64_t* fragid,
 	unsigned proto, void const* data, unsigned len)
 {
 	memset(key, 0, sizeof(*key));
 
 	switch (proto) {
 	case ETH_P_IP:
-		return getHashKeyIpv4(key, udpEncap, fragid, data, len);
+		return getHashKeyIpv4(key, udpencap, fragid, data, len);
 	case ETH_P_IPV6:
-		return getHashKeyIpv6(key, udpEncap, fragid, data, len);
+		return getHashKeyIpv6(key, udpencap, fragid, data, len);
 	default:;
 		// We should not get here because ip(6)tables handles only ip (4/6)
 	}

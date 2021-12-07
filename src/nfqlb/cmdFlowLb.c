@@ -117,15 +117,13 @@ static int packetHandleFn(
 		}
 	}
 
-	unsigned udpencap = 0;
+	unsigned short udpencap = 0;
 	struct LoadBalancer* lb = flowLookup(fset, &key, &udpencap);
-	if (lb == NULL && udpencap > 0) {
-		Dx(printf("Failed flowLookup\n"));
-		return -1;
-	}
 	// (NOTE: the received lb is locked. Call loadbalancerRelease(lb))
 
-	if (key.ports.proto == IPPROTO_UDP && key.ports.dst == udpencap) {
+	D(printf("Proto=%u, dport=%u, udpencap=%u\n",
+			 key.ports.proto, ntohs(key.ports.dst), udpencap));
+	if (key.ports.proto == IPPROTO_UDP && ntohs(key.ports.dst) == udpencap) {
 		/*
 		  We have an udp encapsulated sctp packet. Re-compute the key
 		  and make a new lookup.
@@ -137,13 +135,13 @@ static int packetHandleFn(
 			loadbalancerRelease(lb);
 			return -1;
 		}
-		struct LoadBalancer* lb = flowLookup(fset, &key, NULL);
-		if (lb == NULL) {
-			Dx(printf("Failed flowLookup on udpencap sctp\n"));
-			return -1;
-		}
+		lb = flowLookup(fset, &key, NULL);
 	}
 
+	if (lb == NULL) {
+		Dx(printf("Failed flowLookup\n"));
+		return -1;
+	}
 	Dx(printf("Using LB; %s\n", lb->target));
 
 	// Compute the fwmark
@@ -395,7 +393,7 @@ struct Cmd {
 	char const* sports;
 	char const** dsts;
 	char const** srcs;
-	unsigned udpencap;
+	unsigned short udpencap;
 };
 
 static int readCmd(FILE* in, struct Cmd* cmd)
@@ -509,7 +507,7 @@ static void* flowThread(void* a)
 			if (lb == NULL) {
 				writeReply(cd, "FAIL: Couldn't create load-balancer");
 			} else {
-				if (cmd.udpencap > 0) {
+				if (cmd.udpencap != 0) {
 					/*
 					  If a UDP encapsulated SCTP port is defined the
 					  protocols must be "sctp" only.
@@ -532,7 +530,7 @@ static void* flowThread(void* a)
 					char udpdport[16];
 					sprintf(udpdport, "%u", cmd.udpencap);
 					if (flowDefine(
-							fset, udpname, cmd.priority, lb, udpproto, udpdport,
+							fset, udpname, cmd.priority, NULL, udpproto, udpdport,
 							NULL, cmd.dsts, cmd.srcs, cmd.udpencap) != 0) {
 						writeReply(cd, "FAIL: UDP flow for updencap");
 						continue;
@@ -549,7 +547,7 @@ static void* flowThread(void* a)
 			}
 		} else if (strcmp(cmd.action, "delete") == 0) {
 			if (cmd.name != NULL) {
-				unsigned udpencap = 0;
+				unsigned short udpencap = 0;
 				loadbalancerRelease(flowDelete(fset, cmd.name, &udpencap));
 				if (udpencap > 0) {
 					/*

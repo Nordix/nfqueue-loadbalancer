@@ -36,7 +36,7 @@ struct Flow {
 	struct RangeSet* sports;
 	unsigned ndsts; struct Cidr* dsts;
 	unsigned nsrcs; struct Cidr* srcs;
-	unsigned udpencap;
+	unsigned short udpencap;
 };
 
 struct FlowSet {
@@ -209,7 +209,7 @@ int flowDefine(
 	char const* sports,
 	char const* dsts[],
 	char const* srcs[],
-	unsigned udpencap)
+	unsigned short udpencap)
 {
 	if (name == NULL)
 		return -1;
@@ -301,7 +301,7 @@ bailout:
 
 // Delete a flow
 void* flowDelete(
-	struct FlowSet* set, char const* name, /*out*/unsigned* udpencap)
+	struct FlowSet* set, char const* name, /*out*/unsigned short* udpencap)
 {
 	void* user_ref = NULL;
 	WLOCK(set);
@@ -328,10 +328,10 @@ static int addrInCidr(struct Cidr* cidr, struct in6_addr adr)
 	return IN6_ARE_ADDR_EQUAL(&(cidr->adr), &adr);
 }
 
-void* flowMatch(
+static void* flowMatch(
 	struct ctKey* key,
 	struct Flow* f,
-	unsigned* udpencap)
+	unsigned short* udpencap)
 {
 	/*
 	  Order is somewhat important. We want to detect non-match asap so
@@ -387,7 +387,7 @@ void* flowMatch(
 void* flowLookup(
 	struct FlowSet* set,
 	struct ctKey* key,
-	unsigned* udpencap)
+	unsigned short* udpencap)
 {
 	RLOCK(set);
 	struct Flow** fp = set->flows;
