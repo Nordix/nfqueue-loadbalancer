@@ -36,6 +36,7 @@ struct Flow {
 	struct RangeSet* sports;
 	unsigned ndsts; struct Cidr* dsts;
 	unsigned nsrcs; struct Cidr* srcs;
+	unsigned udpencap;
 };
 
 struct FlowSet {
@@ -207,7 +208,8 @@ int flowDefine(
 	char const* dports,
 	char const* sports,
 	char const* dsts[],
-	char const* srcs[])
+	char const* srcs[],
+	unsigned udpencap)
 {
 	if (name == NULL)
 		return -1;
@@ -218,6 +220,7 @@ int flowDefine(
 
 	f->priority = priority;
 	f->user_ref = user_ref;
+	f->udpencap = udpencap;
 	if (protocols != NULL) {
 		f->protocols = parseProtocol(protocols);
 		if (f->protocols == NULL)
@@ -297,13 +300,16 @@ bailout:
 }
 
 // Delete a flow
-void* flowDelete(struct FlowSet* set, char const* name)
+void* flowDelete(
+	struct FlowSet* set, char const* name, /*out*/unsigned* udpencap)
 {
 	void* user_ref = NULL;
 	WLOCK(set);
 	for (unsigned i = 0; i < set->count; i++) {
 		if (strncmp(set->flows[i]->name, name, MAX_NAME) == 0) {
 			user_ref = set->flows[i]->user_ref;
+			if (udpencap != NULL)
+				*udpencap = set->flows[i]->udpencap;
 			flowFree(set->flows[i]);
 			// Pack the array
 			for (unsigned j = i; (j + 1) < set->count; j++)
@@ -324,7 +330,8 @@ static int addrInCidr(struct Cidr* cidr, struct in6_addr adr)
 
 void* flowMatch(
 	struct ctKey* key,
-	struct Flow* f)
+	struct Flow* f,
+	unsigned* udpencap)
 {
 	/*
 	  Order is somewhat important. We want to detect non-match asap so
@@ -371,18 +378,21 @@ void* flowMatch(
 		if (!rangeSetIn(f->sports, ntohs(key->ports.src)))
 			return NULL;
 	}
+	if (udpencap != NULL)
+		*udpencap = f->udpencap;
 	return f->user_ref;
 }
 
 // Lookup a key. Returns the "user_ref" if found, NULL if not.
 void* flowLookup(
 	struct FlowSet* set,
-	struct ctKey* key)
+	struct ctKey* key,
+	unsigned* udpencap)
 {
 	RLOCK(set);
 	struct Flow** fp = set->flows;
 	while (*fp != NULL) {
-		void* user_ref = flowMatch(key, *fp);
+		void* user_ref = flowMatch(key, *fp, udpencap);
 		if (user_ref != NULL) {
 			if (set->lock_user_ref != NULL)
 				set->lock_user_ref(user_ref);
@@ -490,6 +500,10 @@ static void printFlow(
 		fprintf(out, "  \"sports\": [\n");
 		printPorts(out, f->sports);
 		fprintf(out, "\n  ]");
+	}
+	if (f->udpencap > 0) {
+		fprintf(out, ",\n");
+		fprintf(out, "  \"udpencap\": %u", f->udpencap);
 	}
 	if (user_ref2string != NULL) {
 		fprintf(out, ",\n");

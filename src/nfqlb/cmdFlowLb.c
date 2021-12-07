@@ -46,7 +46,6 @@ struct LoadBalancer {
 	int fd;
 	struct SharedData* st;
 	struct MagDataDyn magd;
-	unsigned udpencap;
 };
 
 // Forward declarations;
@@ -118,26 +117,34 @@ static int packetHandleFn(
 		}
 	}
 
-	struct LoadBalancer* lb = flowLookup(fset, &key);
-	if (lb == NULL) {
+	unsigned udpencap = 0;
+	struct LoadBalancer* lb = flowLookup(fset, &key, &udpencap);
+	if (lb == NULL && udpencap > 0) {
 		Dx(printf("Failed flowLookup\n"));
 		return -1;
 	}
-	Dx(printf("Using LB; %s\n", lb->target));
 	// (NOTE: the received lb is locked. Call loadbalancerRelease(lb))
 
-	if (key.ports.proto == IPPROTO_UDP && key.ports.dst == lb->udpencap) {
+	if (key.ports.proto == IPPROTO_UDP && key.ports.dst == udpencap) {
 		/*
-		  We have an udp encapsulated sctp packet. Re-compute the key.
+		  We have an udp encapsulated sctp packet. Re-compute the key
+		  and make a new lookup.
 		 */
-		Dx(printf("Udp encapsulated sctp packet\n"));
-		rc = getHashKey(&key, lb->udpencap, &fragid, proto, data, len);
+		Dx(printf("Udp encapsulated sctp packet on %u\n", udpencap));
+		rc = getHashKey(&key, udpencap, &fragid, proto, data, len);
 		if (rc < 0) {
 			// (this shouldn't happen)
 			loadbalancerRelease(lb);
 			return -1;
 		}
+		struct LoadBalancer* lb = flowLookup(fset, &key, NULL);
+		if (lb == NULL) {
+			Dx(printf("Failed flowLookup on udpencap sctp\n"));
+			return -1;
+		}
 	}
+
+	Dx(printf("Using LB; %s\n", lb->target));
 
 	// Compute the fwmark
 	hash = hashKey(&key);
@@ -325,8 +332,7 @@ static void loadbalancerRelease(struct LoadBalancer* lb)
 	}
 }
 
-static struct LoadBalancer* loadbalancerFindOrCreate(
-	char const* target, unsigned udpencap)
+static struct LoadBalancer* loadbalancerFindOrCreate(char const* target)
 {
 	if (target == NULL)
 		return NULL;
@@ -337,13 +343,6 @@ static struct LoadBalancer* loadbalancerFindOrCreate(
 	struct LoadBalancer* lb;
 	for (lb = lblist; lb != NULL; lb = lb->next) {
 		if (strcmp(lb->target, target) == 0) {
-			if (udpencap != lb->udpencap) {
-				UNLOCK(lblistLock);
-				fprintf(
-					stderr, "Udpencap mismatch; %u!=%u for %s\n",
-					lb->udpencap, udpencap, target);
-				return NULL;
-			}
 			REFINC(lb->refCounter);
 			UNLOCK(lblistLock);
 			Dx(printf("Found LB; %s\n", target));
@@ -368,7 +367,6 @@ static struct LoadBalancer* loadbalancerFindOrCreate(
 	lb->fd = fd;
 	lb->st = st;
 	magDataDyn_map(&lb->magd, st->mem);
-	lb->udpencap = udpencap;
 
 	lb->next = lblist;
 	lblist = lb;
@@ -507,21 +505,43 @@ static void* flowThread(void* a)
 		}
 
 		if (strcmp(cmd.action, "set") == 0) {
-			struct LoadBalancer* lb =
-				loadbalancerFindOrCreate(cmd.target, cmd.udpencap);
+			struct LoadBalancer* lb = loadbalancerFindOrCreate(cmd.target);
 			if (lb == NULL) {
 				writeReply(cd, "FAIL: Couldn't create load-balancer");
 			} else {
+				if (cmd.udpencap > 0) {
+					/*
+					  If a UDP encapsulated SCTP port is defined the
+					  protocols must be "sctp" only.
+					*/
+					if (cmd.protocols == NULL || cmd.protocols[1] != NULL ||
+						strcasecmp(cmd.protocols[0], "sctp") != 0) {
+						writeReply(cd, "FAIL: only sctp for updencap");
+						continue;
+					}
+					/*
+					  The defined set will never match since the
+					  incoming encapsulated sctp will actually be a
+					  udp packet with dport=udpencap. So we must
+					  insert a flow for the encapsulating udp also.
+					*/
+					char udpname[MAX_CMD_LINE];
+					udpname[0] = '#';
+					strncpy(udpname+1, cmd.name, MAX_CMD_LINE-2);
+					const char* udpproto[] = {"udp", NULL};
+					char udpdport[16];
+					sprintf(udpdport, "%u", cmd.udpencap);
+					if (flowDefine(
+							fset, udpname, cmd.priority, lb, udpproto, udpdport,
+							NULL, cmd.dsts, cmd.srcs, cmd.udpencap) != 0) {
+						writeReply(cd, "FAIL: UDP flow for updencap");
+						continue;
+					}
+				}
 				if (flowDefine(
 						fset, cmd.name, cmd.priority, lb, cmd.protocols,
-						cmd.dports, cmd.sports, cmd.dsts, cmd.srcs) == 0) {
-					if (cmd.udpencap > 0) {
-						/*
-						  The defined set will never match since the
-						  incoming encapsulated sctp will actually be
-						  a udp packet with dport=udpencap.
-						 */
-					}
+						cmd.dports, cmd.sports, cmd.dsts, cmd.srcs,
+						cmd.udpencap) == 0) {
 					writeReply(cd, "OK");
 				} else {
 					writeReply(cd, "FAIL: define flow");
@@ -529,7 +549,19 @@ static void* flowThread(void* a)
 			}
 		} else if (strcmp(cmd.action, "delete") == 0) {
 			if (cmd.name != NULL) {
-				loadbalancerRelease(flowDelete(fset, cmd.name));
+				unsigned udpencap = 0;
+				loadbalancerRelease(flowDelete(fset, cmd.name, &udpencap));
+				if (udpencap > 0) {
+					/*
+					  This is a sctp flow with encapsulater udp. We
+					  have a associated udp flow that must also be
+					  deleted. The udp flow has not reserved the loadbalancer.
+					 */
+					char udpname[MAX_CMD_LINE];
+					udpname[0] = '#';
+					strncpy(udpname+1, cmd.name, MAX_CMD_LINE-2);
+					flowDelete(fset, udpname, NULL);
+				}
 				writeReply(cd, "OK");
 			} else {
 				writeReply(cd, "FAIL: no name");

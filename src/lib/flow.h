@@ -23,12 +23,14 @@ int flowDefine(
 	char const* dports,
 	char const* sports,
 	char const* dsts[],
-	char const* srcs[]);
+	char const* srcs[],
+	unsigned udpencap);
 
 // Delete a flow.
-// If the flow exists the "user_ref" is returned.
+// If the flow exists the "user_ref" is returned and udpencap is set.
 // If the flow doesn't exist this is a no-op and NULL is returned.
-void* flowDelete(struct FlowSet* set, char const* name);
+void* flowDelete(
+	struct FlowSet* set, char const* name, /*out*/unsigned* udpencap);
 
 // Lookup a key.
 // If a lock_user_ref() function is defined it will be called while
@@ -37,7 +39,8 @@ void* flowDelete(struct FlowSet* set, char const* name);
 // Returns the "user_ref" the key matches a flow, NULL if not.
 void* flowLookup(
 	struct FlowSet* set,
-	struct ctKey* key);
+	struct ctKey* key,
+	/*out*/unsigned* udpencap);
 
 // Print a flow if name != NULL or the entire set.
 // Output is in json format.
