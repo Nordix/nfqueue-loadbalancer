@@ -275,6 +275,42 @@ cmd_tcase_range64() {
 	test $(nfqlb flow-list --name port64 | jq '.dports | length') -eq 64 || tdie
 }
 
+cmd_tcase_udpencap_flow() {
+	tcase "Setup a SCTP flow with UDP encapsulation"
+	nfqlb init --shm=nfqlb --M=900 --N=20 || tdie
+	nfqlb flow-set --name=sctp --target=nfqlb --proto=sctp --udpencap=9899 \
+		--prio=100 --dsts=10.0.0.0/32,1000::/128 --dport=6000 || tdie
+	nfqlb flow-list
+}
+
+cmd_tcase_sctp_server_udpencap() {
+	tcase "Restart the sctpt server with udp encapsulation"
+	killall sctpt || tdie
+	sysctl -w net.sctp.encap_port=9899 2>&1
+	sysctl -w net.sctp.udp_port=9899 2>&1
+	sctpt server --log=6 --addr=10.0.0.0,1000:: \
+		> /var/log/sctpt.log 2>&1 < /dev/null &
+}
+
+cmd_tcase_sctp_ctraffic() {
+	tcase "Run SCTP traffic. 1000 pkt/S for 10s"
+	if test -n "$__udpencap"; then
+		modprobe sctp
+		sysctl -w net.sctp.encap_port=$__udpencap
+		sysctl -w net.sctp.udp_port=$__udpencap
+	fi
+	mkdir -p $tmp
+	local out=$tmp/out
+	sctpt ctraffic --clients=16 --rate=1000 --addr=10.0.0.0,1000:: \
+		--laddr=192.168.2.221,1000::1:192.168.2.221 > $out || tdie
+	sctpt stats
+	local sent=$(cat $out | jq .sent)
+	local received=$(cat $out | jq .received)
+	test $sent -eq $received || tdie "sent=$sent, received=$received"
+	tlog "Packets; $sent"
+	test $sent -gt 9900 || tdie "Too few packets"
+}
+
 
 . /etc/profile
 . /usr/lib/xctest

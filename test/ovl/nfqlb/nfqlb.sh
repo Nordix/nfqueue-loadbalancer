@@ -107,6 +107,7 @@ test_flows() {
 	test_basic_flows
 	test_mtu_flow
 	test_port64
+	test_sctp_flow
 }
 
 test_start_empty() {
@@ -260,6 +261,19 @@ test_port64() {
 	test_start
 	otcr range64
 	xcluster_stop
+}
+##     sctp_flow
+test_sctp_flow() {
+	tlog "=== nfqlb: MTU test with flows"
+	export xcluster_FLOW=yes
+	test_start_empty
+	otcr udpencap_flow
+	otcr nfqueue_activate_all
+	otc 221 sctp_ctraffic
+	test "$__no_encap" = "yes" && return 0
+
+	otcw sctp_server_udpencap
+	otc 221 "sctp_ctraffic --udpencap=9899"
 }
 
 ##
