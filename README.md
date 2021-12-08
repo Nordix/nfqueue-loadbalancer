@@ -69,6 +69,7 @@ packets are received. This makes `nfqlb` scalable.
 * [Destination Unreachable icmp](destunreach.md) - The PMTU discovery problem
 * [SCTP](sctp.md) - SCTP load-balancing with multihoming
 * [extend/alter](src/README.md) - Extend or alter `nfqlb`
+* [Flows](flow.md) - Define LBs for flows, (proto,src,dst,sport,dport) tuples
 
 ## Try it
 

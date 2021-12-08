@@ -1,7 +1,5 @@
 # Nordix/nfqueue-loadbalancer - Flows
 
-### THIS IS A WORK IN PROGRESS!
-
 A `flow` is defined by the 5-tuple; (proto,src,dst,sport,dport).
 
 `nfqlb` can have multiple target load-balancers and there
@@ -26,11 +24,9 @@ Configuration example (nft/iptables config omitted);
 # Start flow based load-balancer
 nfqlb flowlb &
 # Now the nfqlb is running without flows
-# Add a target load-balancer
+# Create a target load-balancer
 nfqlb init --shm=lb-1
-nfqlb activate --shm=lb-1 --index=0 100
-nfqlb activate --shm=lb-1 --index=1 101
-...
+nfqlb activate --shm=lb-1 101 103 103 104
 # Add flows and tie them to the target load-balancer
 nfqlb flow-set --name=flow-1 --prio=100 --targetShm=lb-1 --proto=udp,tcp \
   --dst=10.0.0.0/32,1000::/128 --dport=22,200-300,44,20000 \
@@ -40,13 +36,36 @@ nfqlb flow-set --name=flow-2 --prio=50 --targetShm=lb-1 --proto=sctp \
 nfqlb flow-delete --name=flow-2
 ```
 
-There is no way to update an existing flow, for instance removing a
-port range, the flow must be re-configured with the entire updated
+There is no way to modify an existing flow, for instance removing a
+port range, but a flow may be re-configured with an updated
 configuration.
 
 Unlike the lb-configuration (MaglevData) flows are stored in the lb
 process and must be re-configured if the lb process is restarted.
 
+
+## Performance
+
+Flows are traversed one-by-one in priority order for each packet. With
+many complex flows **the performance impact can be very large!**
+
+
+## All-protocols flows
+
+If no specific protocols are specified load-balancing is based on
+addresses only (L3 level) and any (L4) protocol is accepted. `ping`
+will work only with all-protocols flows.
+
+
+## The inner-packet problem
+
+The original idea was to use iptables/nft to direct flows to different
+`nfqlb` instances by selecting different nfqueues. That does however
+not work for incoming icmp replies with an "inner-packet", e.g
+"fragmentation needed" used in PMTU discovery, since iptables/nft does
+not support rules for inner-packets.
+
+This was a driving reason for introducing flows in `nfqlb`.
 
 ## Limitations
 
