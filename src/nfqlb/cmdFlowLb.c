@@ -573,7 +573,15 @@ static void* flowThread(void* a)
 				flowSetPrint(out, fset, cmd.name, lb2string);
 				fflush(out);
 			}
-
+		} else if (strcmp(cmd.action, "list-names") == 0) {
+			out = fdopen(dup(cd), "w");
+			if (out == NULL)
+				writeReply(cd, "FAIL: fdopen");
+			else {
+				D(flowSetPrint(stdout, fset, cmd.name, lb2string));
+				flowSetPrintNames(out, fset);
+				fflush(out);
+			}
 		} else {
 			writeReply(cd, "FAIL: action unknown");
 		}

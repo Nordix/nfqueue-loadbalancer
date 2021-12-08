@@ -54,7 +54,7 @@ static int cmdFlowSet(int argc, char **argv)
 	char const* udpencap = NULL;
 	struct Option options[] = {
 		{"help", NULL, 0,
-		 "flow_set [options]\n"
+		 "flow-set [options]\n"
 		 "  Set a flow. An un-defined value means match-all.\n"
 		 "  Use comma separated lists for multiple items (no spaces)"},
 		{"name", &name, REQUIRED, "Name of the flow"},
@@ -129,7 +129,7 @@ static int cmdFlowDelete(int argc, char **argv)
 	char const* name = NULL;
 	struct Option options[] = {
 		{"help", NULL, 0,
-		 "flow_delete\n"
+		 "flow-delete\n"
 		 "  Delete a flow"},
 		{"name", &name, REQUIRED, "Name of the flow"},
 		{0, 0, 0, 0}
@@ -158,7 +158,7 @@ static int cmdFlowList(int argc, char **argv)
 	char const* name = NULL;
 	struct Option options[] = {
 		{"help", NULL, 0,
-		 "flow_list\n"
+		 "flow-list\n"
 		 "  List flows"},
 		{"name", &name, 0, "Name of a flow"},
 		{0, 0, 0, 0}
@@ -181,9 +181,34 @@ static int cmdFlowList(int argc, char **argv)
 	return 0;
 }
 
+static int cmdFlowListNames(int argc, char **argv)
+{
+	struct Option options[] = {
+		{"help", NULL, 0,
+		 "flow-list-names\n"
+		 "  List flow names"},
+		{0, 0, 0, 0}
+	};
+	(void)parseOptionsOrDie(argc, argv, options);
+	int cd = connectToLb();
+	if (cd < 0)
+		die("Connect failed. %s\n", strerror(errno));
+	FILE* out = stream(cd, "w");
+	fprintf(out, "action:list-names\n");
+	fprintf(out, "eoc:\n");
+	fflush(out);
+	char buf[1024];
+	int n;
+	while ((n = read(cd, buf, sizeof(buf))) > 0) {
+		write(1, buf, n);
+	}
+	return 0;
+}
+
 
 __attribute__ ((__constructor__)) static void addCommands(void) {
 	addCmd("flow-set", cmdFlowSet);
 	addCmd("flow-delete", cmdFlowDelete);
 	addCmd("flow-list", cmdFlowList);
+	addCmd("flow-list-names", cmdFlowListNames);
 }

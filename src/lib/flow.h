@@ -47,3 +47,7 @@ void* flowLookup(
 void flowSetPrint(
 	FILE* out, struct FlowSet* set, char const* name,
 	char const* (*user_ref2string)(void* user_ref));
+
+// Print flow names.
+void flowSetPrintNames(FILE* out, struct FlowSet* set);
+

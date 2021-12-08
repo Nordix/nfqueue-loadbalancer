@@ -537,6 +537,25 @@ void flowSetPrint(
 	UNLOCK(set);
 }
 
+void flowSetPrintNames(FILE* out, struct FlowSet* set)
+{
+	RLOCK(set);
+	if (set->count == 0) {
+		UNLOCK(set);
+		fprintf(out, "[]\n");
+		return;
+	}
+	fprintf(out, "[\n");
+	for (unsigned i = 0; i < set->count; i++) {
+		if (i == 0)
+			fprintf(out, "  \"%s\"", set->flows[i]->name);
+		else
+			fprintf(out, ",\n  \"%s\"", set->flows[i]->name);
+	}
+	fprintf(out, "\n]\n");
+	UNLOCK(set);
+}
+
 // White-box testing
 #ifdef UNIT_TEST
 int flowSetIsSorted(struct FlowSet* set)
