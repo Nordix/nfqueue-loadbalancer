@@ -33,6 +33,7 @@ nfqlb flow-set --name=flow-1 --prio=100 --targetShm=lb-1 --proto=udp,tcp \
   --src=2000::/64,192.168.2.0/24 --sport=20000-30000
 nfqlb flow-set --name=flow-2 --prio=50 --targetShm=lb-1 --proto=sctp \
   --dst=10.0.0.0/32,1000::/128 --dport=4000 --udpencap=9899
+nfqlb flow-list
 nfqlb flow-delete --name=flow-2
 ```
 
@@ -55,6 +56,50 @@ many complex flows **the performance impact can be very large!**
 If no specific protocols are specified load-balancing is based on
 addresses only (L3 level) and any (L4) protocol is accepted. `ping`
 will work only with all-protocols flows.
+
+
+## Udp encapsulated sctp
+
+This is tricky since the udp encapsulation port is part of the flow
+but it is needed for flow classification (a catch 22). The solution is
+to add an extra flow for udp that catches the encapsulation port;
+
+```
+vm-201 ~ # nfqlb flow-list
+[{
+  "name": "#sctp",
+  "priority": 100,
+  "protocols": [ "udp" ],
+  "dests": [
+    "::ffff:10.0.0.0/128",
+    "1000::/128"
+  ],
+  "dports": [
+    "9899"
+  ],
+  "udpencap": 9899,
+  "user_ref": "NULL"
+},
+{
+  "name": "sctp",
+  "priority": 100,
+  "protocols": [ "sctp" ],
+  "dests": [
+    "::ffff:10.0.0.0/128",
+    "1000::/128"
+  ],
+  "dports": [
+    "6000"
+  ],
+  "udpencap": 9899,
+  "user_ref": "nfqlb"
+}]
+```
+
+The extra flow is added automatically and name is preceeded with `#`
+which is an illegal character for user specified flows. When an
+incoming udp packet matches a flow with an `udpencap` > 0 then a
+re-classification of the flow is made which may match the sctp flow.
 
 
 ## The inner-packet problem
