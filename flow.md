@@ -54,8 +54,25 @@ many complex flows **the performance impact can be very large!**
 ## All-protocols flows
 
 If no specific protocols are specified load-balancing is based on
-addresses only (L3 level) and any (L4) protocol is accepted. `ping`
-will work only with all-protocols flows.
+addresses only (L3 level) and any (L4) protocol is accepted.
+
+
+## Ping
+
+Normally `ping` only works with all-protocols flows but with the flag;
+
+```
+nfqlb flowlb --promiscuous_ping ...
+```
+
+ping will socialize with any flow with an address match. Ports and
+protocols disregarded. Ping can be used but may not give the answer
+you are looking for in case the same vip is used in many flows. For
+example if flows vip:80, vip:5001, vip:6000 exists with the same prio
+you can't know which flow ping will match.
+
+**WARNING**: `--promiscuous_ping` adds a condition check in the flow
+  match function that may affect performance.
 
 
 ## Udp encapsulated sctp
