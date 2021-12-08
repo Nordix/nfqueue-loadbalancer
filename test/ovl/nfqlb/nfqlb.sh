@@ -108,6 +108,8 @@ test_flows() {
 	test_mtu_flow
 	test_port64
 	test_sctp_flow
+	export xcluster_LBOPT=--promiscuous_ping
+	test_tcp_udp_flow
 }
 
 test_start_empty() {
@@ -264,7 +266,7 @@ test_port64() {
 }
 ##     sctp_flow
 test_sctp_flow() {
-	tlog "=== nfqlb: MTU test with flows"
+	tlog "=== nfqlb: SCTP test with flows"
 	export xcluster_FLOW=yes
 	test_start_empty
 	otcr udpencap_flow
@@ -274,6 +276,27 @@ test_sctp_flow() {
 
 	otcw sctp_server_udpencap
 	otc 221 "sctp_ctraffic --udpencap=9899"
+	xcluster_stop
+}
+
+##    tcp_udp_flow
+test_tcp_udp_flow() {
+	tlog "=== nfqlb: Flow with tcp,udp match"
+	export xcluster_FLOW=yes
+	test_start
+	otcr tcp_udp_flow
+	otc 221 "mconnect_udp --vip=10.0.0.0:5001"
+	otc 221 "mconnect --vip=[1000::]:5001"
+	otc 221 "mconnect --vip=10.0.0.0:5001"
+	otc 221 "mconnect_udp --vip=[1000::]:5001"
+	otc 221 "mconnect_udp --vip=10.0.0.0:5001"
+	if echo $xcluster_LBOPT | grep -q promiscuous_ping; then
+		otc 221 "ping --vip=1000::"
+		otc 221 "ping --vip=10.0.0.0"
+	else
+		tlog "Not promiscuous_ping. Ping tests skipped"
+	fi
+	xcluster_stop
 }
 
 ##

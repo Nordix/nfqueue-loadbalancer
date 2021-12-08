@@ -311,6 +311,13 @@ cmd_tcase_sctp_ctraffic() {
 	test $sent -gt 9900 || tdie "Too few packets"
 }
 
+cmd_tcase_tcp_udp_flow() {
+	tcase "Replace the default flow with a tcp,udp flow"
+	nfqlb flow-delete --name=default || tdie flow-delete
+	nfqlb flow-set --name=tcpudp --target=nfqlb --prio=100 --protocols=tcp,udp \
+		--dsts=10.0.0.0/24,1000::/120 --dport=80,5001-5003 || tdie flow-set
+}
+
 
 . /etc/profile
 . /usr/lib/xctest

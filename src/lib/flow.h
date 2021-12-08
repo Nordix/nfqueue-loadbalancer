@@ -32,6 +32,11 @@ int flowDefine(
 void* flowDelete(
 	struct FlowSet* set, char const* name, /*out*/unsigned short* udpencap);
 
+// Set "promiscuous ping". If set to != 0 ping (icmp echo) will match the
+// first flow where addresses match. No care is teken of protocol or port match.
+// NOTE: This comes with a performance penalty!
+void flowSetPromiscuousPing(struct FlowSet* set, int value);
+
 // Lookup a key.
 // If a lock_user_ref() function is defined it will be called while
 // the set is locked. It shall be used to ensure that the user_ref is not

@@ -14,7 +14,6 @@
 
 #define D(x)
 #define Dx(x) x
-#define CNTINC(x) __atomic_add_fetch(&(x),1,__ATOMIC_RELAXED)
 
 // Limits
 #define MAX_NAME 1024
@@ -22,6 +21,7 @@
 
 #define MALLOC(x) calloc(1, sizeof(*(x))); if (x == NULL) die("OOM")
 #define CALLOC(n,x) calloc(n, sizeof(*(x))); if (x == NULL) die("OOM")
+#define CNTINC(x) __atomic_add_fetch(&(x),1,__ATOMIC_RELAXED)
 
 struct Cidr {
 	struct in6_addr adr;
@@ -45,6 +45,7 @@ struct FlowSet {
 	unsigned count;
 	struct Flow** flows;		/* null terminated */
 	void (*lock_user_ref)(void* user_ref);
+	int promiscuous_ping;
 	pthread_rwlock_t lock;
 };
 #define RLOCK(set) if (pthread_rwlock_rdlock(&set->lock) != 0) \
@@ -63,7 +64,10 @@ struct FlowSet* flowSetCreate(void (*lock_user_ref)(void* user_ref))
 	set->lock_user_ref = lock_user_ref;
 	return set;
 }
-
+void flowSetPromiscuousPing(struct FlowSet* set, int value)
+{
+	set->promiscuous_ping = value;
+}
 static void flowClear(struct Flow* f)
 {
 	free(f->protocols);
@@ -334,18 +338,13 @@ static int addrInCidr(struct Cidr* cidr, struct in6_addr adr)
 static void* flowMatch(
 	struct ctKey* key,
 	struct Flow* f,
+	int promiscuous_ping,
 	unsigned short* udpencap)
 {
-	/*
-	  Order is somewhat important. We want to detect non-match asap so
-	  test the most likely failing conditions first.
-	 */
-	if (f->dports != NULL) {
-		if (!rangeSetIn(f->dports, ntohs(key->ports.dst)))
-			return NULL;
-	}
+	int found;
+
 	if (f->dsts != NULL) {
-		int found = 0;
+		found = 0;
 		for (unsigned i = 0; i < f->ndsts; i++) {
 			if (addrInCidr(f->dsts + i, key->dst)) {
 				found = 1;
@@ -355,19 +354,8 @@ static void* flowMatch(
 		if (!found)
 			return NULL;
 	}
-	if (f->protocols != NULL) {
-		int found = 0;
-		for (unsigned short* p = f->protocols; *p != 0; p++) {
-			if (key->ports.proto == *p) {
-				found = 1;
-				break;
-			}
-		}
-		if (!found)
-			return NULL;
-	}
 	if (f->srcs != NULL) {
-		int found = 0;
+		found = 0;
 		for (unsigned i = 0; i < f->nsrcs; i++) {
 			if (addrInCidr(f->srcs + i, key->src)) {
 				found = 1;
@@ -377,10 +365,35 @@ static void* flowMatch(
 		if (!found)
 			return NULL;
 	}
+	if (promiscuous_ping) {
+		// Ping will match any flow with an address match
+		if (key->ports.proto == IPPROTO_ICMP || key->ports.proto == IPPROTO_ICMPV6)
+			if (key->id != 0) {
+				CNTINC(f->match_count);
+				return f->user_ref;
+			}
+	}
+	if (f->protocols != NULL) {
+		found = 0;
+		for (unsigned short* p = f->protocols; *p != 0; p++) {
+			if (key->ports.proto == *p) {
+				found = 1;
+				break;
+			}
+		}
+		if (!found)
+			return NULL;
+	}
+	if (f->dports != NULL) {
+		if (!rangeSetIn(f->dports, ntohs(key->ports.dst)))
+			return NULL;
+	}
 	if (f->sports != NULL) {
 		if (!rangeSetIn(f->sports, ntohs(key->ports.src)))
 			return NULL;
 	}
+
+	// We have a match
 	if (udpencap != NULL)
 		*udpencap = f->udpencap;
 	CNTINC(f->match_count);
@@ -396,7 +409,7 @@ void* flowLookup(
 	RLOCK(set);
 	struct Flow** fp = set->flows;
 	while (*fp != NULL) {
-		void* user_ref = flowMatch(key, *fp, udpencap);
+		void* user_ref = flowMatch(key, *fp, set->promiscuous_ping, udpencap);
 		if (user_ref != NULL) {
 			if (set->lock_user_ref != NULL)
 				set->lock_user_ref(user_ref);

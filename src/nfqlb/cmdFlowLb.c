@@ -185,6 +185,7 @@ static int cmdFlowLb(int argc, char **argv)
 	char const* mtuOpt = "1500";
 	char const* tun = NULL;
 	char const* reassembler = "0";
+	char const* promiscuous_ping = "no";
 	struct Option options[] = {
 		{"help", NULL, 0,
 		 "flowlb [options]\n"
@@ -193,6 +194,8 @@ static int cmdFlowLb(int argc, char **argv)
 		{"mtu", &mtuOpt, 0, "MTU. At least the mtu of the ingress device"},
 		{"tun", &tun, 0, "Tun device for re-inject fragments"},
 		{"reassembler", &reassembler, 0, "Reassembler size. default=0"},
+		{"promiscuous_ping", &promiscuous_ping, 0,
+		 "Accept ping on any flow with an address match"},
 		{"queue", &qnum, 0, "NF-queues to listen to (default 2)"},
 		{"qlength", &qlen, 0, "Lenght of queues (default 1024)"},
 		{"ft_shm", &ftShm, 0, "Frag table; shared memory stats"},
@@ -210,6 +213,8 @@ static int cmdFlowLb(int argc, char **argv)
 	}
 
 	fset = flowSetCreate(loadbalancerLock);
+	if (promiscuous_ping == NULL)
+		flowSetPromiscuousPing(fset, 1);
 
 	// Create and re-map the stats struct
 	sft = calloc(1, sizeof(*sft));
