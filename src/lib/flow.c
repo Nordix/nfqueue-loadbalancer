@@ -14,6 +14,7 @@
 
 #define D(x)
 #define Dx(x) x
+#define CNTINC(x) __atomic_add_fetch(&(x),1,__ATOMIC_RELAXED)
 
 // Limits
 #define MAX_NAME 1024
@@ -37,6 +38,7 @@ struct Flow {
 	unsigned ndsts; struct Cidr* dsts;
 	unsigned nsrcs; struct Cidr* srcs;
 	unsigned short udpencap;
+	unsigned match_count;
 };
 
 struct FlowSet {
@@ -74,6 +76,7 @@ static void flowClear(struct Flow* f)
 	f->srcs = NULL;
 	f->dports = NULL;
 	f->sports = NULL;
+	f->match_count = 0;
 }
 static void flowFree(struct Flow* f)
 {
@@ -380,6 +383,7 @@ static void* flowMatch(
 	}
 	if (udpencap != NULL)
 		*udpencap = f->udpencap;
+	CNTINC(f->match_count);
 	return f->user_ref;
 }
 
@@ -505,6 +509,7 @@ static void printFlow(
 		fprintf(out, ",\n");
 		fprintf(out, "  \"udpencap\": %u", f->udpencap);
 	}
+	fprintf(out, ",\n  \"matches\": %u", f->match_count);
 	if (user_ref2string != NULL) {
 		fprintf(out, ",\n");
 		fprintf(out, "  \"user_ref\": \"%s\"", user_ref2string(f->user_ref));
