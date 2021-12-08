@@ -47,8 +47,9 @@ static int cmdActivate(int argc, char **argv)
 		return 0;
 	}
 
-	int i, fw, found, changed = 0, first_empty = -1;
+	int i, fw, found, changed = 0, first_empty;
 	while (argc-- > 0) {
+		first_empty = -1;
 		fw = atoi(*argv++);		
 		found = 0;
 		for (i = 0; i < magd.N; i++) {
