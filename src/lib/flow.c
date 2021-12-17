@@ -322,6 +322,10 @@ void* flowDelete(
 			for (unsigned j = i; (j + 1) < set->count; j++)
 				set->flows[j] = set->flows[j + 1];
 			set->count--;
+			// Special case when the last one is removed; we must restore
+			// the null termination. (caused a segv)
+			if (set->count == 0)
+				set->flows[0] = NULL;
 			break;
 		}
 	}
