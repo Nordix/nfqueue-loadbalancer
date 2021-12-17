@@ -9,12 +9,14 @@ is a mapping;
 flow -> target load-balancer
 ```
 
-All items in a flow are sets. For ports that means multiple ports and
-port ranges. For addresses that means multiple CIDR's.
+<img src="flow.svg" alt="Flow matching" width="50%" />
 
 The target load-balancer is identified by it's shared mem name. The
 configuration of a target load-balancer is made in the same way as
 without flows.
+
+All items in a flow are sets. For ports that means multiple ports and
+port ranges. For addresses that means multiple CIDR's.
 
 The same fragmentation table, fragment injection `tun` device and
 load-balancer tier is used by all target load-balancers.
