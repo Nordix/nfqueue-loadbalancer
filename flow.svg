@@ -25,7 +25,7 @@
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
      inkscape:zoom="1.4142136"
-     inkscape:cx="319.97368"
+     inkscape:cx="172.18837"
      inkscape:cy="140.5"
      inkscape:document-units="px"
      inkscape:current-layer="layer1"
@@ -142,7 +142,7 @@
         <dc:format>image/svg+xml</dc:format>
         <dc:type
            rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title></dc:title>
+        <dc:title />
       </cc:Work>
     </rdf:RDF>
   </metadata>
@@ -189,7 +189,7 @@
          sodipodi:role="line"
          id="tspan857"
          x="363"
-         y="166">Nfqlb lb</tspan></text>
+         y="166">Nfqlb flowlb</tspan></text>
     <use
        x="0"
        y="0"
