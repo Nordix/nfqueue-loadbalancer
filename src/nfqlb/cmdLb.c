@@ -26,6 +26,7 @@ static struct fragStats* sft;
 static struct MagDataDyn magd;
 static struct MagDataDyn magdlb;
 static unsigned udpEncap;
+static int notargets_fw = -1;
 
 #ifdef VERBOSE
 #define D(x)
@@ -34,8 +35,6 @@ static unsigned udpEncap;
 #define D(x)
 #define Dx(x)
 #endif
-
-#define FW(table) *table.lookup < 0 ? -1 : table.active[table.lookup[hash % table.M]]
 
 static void injectFrag(void const* data, unsigned len)
 {
@@ -68,7 +67,9 @@ static int packetHandleFn(
 		// Fragment. Check if we shall forward to the lb-tier
 		if (slb != NULL) {
 			hash = hashKeyAddresses(&key);
-			fw = FW(magdlb);
+			fw = magdlb.lookup[hash % magdlb.M];
+			if (fw >= 0)
+				fw = magdlb.active[fw];
 			if (fw >= 0 && fw != slb->ownFwmark) {
 				Dx(printf("Fragment to LB tier. fw=%d\n", fw));
 				return fw; /* To the LB tier */
@@ -76,29 +77,36 @@ static int packetHandleFn(
 		}
 
 		// We shall handle the fragment here
-		struct timespec now;
-		clock_gettime(CLOCK_MONOTONIC, &now);
-		if (rc & 1) {
-			// First fragment
-			hash = hashKey(&key);
-			fw = FW(magd);
-			key.id = fragid;
-			if (handleFirstFragment(ft, &now, &key, fw, data, len) != 0)
+		if ((rc & 1) == 0) {
+			// Not first-fragment
+			struct timespec now;
+			clock_gettime(CLOCK_MONOTONIC, &now);
+			rc = fragGetValueOrStore(ft, &now, &key, &fw, data, len);
+			if (rc != 0) {
+				Dx(printf("Fragment %s\n", rc > 0 ? "stored":"dropped"));
 				return -1;
-			Dx(printf("First fragment; len=%u, fw=%d\n", len, fw));
+			}
+			Dx(printf("Handle frag locally fwmark=%u\n", fw));
 			return fw;
 		}
-		rc = fragGetValueOrStore(ft, &now, &key, &fw, data, len);
-		if (rc != 0) {
-			Dx(printf("Fragment %s\n", rc > 0 ? "stored":"dropped"));
-			return -1;
-		}
-		Dx(printf("Handle frag locally fwmark=%u\n", fw));
-		return fw;
 	}
 
 	hash = hashKey(&key);
-	fw = FW(magd);
+	fw = magd.lookup[hash % magd.M];
+	if (fw >= 0)
+		fw = magd.active[fw];
+	if (fw < 0)
+		return notargets_fw;
+
+	if (rc & 1) {
+		// First fragment
+		Dx(printf("First fragment\n"));
+		struct timespec now;
+		clock_gettime(CLOCK_MONOTONIC, &now);
+		key.id = fragid;
+		if (handleFirstFragment(ft, &now, &key, fw, data, len) != 0)
+			return -1;
+	}
 	Dx(printf("Packet; len=%u, fw=%d\n", len, fw));
 	return fw;
 }
@@ -124,6 +132,7 @@ static int cmdLb(int argc, char **argv)
 	char const* tun = NULL;
 	char const* reassembler = "0";
 	char const* sctpEncap = "0";
+	char const* notargets_fwmark = "-1";
 	struct Option options[] = {
 		{"help", NULL, 0,
 		 "lb [options]\n"
@@ -134,6 +143,7 @@ static int cmdLb(int argc, char **argv)
 		{"sctp_encap", &sctpEncap, 0, "SCTP UDP encapsulation port. default=0"},
 		{"tshm", &targetShm, 0, "Target shared memory"},
 		{"lbshm", &lbShm, 0, "Lb shared memory"},
+		{"notargets_fwmark", &notargets_fwmark, 0, "Set when there are no targets"},
 		{"queue", &qnum, 0, "NF-queues to listen to (default 2)"},
 		{"qlength", &qlen, 0, "Lenght of queues (default 1024)"},
 		{"ft_shm", &ftShm, 0, "Frag table; shared memory stats"},
@@ -150,6 +160,8 @@ static int cmdLb(int argc, char **argv)
 		slb = mapSharedDataOrDie(lbShm, O_RDONLY);
 		magDataDyn_map(&magdlb, slb->mem);
 	}
+	notargets_fw = atoi(notargets_fwmark);
+
 	// Create and re-map the stats struct
 	sft = calloc(1, sizeof(*sft));
 	createSharedDataOrDie(ftShm, sft, sizeof(*sft));

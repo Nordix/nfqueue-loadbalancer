@@ -62,7 +62,8 @@ static struct MagDataDyn magdlb;
 static struct FlowSet* fset;
 static struct LoadBalancer* lblist = NULL;
 static pthread_mutex_t lblistLock = PTHREAD_MUTEX_INITIALIZER;
-
+static int notargets_fw = -1;
+static int nolb_fw = -1;
 
 static void injectFrag(void const* data, unsigned len)
 {
@@ -140,7 +141,7 @@ static int packetHandleFn(
 
 	if (lb == NULL) {
 		Dx(printf("Failed flowLookup\n"));
-		return -1;
+		return nolb_fw;
 	}
 	Dx(printf("Using LB; %s\n", lb->target));
 
@@ -151,7 +152,7 @@ static int packetHandleFn(
 		fw = lb->magd.active[fw];
 	loadbalancerRelease(lb);
 	if (fw < 0)
-		return -1;
+		return notargets_fw;
 
 	if (rc & 1) {
 		// First fragment
@@ -186,6 +187,8 @@ static int cmdFlowLb(int argc, char **argv)
 	char const* tun = NULL;
 	char const* reassembler = "0";
 	char const* promiscuous_ping = "no";
+	char const* notargets_fwmark = "-1";
+	char const* nolb_fwmark = "-1";
 	struct Option options[] = {
 		{"help", NULL, 0,
 		 "flowlb [options]\n"
@@ -196,6 +199,8 @@ static int cmdFlowLb(int argc, char **argv)
 		{"reassembler", &reassembler, 0, "Reassembler size. default=0"},
 		{"promiscuous_ping", &promiscuous_ping, 0,
 		 "Accept ping on any flow with an address match"},
+		{"notargets_fwmark", &notargets_fwmark, 0, "Set when there are no targets"},
+		{"nolb_fwmark", &nolb_fwmark, 0, "Set when there is no matching LB"},
 		{"queue", &qnum, 0, "NF-queues to listen to (default 2)"},
 		{"qlength", &qlen, 0, "Lenght of queues (default 1024)"},
 		{"ft_shm", &ftShm, 0, "Frag table; shared memory stats"},
@@ -215,6 +220,8 @@ static int cmdFlowLb(int argc, char **argv)
 	fset = flowSetCreate(loadbalancerLock);
 	if (promiscuous_ping == NULL)
 		flowSetPromiscuousPing(fset, 1);
+	notargets_fw = atoi(notargets_fwmark);
+	nolb_fw = atoi(nolb_fwmark);
 
 	// Create and re-map the stats struct
 	sft = calloc(1, sizeof(*sft));

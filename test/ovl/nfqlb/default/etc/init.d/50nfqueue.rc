@@ -56,6 +56,11 @@ configure_vips() {
 			nft add rule inet handlefrag vip iifname $tap ip daddr 10.0.0.0/24 counter notrack queue num $queue bypass
 			nft add rule inet handlefrag vip iifname $tap ip6 daddr 1000::/112 counter notrack queue num $queue bypass
 		fi
+
+		# Reject fwmarks
+		nft add chain inet handlefrag forward '{ type filter hook prerouting priority 0; policy accept; }'
+		nft add rule inet handlefrag forward meta mark 1 counter reject with icmpx type port-unreachable
+		nft add rule inet handlefrag forward meta mark 2 counter reject with icmpx type host-unreachable
 	fi
 
 	ethtool -K eth1 gro off gso off tso off

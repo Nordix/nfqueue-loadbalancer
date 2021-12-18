@@ -59,6 +59,19 @@ If no specific protocols are specified load-balancing is based on
 addresses only (L3 level) and any (L4) protocol is accepted.
 
 
+## Reject v.s. drop
+
+If no flow matches or if the matched LB has no targets the packet is
+dropped by default. If the packets shall be rejected instead you can use;
+
+```
+  --notargets_fwmark= Set when there are no targets 
+  --nolb_fwmark= Set when there is no matching LB 
+```
+Then add reject rules in nft/iptables for these fwmarks.
+
+
+
 ## Ping
 
 Normally `ping` only works with all-protocols flows but with the flag;
