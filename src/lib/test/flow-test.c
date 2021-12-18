@@ -142,7 +142,6 @@ int main(int argc, char* argv[])
 	flowSetDelete(f);
 
 	// Udpencap
-	printf("=== flow-test OK\n");
 	f = flowSetCreate(NULL);
 	rc = flowDefine(f, "u01", 1, (void*)2, NULL,NULL,NULL,NULL,NULL, 1234);
 	unsigned short udpencap = 0;
@@ -154,5 +153,21 @@ int main(int argc, char* argv[])
 	assert(udpencap == 1234);
 	flowSetDelete(f);
 
+	// Delete flows (several segv's bugs in this area!)
+	f = flowSetCreate(NULL);
+	rc = flowDefine(f, "adr01", 1, (void*)1, NULL, ports, NULL, NULL, NULL,0);
+	rc = flowDefine(f, "adr02", 5, (void*)5, NULL, "10", NULL, NULL, NULL,0);
+	memset(&key, 0, sizeof(key));
+	key.ports.dst = htons(10);
+	assert(flowLookup(f, &key, NULL) == (void*)5);
+	key.ports.dst = htons(30);
+	assert(flowLookup(f, &key, NULL) == (void*)1);
+	assert(flowDelete(f, "adr01", NULL) == (void*)1);
+	assert(flowLookup(f, &key, NULL) == NULL);
+	assert(flowDelete(f, "adr02", NULL) == (void*)5);
+	key.ports.dst = htons(10);
+	assert(flowLookup(f, &key, NULL) == NULL);
+
+	printf("=== flow-test OK\n");
 	return 0;
 }
