@@ -89,6 +89,47 @@ watch sctpt stats
 sctpt ctraffic --log=6 --addr=10.0.0.0,1000:: --laddr=192.168.2.221,1000::1:192.168.6.221 --clients=8 --rate=10
 ```
 
+### Manual reject tests
+
+The options to configure a mark to be set instead of just drop;
+```
+  --notargets_fwmark= Set when there are no targets 
+  --nolb_fwmark= Set when there is no matching LB 
+```
+
+has no automatic test case. It must currently be tested
+manually. Reject rules for fwmark 1 and 2 are inserted already.
+
+Without flows;
+```
+export xcluster_LBOPT="--notargets_fwmark=1"
+__nrouters=1 ./nfqlb.sh test start > $log
+# On vm-201
+nfqlb deactivate 101 102 103 104
+# On vm-221
+telnet 10.0.0.0 5001
+telnet 1000:: 5001
+# Should get "Connection refused", not hang
+```
+
+With flows;
+```
+export xcluster_LBOPT="--notargets_fwmark=1 --nolb_fwmark=2"
+export xcluster_FLOW=yes
+__nrouters=1 ./nfqlb.sh test start > $log
+# On vm-201
+nfqlb deactivate 101 102 103 104
+# On vm-221
+telnet 10.0.0.0 5001
+telnet 1000:: 5001
+# Should get "Connection refused", not hang
+# On vm-201
+nfqlb flow-delete --name=default
+# On vm-221
+telnet 10.0.0.0 5001
+telnet 1000:: 5001
+# Should get "No route to host"
+```
 
 ## Test the HW setup
 
