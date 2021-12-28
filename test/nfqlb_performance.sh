@@ -84,12 +84,12 @@ cmd_container_address() {
 	docker inspect "$1" | jq -r .[].NetworkSettings.IPAddress
 }
 
-##   start_lb [--adr=] [--vip=] [--queue=] [--lbopts=]
+##   start_lb [--adr=] [--vip=] [--queue=] [--lbopts=] [--flows=n]
 ##     Start nfqlb in the test container
 cmd_start_lb() {
 	test -n "$__adr" || __adr=$(cmd_docker_address)
 	test -n "$__vip" || __vip=10.0.0.0/32
-	docker exec --detach nfqlb /opt/nfqlb/bin/nfqlb.sh lb --queue=$__queue --lbopts=$__lbopts --vip=$__vip $__adr
+	docker exec --detach nfqlb /opt/nfqlb/bin/nfqlb.sh lb --queue=$__queue --lbopts=$__lbopts --vip=$__vip --flows=$__flows $__adr
 }
 
 ##   iperf <params...>
@@ -462,7 +462,7 @@ find_progs() {
 	test -x $nfqlbsh || die "Not found [nfqlb.sh]"
 }
 
-##   test [--rebuild] [--no-stop] [--multi-src] [iperf options...]
+##   test [--rebuild] [--no-stop] [--multi-src] [--flows=n] [iperf options...]
 ##     Use the test container
 cmd_test() {
 	local xopt
@@ -485,16 +485,19 @@ cmd_test() {
 	fi
 	i=$((i+1)); echo "$i. Start LB"
 	cmd_start_lb
-	i=$((i+1)); echo "$i. Iperf direct (-c $(cmd_docker_address) $xopt $@)"
-	s=$(cmd_cpu_sample)
-	cmd_iperf -c $(cmd_docker_address) $xopt $@
-	i=$((i+1)); echo "$i. CPU usage $(cmd_cpu_usage_since $s)"
-	i=$((i+1)); echo "$i. Nfnetlink_queue stats"
-	cmd_qstats nfqlb
-	i=$((i+1)); echo "$i. Re-start iperf servers"
-	cmd_start_iperf_server > /dev/null 2>&1
+	if test "$__skip_direct" != "yes"; then
+		i=$((i+1)); echo "$i. Iperf direct (-c $(cmd_docker_address) $xopt $@)"
+		s=$(cmd_cpu_sample)
+		cmd_iperf -c $(cmd_docker_address) $xopt $@
+		i=$((i+1)); echo "$i. CPU usage $(cmd_cpu_usage_since $s)"
+		i=$((i+1)); echo "$i. Nfnetlink_queue stats"
+		cmd_qstats nfqlb
+		i=$((i+1)); echo "$i. Re-start iperf servers"
+		cmd_start_iperf_server > /dev/null 2>&1
+	fi
 	local vip=$(echo $__vip | cut -d/ -f1)
 	i=$((i+1)); echo "$i. Iperf VIP (-c $vip $xopt $@)"
+	s=$(cmd_cpu_sample)
 	cmd_iperf -c $vip $xopt $@
 	i=$((i+1)); echo "$i. CPU usage $(cmd_cpu_usage_since $s)"
 	i=$((i+1)); echo "$i. Nfnetlink_queue stats"
@@ -520,7 +523,38 @@ cmd_test_report() {
 	cmd_test $@
 	echo '```'
 }
-
+##   flow_test
+cmd_flow_test() {
+	local n x=0 o=0 m=100
+	# There is some kind of "warm-up" issue here. The first run seem
+	# to be ~25% better than the sub-sequent. So do a dummy-run...
+	$me test --skip-direct --flows=0 --queue=0:7 --multi-src -P8 > /dev/null 2>&1
+	while test $x -lt 21; do
+		n=$((x * m + o))
+		echo -n "$n "
+		$me test --skip-direct --flows=$n --queue=0:7 --multi-src -P8 \
+			| grep SUM | tr -s ' ' | cut -d' ' -f6
+		x=$((x + 1))
+	done
+}
+##   flow_plot data-file > plot.svg
+cmd_flow_plot() {
+	test -n "$1" || die "No data-file"
+	mkdir -p $tmp
+	cat > $tmp/flow.gp <<EOF
+set terminal svg
+set key off
+set xlabel 'Flows'
+set ylabel 'Gbit/S'
+set grid ytics
+set xtics nomirror
+set ytics nomirror
+set border 3
+set xrange [0:2000]
+plot '$1' using 1:2 with lines
+EOF
+	gnuplot -p -c $tmp/flow.gp
+}
 
 ##
 

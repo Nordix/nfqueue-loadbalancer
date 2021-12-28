@@ -265,6 +265,29 @@ usage is ~90% in both cases. Note that multiple queues gets a share of
 the traffic and there are no drops.
 
 
+
+### Performance test with flows
+
+[Flows](../flow.md) adds additional handling for each packet. We test;
+
+* Parallel and multi-queue
+* Flows with one VIP but different ports
+
+We make sure that the flow with the lowest prio (0) matches and stack
+any number of flows on top that doesn't match. Test and plot with;
+
+```
+./nfqlb_performance.sh flow_test | tee /tmp/flow.data
+./nfqlb_performance.sh flow_plot /tmp/flow.data > flow-perf.svg
+```
+
+<img src="flow-perf.svg" alt="Flow/throughput graph" width="50%" />
+
+It is hard to draw any conclusions since everything is simulated. We
+get a 10% loss in throughput around 250 flows which is probably
+earlier on real HW, but even at 2000 flows we are above 10 Gbit/S.
+
+
 #### HW offload
 
 By a mistake the first performance tests were made with
