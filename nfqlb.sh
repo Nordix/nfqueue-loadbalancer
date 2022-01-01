@@ -79,28 +79,23 @@ cmd_add_pragma_once() {
 	done
 }
 
-##   update_license
+##   update_license [--check-only]
 ##     Check and update license notes
 cmd_update_license() {
 	local Y=$(date +%Y)
-	if ! grep -q "Copyright $Y Nordix foundation" LICENSE; then
+	if ! grep -q "Copyright 2021-$Y Nordix foundation" LICENSE; then
 		echo "Copyright incorrect in; LICENSE"
 		grep "Copyright.*Nordix" LICENSE
 	fi
 	local f
 	for f in $(find src -name '*.[c|h]'); do
-		if ! grep -q 'SPDX-License-Identifier:' $f; then
-			echo "No SPDX-License-Identifier in; $f" >&2
-			continue
-		fi
-		grep -q 'SPDX-License-Identifier: Apache-2.0' $f && continue
-		sed -i -e 's,SPDX-License-Identifier: .*,SPDX-License-Identifier: Apache-2.0,' $f
-		echo "SPDX-License-Identifier: updated in; $f"
-	done
-	for f in $(find src -name '*.[c|h]'); do
 		grep -q 'SPDX-License-Identifier:' $f || continue
-		if ! grep -q "Copyright .*$Y Nordix Foundation" $f; then
+		if ! grep -Fq "Copyright (c) 2021-$Y Nordix Foundation" $f; then
 			echo "Copyright incorrect in; $f"
+			if test "$__check_only" != "yes"; then
+				sed -i -e "s,(c) 2021,(c) 2021-$Y," $f
+				echo "Copyright updated in; $f"
+			fi
 		fi
 	done
 }
