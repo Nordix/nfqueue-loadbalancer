@@ -51,6 +51,7 @@ static int cmdFlowSet(int argc, char **argv)
 	char const* srcs = NULL;
 	char const* dports = NULL;
 	char const* sports = NULL;
+	char const* match = NULL;
 	char const* udpencap = NULL;
 	struct Option options[] = {
 		{"help", NULL, 0,
@@ -65,6 +66,7 @@ static int cmdFlowSet(int argc, char **argv)
 		{"srcs", &srcs, 0, "Source CIDRs"},
 		{"dports", &dports, 0, "Destination port ranges"},
 		{"sports", &sports, 0, "Source port ranges"},
+		{"match", &match, 0, "Bit-match statements"},		
 		{"udpencap", &udpencap, 0, "UDP encapsulation port for SCTP"},
 		{0, 0, 0, 0}
 	};
@@ -83,6 +85,8 @@ static int cmdFlowSet(int argc, char **argv)
 		die("dports too long\n");
 	if (sports != NULL && strlen(sports) > MAX_ARG_LEN)
 		die("sports too long\n");
+	if (match != NULL && strlen(match) > MAX_ARG_LEN)
+		die("match too long\n");
 	if (udpencap > 0 && protocols == 0)
 		die("udpencap specified without protocols\n");
 	if (udpencap > 0 && (strcasestr(protocols, "sctp") == NULL))
@@ -109,6 +113,8 @@ static int cmdFlowSet(int argc, char **argv)
 		fprintf(out, "dports:%s\n", dports);
 	if (sports != NULL)
 		fprintf(out, "sports:%s\n", sports);
+	if (match != NULL)
+		fprintf(out, "match:%s\n", match);
 	if (udpencap != NULL)
 		fprintf(out, "udpencap:%s\n", udpencap);
 	fprintf(out, "eoc:\n");

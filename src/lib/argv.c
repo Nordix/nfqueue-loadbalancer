@@ -28,6 +28,8 @@ char const** mkargv(char const* str, const char *delim)
 		return NULL;
 
 	// Pass 2; create the array
+	// The array (char**) and the strings are in the same memory-block
+	// so the caller can call free() on the returned value.
 	unsigned slen = strlen(str) + 1; /* include the '\0' */
 	void* buf = malloc(sizeof(char*) * (len+1) + slen);
 	if (buf == NULL) die("OOM");
@@ -37,6 +39,9 @@ char const** mkargv(char const* str, const char *delim)
 	memcpy(tmp, str, slen);
 	tok = strtok_r(tmp, delim, &saveptr);
 	while (tok != NULL) {
+		// Trim leading spaces
+		while (*tok != 0 && *tok == ' ')
+			tok++;
 		*arg++ = tok;
 		tok = strtok_r(NULL, delim, &saveptr);
 	}

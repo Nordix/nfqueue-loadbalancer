@@ -13,8 +13,10 @@ void flowSetDelete(struct FlowSet* set);
 unsigned flowSetSize(struct FlowSet* set);
 
 // Add or replace a flow
-// Returns 0 on success, !=0 otherwise.
-int flowDefine(
+// Returns NULL on success, an error string otherwise.
+// The returned string is statically allocated and may be overwritten in
+// subsequent calls.
+char const* flowDefine(
 	struct FlowSet* set,
 	char const* name,
 	int priority,
@@ -24,6 +26,7 @@ int flowDefine(
 	char const* sports,
 	char const* dsts[],
 	char const* srcs[],
+	char const* match[],
 	unsigned short udpencap);	/* In host byte order! */
 
 // Delete a flow.
@@ -45,6 +48,7 @@ void flowSetPromiscuousPing(struct FlowSet* set, int value);
 void* flowLookup(
 	struct FlowSet* set,
 	struct ctKey* key,
+	unsigned l3proto, void const* data, unsigned len, /* (for byte-match) */
 	/*out*/unsigned short* udpencap);
 
 // Print a flow if name != NULL or the entire set.
