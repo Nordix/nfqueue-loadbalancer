@@ -116,8 +116,13 @@ router_dual_path() {
 	ethtool -K eth1 gro off gso off tso off
 	ethtool -K eth2 gro off gso off tso off
 
-	nfqlb init --shm=nfqlb --M=900 --N=20
-	nfqlb lb $LBOPT > /var/log/nfqlb.log 2>&1 &
+	ulimit -c 10000000
+	if test "$FLOW" = "yes"; then
+		nfqlb flowlb $LBOPT > /var/log/nfqlb.log 2>&1 &
+	else
+		nfqlb init --shm=nfqlb --M=900 --N=20
+		nfqlb lb $LBOPT > /var/log/nfqlb.log 2>&1 &
+	fi
 }
 
 router() {

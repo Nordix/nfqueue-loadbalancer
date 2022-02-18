@@ -115,6 +115,12 @@ cmd_tcase_ping() {
 		ping -c1 -W1 $__vip || tdie ping
 	done
 }
+cmd_tcase_negative_tcp() {
+	test -n "$__vip" || __vip="1000::"
+	tcase "Test tcp NOT working to; $__vip"
+	nc -w1 $__vip && tdie "Tcp works to $__vip"
+	return 0
+}
 
 cmd_tcase_fragrev() {
 	which tap-scrambler_test > /dev/null || die "No tap-scrambler_test"
@@ -312,12 +318,56 @@ cmd_tcase_sctp_ctraffic() {
 	test $sent -gt 9900 || tdie "Too few packets"
 }
 
+cmd_tcase_clear_flows() {
+	tcase "Clear all flows"
+	local flow
+	for flow in $(nfqlb flow-list-names | jq -r .[]); do
+		nfqlb flow-delete --name=$flow || tdie "flow-delete $flow"
+	done	
+}
 cmd_tcase_tcp_udp_flow() {
-	tcase "Replace the default flow with a tcp,udp flow"
-	nfqlb flow-delete --name=default || tdie flow-delete
+	cmd_tcase_clear_flows
+	tcase "Set a tcp,udp flow"
 	nfqlb flow-set --name=tcpudp --target=nfqlb --prio=100 --protocols=tcp,udp \
 		--dsts=10.0.0.0/24,1000::/120 --dport=80,5001-5003 || tdie flow-set
 	nfqlb flow-list
+}
+
+cmd_tcase_tcp_flow_match() {
+	test -n "$1" || tdie "No match"
+	local match="$1"
+	cmd_tcase_clear_flows
+	tcase "Set a tcp flow with match; $match"
+	nfqlb flow-set --name=tcpmatch --target=nfqlb --prio=100 --protocols=tcp \
+		--dsts=10.0.0.0/24,1000::/120 --match="$match" || tdie flow-set
+	nfqlb flow-list
+}
+
+cmd_tcase_sctp_set_flow_match() {
+	cmd_tcase_clear_flows
+	test -n "$1" || tdie "No match"
+	local match="$1"
+	tcase "Set a sctp flow with match; $match"
+	nfqlb flow-set --name=sctpmatch --target=nfqlb --prio=100 --protocols=sctp \
+		--dsts=10.0.0.0/24,1000::/120 --match="$match" || tdie flow-set
+	nfqlb flow-list
+}
+
+cmd_tcase_sctp_encap_set_flow_match() {
+	cmd_tcase_clear_flows
+	test -n "$1" || tdie "No match"
+	local match="$1"
+	tcase "Set a sctp flow with UDP-encap and match; $match"
+	nfqlb flow-set --name=sctpmatch --target=nfqlb --prio=100 --protocols=sctp \
+		--dsts=10.0.0.0/24,1000::/120 --match="$match" --udpencap=9899 \
+		|| tdie flow-set
+	nfqlb flow-list
+}
+cmd_tcase_sctp_negative() {
+	tcase "Test that SCTP connect does NOT work"
+	echo Kalle | sctpt client --laddr=192.168.2.221,1000::1:192.168.2.221 \
+		--addr=10.0.0.0,1000:: && tdie "SCTP works when it should NOT"
+	return 0
 }
 
 

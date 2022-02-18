@@ -38,7 +38,7 @@ static int cmdInit(int argc, char **argv)
 		{"help", NULL, 0,
 		 "init [options]\n"
 		 "  Initiate shared mem structures"},
-		{"ownfw", &ownFw, 0, "Own FW mark"},
+		{"ownfw", &ownFw, 0, "Own FW mark. Only used in the LB-tier!"},
 		{"shm", &shm, 0, "Target shared memory"},
 		{"N", &N, 0, "Maglev max targets"},
 		{"M", &M, 0, "Maglev lookup table size"},

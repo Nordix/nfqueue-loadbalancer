@@ -134,6 +134,30 @@ incoming udp packet matches a flow with an `udpencap` > 0 then a
 re-classification of the flow is made which may match the sctp flow.
 
 
+## Byte match
+
+A flow can match on arbitrary bytes in the L4 header. The syntax is
+the same as for `tcpdump` but with some limitations;
+
+```
+    proto[x,y] & z = V
+
+ proto=tcp|udp|sctp, x=byte-offset, y=nbytes, z=mask (hex,optional)
+ y may only be 1,2,4
+
+ Regexp;
+ "^(sctp|tcp|udp)\[[0-9]+ *: *[124]\]( *& *0x[0-9a-f]+)? *= *([0-9]+|0x[0-9a-f]+)$"
+```
+
+For example these match options are equivalent and will all match on
+dport=5001;
+```
+ nfqlb flow-set --match="tcp[2:2] = 5001" ...
+ nfqlb flow-set --match="tcp[0:4] & 0x0000ffff = 5001" ...
+ nfqlb flow-set --match="tcp[2:1]=0x13, tcp[3:1]=0x89" ...
+```
+
+
 ## The inner-packet problem
 
 The original idea was to use iptables/nft to direct flows to different

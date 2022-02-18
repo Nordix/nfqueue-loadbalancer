@@ -14,8 +14,10 @@ static int cmpargv(char const** a, char const** b)
 	while (*a != NULL && *b != NULL) {
 		if (*a == NULL || *b == NULL)
 			return -1;
-		if (strcmp(*a, *b) != 0)
+		if (strcmp(*a, *b) != 0) {
+			fprintf(stderr, "[%s] != [%s]\n", *a, *b);
 			return -1;
+		}
 		a++;
 		b++;
 	}
@@ -55,6 +57,12 @@ int main(int argc, char* argv[])
 	a = mkargv("1000::/64,10.0.0.0/16", ", ");
 	assert(a != NULL);
 	assert(cmpargv(a, ex02) == 0);
+	free(a);
+
+	char const* ex03[] = { "sctp[4:4] & 0xff00 = 0x4400", "tcp[0:2] = 55", NULL };
+	a = mkargv("  sctp[4:4] & 0xff00 = 0x4400, tcp[0:2] = 55", ",");
+	assert(a != NULL);
+	assert(cmpargv(a, ex03) == 0);
 	free(a);
 
 	printf("=== argv-test OK\n");

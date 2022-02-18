@@ -6,6 +6,7 @@
 #include <flow.h>
 #include <die.h>
 #include <rangeset.h>
+#include <match.h>
 #include <stdlib.h>
 #include <string.h>
 #include <arpa/inet.h>
@@ -37,6 +38,7 @@ struct Flow {
 	struct RangeSet* sports;
 	unsigned ndsts; struct Cidr* dsts;
 	unsigned nsrcs; struct Cidr* srcs;
+	struct Match* match;
 	unsigned short udpencap;
 	unsigned match_count;
 };
@@ -68,23 +70,16 @@ void flowSetPromiscuousPing(struct FlowSet* set, int value)
 {
 	set->promiscuous_ping = value;
 }
-static void flowClear(struct Flow* f)
+static void flowFree(struct Flow* f)
 {
+	if (f == NULL)
+		return;
 	free(f->protocols);
 	free(f->dsts);
 	free(f->srcs);
 	rangeSetDestroy(f->dports);
 	rangeSetDestroy(f->sports);
-	f->protocols = NULL;
-	f->dsts = NULL;
-	f->srcs = NULL;
-	f->dports = NULL;
-	f->sports = NULL;
-	f->match_count = 0;
-}
-static void flowFree(struct Flow* f)
-{
-	flowClear(f);
+	matchDestroy(f->match);
 	free(f->name);
 	free(f);
 }
@@ -206,7 +201,7 @@ bailout:
 }
 
 // Add or replace a flow
-int flowDefine(
+char const* flowDefine(
 	struct FlowSet* set,
 	char const* name,
 	int priority,
@@ -216,12 +211,16 @@ int flowDefine(
 	char const* sports,
 	char const* dsts[],
 	char const* srcs[],
+	char const* match[],
 	unsigned short udpencap)
 {
+#define BAILOUT(args...) {snprintf(err, sizeof(err), args); goto bailout;}
+	static char err[128];
+	*err = 0;					/* Clear previous error */
 	if (name == NULL)
-		return -1;
+		return "No name";
 	if (strlen(name) >= MAX_NAME)
-		return -1;
+		return "Name too long";
 
 	struct Flow* f = MALLOC(f);
 
@@ -231,39 +230,54 @@ int flowDefine(
 	if (protocols != NULL) {
 		f->protocols = parseProtocol(protocols);
 		if (f->protocols == NULL)
-			goto bailout;
+			BAILOUT("Invalid protocols");
 	}
 	if (dports != NULL) {
 		D(printf("dports %s\n", dports));
 		f->dports = rangeSetCreateLimited(1, USHRT_MAX);
 		if (rangeSetAddStr(f->dports, dports) != 0)
-			goto bailout;
+			BAILOUT("Invalid dports");
 		rangeSetUpdate(f->dports);
 	}
 	if (sports != NULL) {
 		f->sports = rangeSetCreateLimited(1, USHRT_MAX);
 		if (rangeSetAddStr(f->sports, sports) != 0)
-			goto bailout;
+			BAILOUT("Invalid dports");
 		rangeSetUpdate(f->sports);
 	}
 
 	if (dsts != NULL) {
 		f->dsts = parseCidrs(dsts, &f->ndsts);
 		if (f->dsts == NULL)
-			goto bailout;
+			BAILOUT("Invalid dsts");
 	}
 	if (srcs != NULL) {
 		f->srcs = parseCidrs(srcs, &f->nsrcs);
 		if (f->srcs == NULL)
-			goto bailout;
+			BAILOUT("Invalid srcs");
 	}
 
+	if (match != NULL) {
+		f->match = matchCreate();
+		while (*match != NULL) {
+			char const* merr = matchAdd(f->match, *match);
+			if (merr != NULL)
+				BAILOUT("Match [%s] %s", *match, merr);
+			match++;
+		}
+	}
+
+	f->name = strndup(name, MAX_NAME);
+	if (f->name == NULL)
+		die("OOM");
+	
 	WLOCK(set);
 
 	// Insert the new flow or update an existing one.
 	// This must be done while holding the write lock.
 	struct Flow* updatedf = NULL;
-	for (unsigned i = 0; i < set->count; i++) {
+	unsigned i;
+	for (i = 0; i < set->count; i++) {
 		if (strncmp(set->flows[i]->name, name, MAX_NAME) == 0) {
 			// Update existing flow
 			updatedf = set->flows[i];
@@ -273,22 +287,10 @@ int flowDefine(
 
 	if (updatedf != NULL) {
 		// Update
-		flowClear(updatedf);
-		updatedf->priority = f->priority;
-		updatedf->user_ref = f->user_ref;
-		updatedf->protocols = f->protocols;
-		updatedf->dports = f->dports;
-		updatedf->sports = f->sports;
-		updatedf->ndsts = f->ndsts;
-		updatedf->dsts = f->dsts;
-		updatedf->nsrcs = f->nsrcs;
-		updatedf->srcs = f->srcs;
-		free(f);
+		set->flows[i] = f;
+		flowFree(updatedf);
 	} else {
 		// New flow. Extend the flow array.
-		f->name = strndup(name, MAX_NAME);
-		if (f->name == NULL)
-			die("OOM");
 		set->flows[set->count++] = f; /* NULL termination overwritten */
 		set->flows = realloc(set->flows, (set->count+1) * sizeof(struct Flow*));
 		if (set->flows == NULL)
@@ -303,7 +305,7 @@ int flowDefine(
 	return 0;
 bailout:
 	flowFree(f);
-	return -1;
+	return err;;
 }
 
 // Delete a flow
@@ -341,6 +343,7 @@ static void* flowMatch(
 	struct ctKey* key,
 	struct Flow* f,
 	int promiscuous_ping,
+	unsigned l3proto, void const* data, unsigned len,
 	unsigned short* udpencap)
 {
 	int found;
@@ -394,6 +397,10 @@ static void* flowMatch(
 		if (!rangeSetIn(f->sports, ntohs(key->ports.src)))
 			return NULL;
 	}
+	if (f->match != NULL && data != NULL && len > 0) {
+		if (!matchMatches(f->match, l3proto, key->ports.proto, data, len))
+			return NULL;
+	}
 
 	// We have a match
 	if (udpencap != NULL)
@@ -406,12 +413,14 @@ static void* flowMatch(
 void* flowLookup(
 	struct FlowSet* set,
 	struct ctKey* key,
+	unsigned l3proto, void const* data, unsigned len, /* (for byte-match) */
 	unsigned short* udpencap)
 {
 	RLOCK(set);
 	struct Flow** fp = set->flows;
 	while (*fp != NULL) {
-		void* user_ref = flowMatch(key, *fp, set->promiscuous_ping, udpencap);
+		void* user_ref = flowMatch(
+			key, *fp, set->promiscuous_ping, l3proto, data, len, udpencap);
 		if (user_ref != NULL) {
 			if (set->lock_user_ref != NULL)
 				set->lock_user_ref(user_ref);
@@ -484,6 +493,19 @@ static void printProto(FILE* out, unsigned short const* p)
 	fprintf(out, " ]");
 }
 
+static void printMatch(FILE* out, struct Match* m)
+{
+	char buf[1024];
+	if (matchString(m, buf, sizeof(buf)) < 0)
+		return;
+	char* tok = strtok(buf, ",");
+	while (tok != NULL) {
+		fprintf(out, "    \"%s\"", tok);
+		tok = strtok(NULL, ", ");
+		if (tok != NULL)
+			fprintf(out, ",\n");
+	}
+}
 
 static void printFlow(
 	FILE* out, struct Flow* f,
@@ -520,11 +542,17 @@ static void printFlow(
 		printPorts(out, f->sports);
 		fprintf(out, "\n  ]");
 	}
+	if (f->match != NULL) {
+		fprintf(out, ",\n");
+		fprintf(out, "  \"match\": [\n");
+		printMatch(out, f->match);
+		fprintf(out, "\n  ]");
+	}
 	if (f->udpencap > 0) {
 		fprintf(out, ",\n");
 		fprintf(out, "  \"udpencap\": %u", f->udpencap);
 	}
-	fprintf(out, ",\n  \"matches\": %u", f->match_count);
+	fprintf(out, ",\n  \"matches_count\": %u", f->match_count);
 	if (user_ref2string != NULL) {
 		fprintf(out, ",\n");
 		fprintf(out, "  \"user_ref\": \"%s\"", user_ref2string(f->user_ref));
@@ -582,6 +610,58 @@ int flowSetIsSorted(struct FlowSet* set)
 {
 	for (unsigned i = 0; (i+1) < set->count; i++) {
 		if (set->flows[i]->priority < set->flows[i+1]->priority)
+			return 0;
+	}
+	return 1;
+}
+static int cidrEqual(struct Cidr* c1, struct Cidr* c2)
+{
+	if (c1->mask[0] != c2->mask[0])
+		return 0;
+	if (c1->mask[1] != c2->mask[1])
+		return 0;
+	if (!IN6_ARE_ADDR_EQUAL(&c1->adr, &c2->adr))
+		return 0;
+	return 1;
+}
+int flowSetEqual(struct FlowSet* f1, struct FlowSet* f2)
+{
+	if (f1->count != f2->count)
+		return 0;
+	if (f1->promiscuous_ping != f2->promiscuous_ping)
+		return 0;
+
+	unsigned i;
+	char s1[1024];
+	char s2[1024];
+	for (i = 0; i < f1->count; i++) {
+		struct Flow* fl1 = f1->flows[i];
+		struct Flow* fl2 = f2->flows[i];
+		if (strcmp(fl1->name, fl2->name) != 0)
+			return 0;
+		if (fl1->ndsts != fl2->ndsts)
+			return 0;
+		if (fl1->nsrcs != fl2->nsrcs)
+			return 0;
+		for (unsigned J = 0; J < fl1->ndsts; J++) {
+			if (!cidrEqual(&fl1->dsts[J], &fl2->dsts[J]))
+				return 0;
+		}
+		for (unsigned J = 0; J < fl1->nsrcs; J++) {
+			if (!cidrEqual(&fl1->srcs[J], &fl2->srcs[J]))
+				return 0;
+		}
+		rangeSetString(fl1->dports, s1, sizeof(s1)); 
+		rangeSetString(fl2->dports, s2, sizeof(s2));
+		if (strcmp(s1, s2) != 0)
+			return 0;
+		rangeSetString(fl1->sports, s1, sizeof(s1)); 
+		rangeSetString(fl2->sports, s2, sizeof(s2));
+		if (strcmp(s1, s2) != 0)
+			return 0;
+		matchString(fl1->match, s1, sizeof(s1));
+		matchString(fl2->match, s2, sizeof(s2));
+		if (strcmp(s1, s2) != 0)
 			return 0;
 	}
 	return 1;

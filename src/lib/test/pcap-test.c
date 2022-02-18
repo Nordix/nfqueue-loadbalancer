@@ -3,7 +3,6 @@
   Copyright (c) 2021-2022 Nordix Foundation
 */
 
-#include "die.h"
 #include "conntrack.h"
 #include "iputils.h"
 #include "fragutils.h"
@@ -13,9 +12,6 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <string.h>
-#include <pcap/pcap.h>
-#include <netinet/ether.h>
-#include <stdlib.h>
 #include <assert.h>
 #include <time.h>
 
@@ -23,49 +19,8 @@
 #define Dx(x) x
 #define D(x)
 
-struct Packet {
-	unsigned protocol;
-	unsigned len;
-	void* data;
-};
-#define MAX_PACKETS 4096
-static unsigned nPackets = 0;
-static struct Packet packets[MAX_PACKETS];
-
-static void storeHandler(
-	u_char *user, const struct pcap_pkthdr *h, const u_char *bytes)
-{
-	if (nPackets >= MAX_PACKETS)
-		die("MAX_PACKETS reached\n");
-
-	struct Packet* p = packets + nPackets++;
-	struct ethhdr* eh = (struct ethhdr*)bytes;
-	p->protocol = ntohs(eh->h_proto);
-	p->len = h->len - sizeof(struct ethhdr);
-	p->data = malloc(p->len);
-	memcpy(p->data, bytes + sizeof(struct ethhdr), p->len);
-}
-
-static void readPcapData(char const* file)
-{
-    char errbuf[PCAP_ERRBUF_SIZE];
-	pcap_t* fp = pcap_open_offline(file, errbuf);
-    if (fp == NULL)
-		die("pcap_open_offline() failed: %s\n", errbuf);	
-	if (pcap_loop(fp, 0, storeHandler, NULL) < 0)
-        die("pcap_loop() failed: %s\n", pcap_geterr(fp));
-}
-
-static void shuffle(struct Packet* packets, unsigned cnt)
-{
-	for (unsigned shuff = 0; shuff < (cnt * 5); shuff++) {
-		unsigned i1 = rand() % cnt;
-		unsigned i2 = rand() % cnt;
-		struct Packet tmp = packets[i1];
-		packets[i1] = packets[i2];
-		packets[i2] = tmp;
-	}
-}
+// Pcap help functions
+#include "pcap.c"
 
 
 static int

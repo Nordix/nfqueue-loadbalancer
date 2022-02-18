@@ -20,6 +20,13 @@ Test programs are in `src/lib/test`. Any file with the pattern
 `*-test.c` will be compiled and executed on `make test`. Currently
 simple `assert`s are used.
 
+Memory leak detection;
+```
+make clean
+CFLAGS="-Werror -DUNIT_TEST -fsanitize=leak -g" make -j8 test_progs
+/tmp/uablrek/nfqlb/lib/test/flow-test
+```
+
 ### Dependency injection
 
 The [dependency injection](https://en.wikipedia.org/wiki/Dependency_injection)

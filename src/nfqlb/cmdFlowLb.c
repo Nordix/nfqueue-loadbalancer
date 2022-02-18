@@ -119,7 +119,8 @@ static int packetHandleFn(
 	}
 
 	unsigned short udpencap = 0;
-	struct LoadBalancer* lb = flowLookup(fset, &key, &udpencap);
+	struct LoadBalancer* lb = flowLookup(
+		fset, &key, proto, data, len, &udpencap);
 	// (NOTE: the received lb is locked. Call loadbalancerRelease(lb))
 
 	D(printf("Proto=%u, dport=%u, udpencap=%u\n",
@@ -136,7 +137,7 @@ static int packetHandleFn(
 			loadbalancerRelease(lb);
 			return -1;
 		}
-		lb = flowLookup(fset, &key, NULL);
+		lb = flowLookup(fset, &key, proto, data, len, NULL);
 	}
 
 	if (lb == NULL) {
@@ -405,6 +406,7 @@ struct Cmd {
 	char const* sports;
 	char const** dsts;
 	char const** srcs;
+	char const** match;
 	unsigned short udpencap;
 };
 
@@ -450,6 +452,9 @@ static int readCmd(FILE* in, struct Cmd* cmd)
 		} else if (strcmp(buf, "srcs") == 0) {
 			if (cmd->srcs == NULL)
 				cmd->srcs = mkargv(arg, ", ");
+		} else if (strcmp(buf, "match") == 0) {
+			if (cmd->match == NULL)
+				cmd->match = mkargv(arg, ",");
 		} else if (strcmp(buf, "udpencap") == 0) {
 			cmd->udpencap = atoi(arg);
 		} else {
@@ -515,6 +520,7 @@ static void* flowThread(void* a)
 		}
 
 		if (strcmp(cmd.action, "set") == 0) {
+			char const* err;
 			struct LoadBalancer* lb = loadbalancerFindOrCreate(cmd.target);
 			if (lb == NULL) {
 				writeReply(cd, "FAIL: Couldn't create load-balancer");
@@ -541,21 +547,22 @@ static void* flowThread(void* a)
 					const char* udpproto[] = {"udp", NULL};
 					char udpdport[16];
 					sprintf(udpdport, "%u", cmd.udpencap);
-					if (flowDefine(
-							fset, udpname, cmd.priority, NULL, udpproto, udpdport,
-							NULL, cmd.dsts, cmd.srcs, cmd.udpencap) != 0) {
-						writeReply(cd, "FAIL: UDP flow for updencap");
+					err = flowDefine(
+						fset, udpname, cmd.priority, NULL, udpproto, udpdport,
+						NULL, cmd.dsts, cmd.srcs, NULL, cmd.udpencap);
+					if (err != NULL) {
+						writeReply(cd, err);
 						continue;
 					}
 				}
-				if (flowDefine(
-						fset, cmd.name, cmd.priority, lb, cmd.protocols,
-						cmd.dports, cmd.sports, cmd.dsts, cmd.srcs,
-						cmd.udpencap) == 0) {
+				err = flowDefine(
+					fset, cmd.name, cmd.priority, lb, cmd.protocols,
+					cmd.dports, cmd.sports, cmd.dsts, cmd.srcs,
+					cmd.match, cmd.udpencap);
+				if (err == NULL)
 					writeReply(cd, "OK");
-				} else {
-					writeReply(cd, "FAIL: define flow");
-				}
+				else
+					writeReply(cd, err);
 			}
 		} else if (strcmp(cmd.action, "delete") == 0) {
 			if (cmd.name != NULL) {
