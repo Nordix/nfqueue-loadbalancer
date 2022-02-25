@@ -13,6 +13,9 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <errno.h>
+#include <string.h>
+#include <sys/mman.h>
 
 char const* const defaultTargetShm = "nfqlb";
 
@@ -60,6 +63,21 @@ static int cmdInit(int argc, char **argv)
 		die("N can't be larger than M\n");
 	initShm(shm, atoi(ownFw), m, n);
 
+	return 0;
+}
+static int cmdDelete(int argc, char **argv)
+{
+	char const* shm = NULL;
+	struct Option options[] = {
+		{"help", NULL, 0,
+		 "delete [options]\n"
+		 "  Delete shared mem structures"},
+		{"shm", &shm, 1, "Target shared memory"},
+		{0, 0, 0, 0}
+	};
+	(void)parseOptionsOrDie(argc, argv, options);
+	if (shm_unlink(shm) != 0 && errno != ENOENT)
+		die("%s\n", strerror(errno));
 	return 0;
 }
 
@@ -133,6 +151,7 @@ static int cmdStats(int argc, char **argv)
 
 __attribute__ ((__constructor__)) static void addCommands(void) {
 	addCmd("init", cmdInit);
+	addCmd("delete", cmdDelete);
 	addCmd("show", cmdShow);
 	addCmd("stats", cmdStats);
 	addCmd("primebelow", cmdPrimeBelow);
