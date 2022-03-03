@@ -187,7 +187,10 @@ static struct Cidr* parseCidrs(
 			c[i].mask[0] = UINT64_MAX;
 			c[i].mask[1] = htobe64(UINT64_MAX << (128 - mask));
 		} else {
-			c[i].mask[0] = htobe64(UINT64_MAX << (64 - mask));
+			if (mask == 0)
+				c[i].mask[0] = 0;
+			else
+				c[i].mask[0] = htobe64(UINT64_MAX << (64 - mask));
 			c[i].mask[1] = 0;
 		}
 		// Apply the mask on the address
@@ -437,11 +440,13 @@ static unsigned leadingones(uint64_t x)
 {
 	if (x == UINT64_MAX)
 		return 64;
+	if (x == 0)
+		return 0;
 	x = be64toh(x);
 	unsigned n = 0;
 	while (x & 0x8000000000000000) {
 		n++;
-		x= x << 1;
+		x = x << 1;
 	}
 	return n;
 }
