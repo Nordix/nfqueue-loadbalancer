@@ -27,11 +27,11 @@ int handleCmd(int argc, char *argv[]);
  */
 
 struct Option {
-	char const* const name;
+	char const* name;
 	char const** arg;
 #define REQUIRED 1
 	unsigned flags;
-	char const* const help;
+	char const* help;
 };
 // Returns number of handled items, < 0 on error, 0 on help
 int parseOptions(int argc, char* argv[], struct Option const* options);
