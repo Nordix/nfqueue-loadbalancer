@@ -70,6 +70,7 @@ packets are received. This makes `nfqlb` scalable.
 * [SCTP](sctp.md) - SCTP load-balancing with multihoming
 * [extend/alter](src/README.md) - Extend or alter `nfqlb`
 * [Flows](flow.md) - Define LBs for flows, (proto,src,dst,sport,dport) tuples
+* [Log/trace](log-trace.md) - Log and trace
 
 ## Try it
 
