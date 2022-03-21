@@ -13,6 +13,8 @@
 #include <reassembler.h>
 #include <flow.h>
 #include <argv.h>
+#include <log.h>
+#include "trace.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -67,17 +69,14 @@ static int nolb_fw = -1;
 
 static void injectFrag(void const* data, unsigned len)
 {
-#ifdef VERBOSE
 	if (tun_fd >= 0) {
 		int rc = write(tun_fd, data, len);
-		printf("Frag injected, len=%u, rc=%d\n", len, rc);
+		trace(TRACE_FRAG, "Frag injected, len=%u, rc=%d\n", len, rc);
+		if (rc != len)
+			warning("FAILED: injectFrag write(%u), rc=%d\n", len, rc);
 	} else {
-		printf("Frag dropped, len=%u\n", len);
+		trace(TRACE_FRAG, "Frag dropped, len=%u\n", len);
 	}
-#else
-	if (tun_fd >= 0)
-		write(tun_fd, data, len);
-#endif
 }
 
 static int packetHandleFn(
@@ -86,8 +85,10 @@ static int packetHandleFn(
 	struct ctKey key;
 	uint64_t fragid;
 	int rc = getHashKey(&key, 0, &fragid, proto, data, len);
-	if (rc < 0)
+	if (rc < 0) {
+		warning("getHashKey rc=%d. proto=%u, len=%u\n", rc, proto, len);
 		return -1;
+	}
 
 	unsigned hash;
 	int fw;
@@ -99,7 +100,7 @@ static int packetHandleFn(
 			if (fw >= 0)
 				fw = magdlb.active[fw];
 			if (fw >= 0 && fw != slb->ownFwmark) {
-				Dx(printf("Fragment to LB tier. fw=%d\n", fw));
+				trace(TRACE_FRAG, "Fragment to LB tier. fw=%d\n", fw);
 				return fw; /* To the LB tier */
 			}
 		}
@@ -110,10 +111,10 @@ static int packetHandleFn(
 			clock_gettime(CLOCK_MONOTONIC, &now);
 			rc = fragGetValueOrStore(ft, &now, &key, &fw, data, len);
 			if (rc != 0) {
-				Dx(printf("Fragment %s\n", rc > 0 ? "stored":"dropped"));
+				trace(TRACE_FRAG, "Fragment %s\n", rc > 0 ? "stored":"dropped");
 				return -1;
 			}
-			Dx(printf("Handle frag locally fwmark=%d\n", fw));
+			trace(TRACE_FRAG, "Handle non-first frag locally fwmark=%d\n", fw);
 			return fw;
 		}
 	}
@@ -123,28 +124,29 @@ static int packetHandleFn(
 		fset, &key, proto, data, len, &udpencap);
 	// (NOTE: the received lb is locked. Call loadbalancerRelease(lb))
 
-	D(printf("Proto=%u, dport=%u, udpencap=%u\n",
-			 key.ports.proto, ntohs(key.ports.dst), udpencap));
 	if (key.ports.proto == IPPROTO_UDP && ntohs(key.ports.dst) == udpencap) {
 		/*
 		  We have an udp encapsulated sctp packet. Re-compute the key
-		  and make a new lookup.
+		  and make a new lookup. (note; lb==NULL here)
 		 */
-		Dx(printf("Udp encapsulated sctp packet on %u\n", udpencap));
+		trace(TRACE_SCTP,"Udp encapsulated sctp packet on port %u\n", udpencap);
 		rc = getHashKey(&key, udpencap, &fragid, proto, data, len);
 		if (rc < 0) {
 			// (this shouldn't happen)
-			loadbalancerRelease(lb);
+			trace(TRACE_SCTP, "FAILED: Re-compute key with udpencap\n");
+			warning("FAILED: Re-compute key with udpencap\n");
 			return -1;
 		}
 		lb = flowLookup(fset, &key, proto, data, len, NULL);
+		if (lb == NULL)
+			trace(TRACE_SCTP, "Failed flowLookup for udpencap\n");
 	}
 
 	if (lb == NULL) {
-		Dx(printf("Failed flowLookup\n"));
+		trace(TRACE_PACKET, "Failed flowLookup\n");
+		info("Failed flowLookup\n");
 		return nolb_fw;
 	}
-	Dx(printf("Using LB; %s\n", lb->target));
 
 	// Compute the fwmark
 	hash = hashKey(&key);
@@ -157,14 +159,31 @@ static int packetHandleFn(
 
 	if (rc & 1) {
 		// First fragment
-		Dx(printf("First fragment\n"));
+		trace(TRACE_FRAG, "First fragment\n");
 		struct timespec now;
 		clock_gettime(CLOCK_MONOTONIC, &now);
 		key.id = fragid;
-		if (handleFirstFragment(ft, &now, &key, fw, data, len) != 0)
+		if (handleFirstFragment(ft, &now, &key, fw, data, len) != 0) {
+			trace(TRACE_FRAG, "FAILED: Handle first fragment\n");
 			return -1;
+		}
 	}
-	Dx(printf("packetHandleFn; fw=%d\n", fw));
+
+	TRACE(TRACE_PACKET|TRACE_SCTP){
+		TRACE(TRACE_PACKET) {
+			tracef("Using LB; %s\n", lb->target);
+			tracef(
+				"Packet; proto=%u, len=%u, fwmark=%u\n",
+				key.ports.proto, len, fw);
+		} else {
+			if (key.ports.proto == IPPROTO_SCTP) {
+				tracef("Using LB; %s\n", lb->target);
+				tracef(
+					"Packet; proto=%u, len=%u, fwmark=%u\n",
+					key.ports.proto, len, fw);
+			}
+		}
+	}
 	return fw;
 }
 
@@ -212,6 +231,8 @@ static int cmdFlowLb(int argc, char **argv)
 		{0, 0, 0, 0}
 	};
 	(void)parseOptionsOrDie(argc, argv, options);
+	logConfigShm(TRACE_SHM);
+	logTraceServer(TRACE_UNIX_SOCK);
 
 	if (lbShm != NULL) {
 		slb = mapSharedDataOrDie(lbShm, O_RDONLY);
@@ -316,7 +337,7 @@ static void loadbalancerRelease(struct LoadBalancer* lb)
 	int refCounter = REFDEC(lb->refCounter);
 	assert(refCounter >= 0);
 	if (refCounter == 0) {
-		Dx(printf("Delete load-balancer; %s\n", lb->target));
+		trace(TRACE_TARGET, "Delete load-balancer; %s\n", lb->target);
 		LOCK(lblistLock);
 		// Unlink the lb from the list.
 		if (lblist == lb)
@@ -362,12 +383,12 @@ static struct LoadBalancer* loadbalancerFindOrCreate(char const* target)
 	}
 
 	// Not found, create a new LB
-	Dx(printf("Creating LB; %s\n", target));
+	trace(TRACE_TARGET, "Creating LB; %s\n", target);
 	int fd;
 	struct SharedData* st = mapSharedDataRead(target, &fd);
 	if (st == NULL) {
 		UNLOCK(lblistLock);
-		Dx(printf("Map shm failed; %s\n", target));
+		trace(TRACE_TARGET, "Map shm failed; %s\n", target);
 		return NULL;
 	}
 
@@ -415,11 +436,11 @@ static int readCmd(FILE* in, struct Cmd* cmd)
 	char buf[MAX_CMD_LINE];
 	for (;;) {
 		if (fgets(buf, sizeof(buf), in) == NULL) {
-			Dx(printf("readCmd; unexpected eof\n"));
+			warning("readCmd; unexpected eof\n");
 			return -1;
 		}
 		buf[strcspn(buf, "\n")] = 0; /* trim newline */
-		Dx(printf("Cmd [%s]\n", buf));
+		trace(TRACE_FLOW_CONF, "Cmd [%s]\n", buf);
 		if (strncmp(buf, "eoc:", 4) == 0)
 			break;			/* end-of-command */
 		char* arg = strchr(buf, ':');
@@ -459,6 +480,8 @@ static int readCmd(FILE* in, struct Cmd* cmd)
 			cmd->udpencap = atoi(arg);
 		} else {
 			// Unrecognized command ignored
+			warning("readCmd; Unrecognized command [%s]\n", buf);
+			trace(TRACE_FLOW_CONF, "readCmd; Unrecognized command [%s]\n", buf);
 		}
 	}
 	return 0;
@@ -466,6 +489,7 @@ static int readCmd(FILE* in, struct Cmd* cmd)
 
 static void writeReply(int fd, char const* msg)
 {
+	trace(TRACE_FLOW_CONF, "writeReply [%s]\n", msg);
 	unsigned len = strlen(msg) + 1;
 	write(fd, msg, len);
 }
@@ -502,11 +526,14 @@ static void* flowThread(void* a)
 		in = out = NULL;
 
 		int cd = accept(sd, NULL, NULL);
-		Dx(printf("Accepted incoming connection. cd=%d\n", cd));
-		if (cd < 0)
+		debug("flowThread: Accepted incoming connection. cd=%d\n", cd);
+		if (cd < 0) {
+			warning("flowThread: accept returns %d\n", cd);
 			continue;
+		}
 		in = fdopen(cd, "r");
 		if (in == NULL) {
+			warning("flowThread: fdopen failed\n");
 			close(cd);
 			continue;
 		}

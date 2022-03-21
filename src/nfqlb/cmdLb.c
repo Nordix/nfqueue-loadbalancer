@@ -11,6 +11,8 @@
 #include <tuntap.h>
 #include <maglevdyn.h>
 #include <reassembler.h>
+#include <log.h>
+#include "trace.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -38,17 +40,14 @@ static int notargets_fw = -1;
 
 static void injectFrag(void const* data, unsigned len)
 {
-#ifdef VERBOSE
 	if (tun_fd >= 0) {
 		int rc = write(tun_fd, data, len);
-		printf("Frag injected, len=%u, rc=%d\n", len, rc);
+		trace(TRACE_FRAG, "Frag injected, len=%u, rc=%d\n", len, rc);
+		if (rc != len)
+			warning("FAILED: injectFrag write(%u), rc=%d\n", len, rc);
 	} else {
-		printf("Frag dropped, len=%u\n", len);
+		trace(TRACE_FRAG, "Frag dropped, len=%u\n", len);
 	}
-#else
-	if (tun_fd >= 0)
-		write(tun_fd, data, len);
-#endif
 }
 
 
@@ -71,7 +70,7 @@ static int packetHandleFn(
 			if (fw >= 0)
 				fw = magdlb.active[fw];
 			if (fw >= 0 && fw != slb->ownFwmark) {
-				Dx(printf("Fragment to LB tier. fw=%d\n", fw));
+				trace(TRACE_FRAG, "Fragment to LB tier. fw=%d\n", fw);
 				return fw; /* To the LB tier */
 			}
 		}
@@ -83,10 +82,10 @@ static int packetHandleFn(
 			clock_gettime(CLOCK_MONOTONIC, &now);
 			rc = fragGetValueOrStore(ft, &now, &key, &fw, data, len);
 			if (rc != 0) {
-				Dx(printf("Fragment %s\n", rc > 0 ? "stored":"dropped"));
+				trace(TRACE_FRAG, "Fragment %s\n", rc > 0 ? "stored":"dropped");
 				return -1;
 			}
-			Dx(printf("Handle frag locally fwmark=%u\n", fw));
+			trace(TRACE_FRAG, "Handle non-first frag locally fwmark=%d\n", fw);
 			return fw;
 		}
 	}
@@ -100,14 +99,19 @@ static int packetHandleFn(
 
 	if (rc & 1) {
 		// First fragment
-		Dx(printf("First fragment\n"));
+		trace(TRACE_FRAG, "First fragment\n");
 		struct timespec now;
 		clock_gettime(CLOCK_MONOTONIC, &now);
 		key.id = fragid;
-		if (handleFirstFragment(ft, &now, &key, fw, data, len) != 0)
+		if (handleFirstFragment(ft, &now, &key, fw, data, len) != 0) {
+			trace(TRACE_FRAG, "FAILED: Handle first fragment\n");
 			return -1;
+		}
 	}
-	Dx(printf("Packet; len=%u, fw=%d\n", len, fw));
+
+	TRACE(TRACE_PACKET){
+		tracef("Load-balance packet. fw=%d\n", fw);
+	}
 	return fw;
 }
 
@@ -154,6 +158,9 @@ static int cmdLb(int argc, char **argv)
 		{0, 0, 0, 0}
 	};
 	(void)parseOptionsOrDie(argc, argv, options);
+	logConfigShm(TRACE_SHM);
+	logTraceServer(TRACE_UNIX_SOCK);
+
 	st = mapSharedDataOrDie(targetShm, O_RDONLY);
 	magDataDyn_map(&magd, st->mem);
 	if (lbShm != NULL) {
