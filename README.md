@@ -154,12 +154,23 @@ sudo apt install -y libmnl-dev libnetfilter-queue-dev libpcap-dev
 
 Static binary;
 ```
+# On Ubuntu 20.04
 ./nfqlb.sh libnfqueue_download
 ./nfqlb.sh libnfqueue_unpack
 ./nfqlb.sh libnfqueue_build
+# On Ubuntu 22.04
+./nfqlb.sh libmnl_download
+./nfqlb.sh libmnl_unpack
+./nfqlb.sh libmnl_build
+
 make -C src clean
 make -C src -j8 static
 strip /tmp/$USER/nfqlb/nfqlb/nfqlb
 file /tmp/$USER/nfqlb/nfqlb/nfqlb
 ./nfqlb.sh build_alpine_image   # Will build a static binary
 ```
+
+The static libs are not present for `libnfqueue-queue-dev` in Ubuntu
+20.04. However they *are* present in Ubuntu 22.04, but then the static
+libs are not in `libmnl-dev` (sigh...). This bug is
+[reported](https://bugs.launchpad.net/ubuntu/+source/libmnl/+bug/1971523).

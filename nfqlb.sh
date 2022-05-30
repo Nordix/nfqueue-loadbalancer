@@ -239,10 +239,12 @@ cmd_stop_lb() {
 ##   libnfqueue_unpack [--force] [--dest=]
 ##   libnfqueue_build [--dest=]
 ##     Build libnetfilter_queue locally. This is required for "make -j8 static"
-##     on Ubuntu since no static lib is included in the dev package.
+##     on Ubuntu 20.04 since no static lib is included in the dev package.
+
+netfilter_url=https://netfilter.org/projects
 libnfqueue_ver=1.0.3
 libnfqueue_ar=libnetfilter_queue-${libnfqueue_ver}.tar.bz2
-libnfqueue_url=https://www.netfilter.org/projects/libnetfilter_queue/files/$libnfqueue_ar
+libnfqueue_url=$netfilter_url/libnetfilter_queue/files/$libnfqueue_ar
 
 cmd_libnfqueue_download() {
 	local dstd=$ARCHIVE
@@ -271,7 +273,47 @@ cmd_libnfqueue_build() {
 	cd $d
 	./configure --enable-static || die configure
 	make -j8 || die make
-	make DESTDIR=$d/sys install || die "make install"
+	make DESTDIR=$__dest/sys install || die "make install"
+}
+
+##   libmnl_download
+##   libmnl_unpack [--force] [--dest=]
+##   libmnl_build [--dest=]
+##     Build libmnl locally. This is required for "make -j8 static"
+##     on Ubuntu 22.04 since no static lib is included in the dev package.
+
+libmnl_ver=1.0.4
+libmnl_ar=libmnl-$libmnl_ver.tar.bz2
+libmnl_url=$netfilter_url/libmnl/files/$libmnl_ar
+
+cmd_libmnl_download() {
+	local dstd=$ARCHIVE
+	test -n "$dstd" || dstd=$HOME/Downloads
+	if test -r $dstd/$libnfqueue_ar; then
+		log "Already downloaded [$dstd/$libnfqueue_ar]"
+		return 0
+	fi
+	curl -L $libnfqueue_url > $dstd/$libnfqueue_ar || die curl
+}
+cmd_libmnl_unpack() {
+	local ar=$ARCHIVE/$libmnl_ar
+	test -r $ar || ar=$HOME/Downloads/$libmnl_ar
+	test -r $ar || die "Not readable [$ar]"
+	test -n "$__dest" || __dest=/tmp/$USER/nfqlb
+	local d=$__dest/libmnl-$libmnl_ver
+	test "$__force" = "yes" && rm -r $d
+	test -d $d && die "Already unpacked [$d]"
+	mkdir -p $__dest || die "mkdie $__dest"
+	tar -C $__dest -xf $ar
+}
+cmd_libmnl_build() {
+	test -n "$__dest" || __dest=/tmp/$USER/nfqlb
+	local d=$__dest/libmnl-$libmnl_ver
+	test -d $d || die "Not a directory [$d]"
+	cd $d
+	./configure --enable-static || die configure
+	make -j8 || die make
+	make DESTDIR=$__dest/sys install || die "make install"
 }
 
 ##   build_alpine_image

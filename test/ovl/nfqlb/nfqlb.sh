@@ -239,6 +239,8 @@ test_sctp() {
 }
 
 ##
+##   xcluster_FLOW=yes test start
+##     Start with default flow
 ##   test basic_flows
 ##     Basic tests with "nfqlb flowlb"
 test_basic_flows() {
