@@ -3,7 +3,9 @@
   Copyright (c) 2021-2022 Nordix Foundation
 */
 
-#include "nfqueue.h"
+#include "nfqlb.h"
+
+#include <nfqueue.h>
 #include <iputils.h>
 #include <shmem.h>
 #include <cmd.h>
@@ -12,7 +14,6 @@
 #include <maglevdyn.h>
 #include <reassembler.h>
 #include <log.h>
-#include "trace.h"
 
 #include <stdlib.h>
 #include <stdio.h>

@@ -109,9 +109,9 @@ cmd_mkrelease() {
 	make -C $dir/src clean
 	cmd_libnfqueue_download
 	__force=yes
-	cmd_libnfqueue_unpack
-	cmd_libnfqueue_build
-	make -C $dir/src -j8 static || die make
+	cmd_libmnl_unpack
+	cmd_libmnl_build
+	make -C $dir/src VERSION=$ver -j8 static || die make
 	local dst=$tmp/nfqlb-$ver
 	mkdir -p $dst/bin $dst/lib $dst/include
 	local O=/tmp/$USER/nfqlb

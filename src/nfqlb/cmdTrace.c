@@ -3,10 +3,10 @@
   Copyright (c) 2022 Nordix Foundation
 */
 #define _GNU_SOURCE
+#include "nfqlb.h"
 #include <cmd.h>
 #include <die.h>
 #include <log.h>
-#include "trace.h"
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/un.h>

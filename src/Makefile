@@ -26,16 +26,17 @@
 O ?= /tmp/$(USER)/nfqlb
 X ?= $(O)/nfqlb/nfqlb
 LIB ?= $(O)/lib/libnfqlb.a
+VERSION ?= $(shell date +%Y.%m.%d)
 
 DIRS := $(O)/lib/test $(O)/nfqlb
-SRC := $(wildcard nfqlb/*.c)
+SRC := $(filter-out $(wildcard nfqlb/*-test.c),$(wildcard nfqlb/*.c))
 LIB_SRC := $(wildcard lib/*.c)
 OBJ := $(SRC:%.c=$(O)/%.o)
 LIB_OBJ := $(LIB_SRC:%.c=$(O)/%.o)
 SYSD := $(O)/sys/usr/local
 
 $(O)/%.o : %.c
-	$(CC) -c $(XCFLAGS) $(CFLAGS) -pthread -Wall -Ilib $< -o $@
+	$(CC) -c $(XCFLAGS) $(CFLAGS) -DVERSION=$(VERSION) -pthread -Wall -Ilib $< -o $@
 
 .PHONY: all static
 all: $(X)
@@ -55,7 +56,9 @@ $(LIB_OBJ): | $(DIRS)
 .PHONY: test test_progs
 $(O)/lib/test/% : lib/test/%.c
 	$(CC) $(CFLAGS) -Wall -Ilib -pthread $< -o $@ -L$(O)/lib -lnfqlb -lrt -lpcap
-TEST_SRC := $(wildcard lib/test/*-test.c)
+$(O)/nfqlb/%-test : nfqlb/%-test.c
+	$(CC) $(CFLAGS) -Wall -Ilib -pthread $< $(subst -test,,$<) -o $@ -L$(O)/lib -lnfqlb -lrt
+TEST_SRC := $(wildcard lib/test/*-test.c) $(wildcard nfqlb/*-test.c)
 TEST_PROGS := $(TEST_SRC:%.c=$(O)/%)
 $(TEST_PROGS): $(LIB)
 test_progs: $(TEST_PROGS)

@@ -61,7 +61,7 @@ nfqlb trace --mask=0xffffffff   # trace everything
 
 Per-packet printouts should normally be avoided but may sometimes be
 necessary. The flows in `nfqlb` are re-use to select packets to
-trace. The flow commands are be duplicated, like;
+trace. The flow commands are duplicated, like;
 
 ```
   trace-flow-set

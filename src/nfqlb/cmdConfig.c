@@ -10,7 +10,7 @@
 #include <maglevdyn.h>
 
 #include <stdlib.h>
-
+#include <stdio.h>
 
 static int cmdActivate(int argc, char **argv)
 {
@@ -119,8 +119,27 @@ static int cmdDeactivate(int argc, char **argv)
 
 	return 0;
 }
+#ifndef VERSION
+#define VERSION unknown
+#endif
+#define xstr(s) str(s)
+#define str(s) #s
+
+static int cmdVersion(int argc, char **argv)
+{
+	struct Option options[] = {
+		{"help", NULL, 0,
+		 "version\n"
+		 "  Print version"},
+		{0, 0, 0, 0}
+	};
+	parseOptionsOrDie(argc, argv, options);
+	puts(xstr(VERSION));
+	return 0;
+}
 
 __attribute__ ((__constructor__)) static void addCommands(void) {
 	addCmd("activate", cmdActivate);
 	addCmd("deactivate", cmdDeactivate);
+	addCmd("version", cmdVersion);
 }

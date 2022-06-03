@@ -3,7 +3,9 @@
   Copyright (c) 2021-2022 Nordix Foundation
 */
 
-#include "nfqueue.h"
+#include "nfqlb.h"
+
+#include <nfqueue.h>
 #include <iputils.h>
 #include <shmem.h>
 #include <cmd.h>
@@ -14,7 +16,6 @@
 #include <flow.h>
 #include <argv.h>
 #include <log.h>
-#include "trace.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -414,79 +415,6 @@ static struct LoadBalancer* loadbalancerFindOrCreate(char const* target)
    TODO: Use grpc or something... but grpc has no support for C.
  */
 
-#define MAX_CMD_LINE 1024
-
-// Incoming command structure
-struct Cmd {
-	char const* action;
-	char const* name;
-	char const* target;
-	int priority;
-	char const** protocols;
-	char const* dports;
-	char const* sports;
-	char const** dsts;
-	char const** srcs;
-	char const** match;
-	unsigned short udpencap;
-};
-
-static int readCmd(FILE* in, struct Cmd* cmd)
-{
-	char buf[MAX_CMD_LINE];
-	for (;;) {
-		if (fgets(buf, sizeof(buf), in) == NULL) {
-			warning("readCmd; unexpected eof\n");
-			return -1;
-		}
-		buf[strcspn(buf, "\n")] = 0; /* trim newline */
-		trace(TRACE_FLOW_CONF, "Cmd [%s]\n", buf);
-		if (strncmp(buf, "eoc:", 4) == 0)
-			break;			/* end-of-command */
-		char* arg = strchr(buf, ':');
-		if (arg == NULL)
-			return -1;
-		*arg++ = 0;
-		if (strcmp(buf, "action") == 0) {
-			if (cmd->action == NULL)
-				cmd->action = strdup(arg);
-		} else if (strcmp(buf, "name") == 0) {
-			if (cmd->name == NULL)
-				cmd->name = strdup(arg);
-		} else if (strcmp(buf, "target") == 0) {
-			if (cmd->target == NULL)
-				cmd->target = strdup(arg);
-		} else if (strcmp(buf, "priority") == 0) {
-			cmd->priority = atoi(arg);
-		} else if (strcmp(buf, "protocols") == 0) {
-			if (cmd->protocols == NULL)
-				cmd->protocols = mkargv(arg, ", ");
-		} else if (strcmp(buf, "dports") == 0) {
-			if (cmd->dports == NULL)
-				cmd->dports = strdup(arg);
-		} else if (strcmp(buf, "sports") == 0) {
-			if (cmd->sports == NULL)
-				cmd->sports = strdup(arg);
-		} else if (strcmp(buf, "dsts") == 0) {
-			if (cmd->dsts == NULL)
-				cmd->dsts = mkargv(arg, ", ");
-		} else if (strcmp(buf, "srcs") == 0) {
-			if (cmd->srcs == NULL)
-				cmd->srcs = mkargv(arg, ", ");
-		} else if (strcmp(buf, "match") == 0) {
-			if (cmd->match == NULL)
-				cmd->match = mkargv(arg, ",");
-		} else if (strcmp(buf, "udpencap") == 0) {
-			cmd->udpencap = atoi(arg);
-		} else {
-			// Unrecognized command ignored
-			warning("readCmd; Unrecognized command [%s]\n", buf);
-			trace(TRACE_FLOW_CONF, "readCmd; Unrecognized command [%s]\n", buf);
-		}
-	}
-	return 0;
-}
-
 static void writeReply(int fd, char const* msg)
 {
 	trace(TRACE_FLOW_CONF, "writeReply [%s]\n", msg);
@@ -517,6 +445,7 @@ static void* flowThread(void* a)
 		die("listen\n");
 	FILE* in = NULL;
 	FILE* out = NULL;
+	struct FlowCmd cmd = {0};
 	for (;;) {
 		// Cleanup
 		if (in != NULL)
@@ -537,9 +466,9 @@ static void* flowThread(void* a)
 			close(cd);
 			continue;
 		}
-		struct Cmd cmd;
-		memset(&cmd, 0, sizeof(cmd));
-		if (readCmd(in, &cmd) != 0)
+
+		freeFlowCmd(&cmd);
+		if (readFlowCmd(in, &cmd) != 0)
 			continue;
 		if (cmd.action == NULL) {
 			writeReply(cd, "FAIL: no action");
