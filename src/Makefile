@@ -26,7 +26,7 @@
 O ?= /tmp/$(USER)/nfqlb
 X ?= $(O)/nfqlb/nfqlb
 LIB ?= $(O)/lib/libnfqlb.a
-VERSION ?= $(shell date +%Y.%m.%d)
+VERSION ?= $(shell git describe --dirty --tags)
 
 DIRS := $(O)/lib/test $(O)/nfqlb
 SRC := $(filter-out $(wildcard nfqlb/*-test.c),$(wildcard nfqlb/*.c))
