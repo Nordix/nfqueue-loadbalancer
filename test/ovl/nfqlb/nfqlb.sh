@@ -120,6 +120,7 @@ test_start_empty() {
 	test "$__fragrev" = "yes" && OVLS=tap-scrambler
 	xcluster_start network-topology iptools nfqlb $OVLS $@
 	test "$__fragrev" = "yes" && otc 222 fragrev
+	otc 1 version
 }
 ##   test [--fragrev] start
 ##     Start cluster and setup load-balancing

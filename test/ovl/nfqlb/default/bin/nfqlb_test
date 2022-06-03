@@ -33,6 +33,9 @@ dbg() {
 	test -n "$__verbose" && echo "$prg: $*" >&2
 }
 
+cmd_tcase_version() {
+	tlog "Using nfqlb version $(nfqlb version)"
+}
 
 cmd_tcase_nfqueue_activate_all() {
 	tcase "nfqueue activate all"
