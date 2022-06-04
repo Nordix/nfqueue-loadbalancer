@@ -40,6 +40,7 @@ static void readPcapData(char const* file)
 		die("pcap_open_offline() failed: %s\n", errbuf);	
 	if (pcap_loop(fp, 0, storeHandler, NULL) < 0)
         die("pcap_loop() failed: %s\n", pcap_geterr(fp));
+	pcap_close(fp);
 }
 
 static void shuffle(struct Packet* packets, unsigned cnt)
@@ -53,4 +54,12 @@ static void shuffle(struct Packet* packets, unsigned cnt)
 		packets[i1] = packets[i2];
 		packets[i2] = tmp;
 	}
+}
+
+static void freePackets(struct Packet* packets, unsigned cnt)
+{
+	if (packets == NULL || cnt == 0)
+		return;
+	for (int i = 0; i < cnt; i++)
+		free(packets[i].data);
 }

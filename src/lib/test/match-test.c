@@ -126,6 +126,8 @@ int main(int argc, char* argv[])
 	assert(matchCount(m, 0) == 2);	/* SYN + SYN/ACK */
 	matchDestroy(m);			/* <- destroy */
 
+	freePackets(packets, nPackets);
+
 	readPcapData("lib/test/telnet-ipv6.pcap");
 
 	m = matchCreate();
@@ -139,6 +141,8 @@ int main(int argc, char* argv[])
 	assert(matchCount(m, 0) == 9);
 	matchDestroy(m);			/* <- destroy */
 
+	freePackets(packets, nPackets);
+
 	readPcapData("lib/test/sctp-encap-ipv4.pcap");
 	m = matchCreate();
 	assert(matchAdd(m, "udp[2:2]=6000") == NULL);
@@ -149,6 +153,8 @@ int main(int argc, char* argv[])
 	assert(matchCount(m, IPPROTO_SCTP) == 6);
 	assert(matchCount(m, 0) == 11);
 	matchDestroy(m);			/* <- destroy */
+
+	freePackets(packets, nPackets);
 
 	printf("=== match-test OK\n");
 	return 0;

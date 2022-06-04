@@ -475,6 +475,8 @@ static void testLimitedBuckets(struct ctStats* accumulatedStats)
 	ctDestroy(ct);
 	// Allocated buckets shall be freed on "ctDestroy"
 	assert(bucketPool.nfree == 2);
+	free(bucketPool.buffer);
+	free(bucketPool.freeBuckets);
 }
 
 /*

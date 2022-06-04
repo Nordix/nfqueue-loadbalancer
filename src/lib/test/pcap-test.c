@@ -114,6 +114,8 @@ cmdParse(int argc, char* argv[])
 		printf("==== pcap-test OK [%s]\n", file);
 	}
 
+	fragTableDestroy(ft);
+	freePackets(packets, nPackets);
 	return 0;
 }
 

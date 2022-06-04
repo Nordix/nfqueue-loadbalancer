@@ -56,6 +56,7 @@ int main(int argc, char* argv[])
 	for (i = 0; i < m.N; i++) {
 		assert(m.lookup[i] < 2);
 	}
+	magDataDyn_free(&m);
 	free(mem);
 
 	/*
@@ -101,6 +102,7 @@ static float addTargets(void* mem, unsigned n)
 		if (lookup[i] != m.lookup[i])
 			ndiff++;
 	}
+	magDataDyn_free(&m);
 	return 100.0 * (float)ndiff / (float)m.M;
 }
 
@@ -125,6 +127,7 @@ static float removeTargets(void* mem, unsigned n)
 		if (lookup[i] != m.lookup[i])
 			ndiff++;
 	}
+	magDataDyn_free(&m);
 	return 100.0 * (float)ndiff / (float)m.M;
 }
 

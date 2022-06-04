@@ -22,9 +22,8 @@ simple `assert`s are used.
 
 Memory leak detection;
 ```
-make clean
-CFLAGS="-Werror -DUNIT_TEST -fsanitize=leak -g" make -j8 test_progs
-/tmp/uablrek/nfqlb/lib/test/flow-test
+cd src
+make clean; CFLAGS="-Werror -DUNIT_TEST -fsanitize=leak -g" make -j8 test
 ```
 
 ### Dependency injection
