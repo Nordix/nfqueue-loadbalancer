@@ -380,6 +380,7 @@ indent='  '
 
 test -n "$PREFIX" || PREFIX=1000::1
 test -n "$XADDR" || XADDR=20.0.0.0
+export NFQLB_FLOW_ADDRESS
 
 
 # Get the command

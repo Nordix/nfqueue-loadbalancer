@@ -3,7 +3,7 @@
   Copyright (c) 2021-2022 Nordix Foundation
 */
 
-#include <argv.h>
+#include "argv.h"
 #include <die.h>
 #include <string.h>
 #include <stdlib.h>

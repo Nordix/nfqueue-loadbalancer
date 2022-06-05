@@ -2,7 +2,7 @@
 
 export PATH="/bin:/sbin:/usr/bin:/usr/sbin"
 . /etc/profile
-
+export NFQLB_FLOW_ADDRESS
 die() {
     echo "$@"
     exit 1

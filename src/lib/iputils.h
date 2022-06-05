@@ -36,3 +36,14 @@ unsigned hashKeyAddresses(struct ctKey* key);
 // Hashes on the entire key, unless proto=sctp in which case we hash on
 // ports only.
 unsigned hashKey(struct ctKey* key);
+
+/*
+  parseAddress parses an address into a struct sockaddr_storage.
+  Example addresses;
+    "tcp:0.0.0.0:4567"
+    "tcp:[::1]:4567"
+    "unix:nfqlb"
+ */
+int parseAddress(
+	char const* adr, struct sockaddr_storage* sas, socklen_t* len);
+

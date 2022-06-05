@@ -24,7 +24,9 @@ extern FILE* logfile;
 void logConfigShm(char const* name);
 
 // Start the trace server thread
-void logTraceServer(char const* unix_socket);
+// trace_address is parsed by "parseAddress()" (iputils.h).
+// Example; "unix:nfqlb-trace" or "tcp:[::1]:10034"
+void logTraceServer(char const* trace_address);
 
 #define WARNING if(logconfig->level>=4)
 #define NOTICE if(logconfig->level>=5)

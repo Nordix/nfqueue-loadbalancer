@@ -16,7 +16,6 @@
 #include <log.h>
 
 #include <stdlib.h>
-#include <stdio.h>
 #include <unistd.h>
 #include <string.h>
 #include <pthread.h>
@@ -160,7 +159,7 @@ static int cmdLb(int argc, char **argv)
 	};
 	(void)parseOptionsOrDie(argc, argv, options);
 	logConfigShm(TRACE_SHM);
-	logTraceServer(TRACE_UNIX_SOCK);
+	logTraceServer(DEFAULT_TRACE_ADDRESS);
 
 	st = mapSharedDataOrDie(targetShm, O_RDONLY);
 	magDataDyn_map(&magd, st->mem);

@@ -35,6 +35,8 @@
         circumstances.
  */
 
+#define DEFAULT_FLOW_ADDRESS "unix:nfqlb"
+
 /* ----------------------------------------------------------------------
    Server functions;
  */
@@ -92,4 +94,4 @@ void freeFlowCmd(struct FlowCmd* cmd);
 #define TRACE_TARGET	32
 
 #define TRACE_SHM "nfqlb-trace"
-#define TRACE_UNIX_SOCK "nfqlb-trace"
+#define DEFAULT_TRACE_ADDRESS "unix:nfqlb-trace"

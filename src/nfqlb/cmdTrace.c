@@ -7,12 +7,11 @@
 #include <cmd.h>
 #include <die.h>
 #include <log.h>
-#include <string.h>
-#include <sys/socket.h>
+#include <iputils.h>
 #include <sys/un.h>
 #include <unistd.h>
-#include <stddef.h>
 #include <stdlib.h>
+#include <errno.h>
 
 static unsigned str2mask(char const* name)
 {
@@ -73,15 +72,17 @@ static int cmdTrace(int argc, char **argv)
 	logConfigShm(TRACE_SHM);
 	LOG_SET_TRACE_MASK(mask);
 
-	int sd = socket(AF_LOCAL, SOCK_STREAM, 0);
-	struct sockaddr_un sa = {0};
-	sa.sun_family = AF_UNIX;
-	sa.sun_path[0] = 0;
-	strcpy(sa.sun_path+1, TRACE_UNIX_SOCK);
-	socklen_t len =
-		offsetof(struct sockaddr_un, sun_path) + strlen(sa.sun_path+1) + 1;
+	struct sockaddr_storage sa;
+	socklen_t len;
+	char const* addr = DEFAULT_TRACE_ADDRESS;
+	if (parseAddress(addr, &sa, &len) != 0)
+		die("Failed to parse address [%s]", addr);
+	
+	int sd = socket(sa.ss_family, SOCK_STREAM, 0);
+	if (sd < 0)
+		die("Trace client socket: %s\n", strerror(errno));
 	if (connect(sd, (struct sockaddr*)&sa, len) != 0)
-		die("FAILED: connect\n");
+		die("Trace client connect to %s: %s\n", addr, strerror(errno));
 
 	char buffer[4*1024];
 	int rc = read(sd, buffer, sizeof(buffer));

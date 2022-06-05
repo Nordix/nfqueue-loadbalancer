@@ -14,18 +14,16 @@
 #include <maglevdyn.h>
 #include <reassembler.h>
 #include <flow.h>
-#include <argv.h>
 #include <log.h>
 
 #include <stdlib.h>
-#include <stdio.h>
 #include <unistd.h>
 #include <string.h>
 #include <pthread.h>
 #include <assert.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
-#include <sys/un.h>
+#include <errno.h>
 
 #ifdef VERBOSE
 #define D(x)
@@ -233,7 +231,7 @@ static int cmdFlowLb(int argc, char **argv)
 	};
 	(void)parseOptionsOrDie(argc, argv, options);
 	logConfigShm(TRACE_SHM);
-	logTraceServer(TRACE_UNIX_SOCK);
+	logTraceServer(DEFAULT_TRACE_ADDRESS);
 
 	if (lbShm != NULL) {
 		slb = mapSharedDataOrDie(lbShm, O_RDONLY);
@@ -432,17 +430,21 @@ static char const* lb2string(void* user_ref)
 
 static void* flowThread(void* a)
 {
-	int sd = socket(AF_LOCAL, SOCK_STREAM, 0);
-	struct sockaddr_un sa;
-	sa.sun_family = AF_UNIX;
-	sa.sun_path[0] = 0;
-	strcpy(sa.sun_path+1, "nfqlb");
-	socklen_t len =
-		offsetof(struct sockaddr_un, sun_path) + strlen(sa.sun_path+1) + 1;
+	struct sockaddr_storage sa;
+	socklen_t len;
+	char const* addr;
+	addr = getenv("NFQLB_FLOW_ADDRESS");
+	if (addr == NULL)
+		addr = DEFAULT_FLOW_ADDRESS;
+	if (parseAddress(addr, &sa, &len) != 0)
+		die("Failed to parse address [%s]", addr);
+	int sd = socket(sa.ss_family, SOCK_STREAM, 0);
+	if (sd < 0)
+		die("Flow server socket: %s\n", strerror(errno));
 	if (bind(sd, (struct sockaddr*)&sa, len) != 0)
-		die("bind\n");
+		die("Flow server bind: %s\n", strerror(errno));
 	if (listen(sd, 128) != 0)
-		die("listen\n");
+		die("Flow server listen: %s\n", strerror(errno));
 	FILE* in = NULL;
 	FILE* out = NULL;
 	struct FlowCmd cmd = {0};

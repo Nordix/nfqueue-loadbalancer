@@ -3,15 +3,13 @@
    Copyright (c) 2021-2022 Nordix Foundation
 */
 
+#define _GNU_SOURCE				/* (for strcasestr) */
+#include "nfqlb.h"
 #include <cmd.h>
 #include <die.h>
-#define _GNU_SOURCE				/* (for strcasestr) */
+#include <iputils.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include <errno.h>
-#include <string.h>
-#include <stddef.h>
-#include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
 
@@ -19,17 +17,19 @@
 
 static int connectToLb(void)
 {
-	int sd = socket(AF_LOCAL, SOCK_STREAM, 0);
-	struct sockaddr_un sa;
-	sa.sun_family = AF_UNIX;
-	sa.sun_path[0] = 0;
-	strcpy(sa.sun_path+1, "nfqlb");
-	socklen_t len =
-		offsetof(struct sockaddr_un, sun_path) + strlen(sa.sun_path+1) + 1;
-	if (connect(sd, (struct sockaddr*)&sa, len) != 0) {
-		close(sd);
-		return -1;
-	}
+	struct sockaddr_storage sa;
+	socklen_t len;
+	char const* addr;
+	addr = getenv("NFQLB_FLOW_ADDRESS");
+	if (addr == NULL)
+		addr = DEFAULT_FLOW_ADDRESS;
+	if (parseAddress(addr, &sa, &len) != 0)
+		die("Failed to parse address [%s]", addr);	
+	int sd = socket(sa.ss_family, SOCK_STREAM, 0);
+	if (sd < 0)
+		die("Client socket: %s\n", strerror(errno));
+	if (connect(sd, (struct sockaddr*)&sa, len) != 0)
+		die("Connect failed. %s\n", strerror(errno));
 	return sd;
 }
 

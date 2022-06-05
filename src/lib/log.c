@@ -7,14 +7,13 @@
 #include <log.h>
 #include <die.h>
 #include <shmem.h>
+#include <iputils.h>
 #include <pthread.h>
-#include <sys/socket.h>
-#include <stddef.h>
 #include <sys/un.h>
 #include <unistd.h>
-#include <stdio.h>
 #include <stdarg.h>
 #include <signal.h>
+#include <errno.h>
 
 static struct LogConfig default_config = {5, 0};
 struct LogConfig* logconfig = &default_config;
@@ -83,18 +82,18 @@ __attribute__ ((__constructor__)) static void loginit(void) {
 static void* traceServerThread(void* arg)
 {
 	info("Started Trace\n");
-	int sd = socket(AF_LOCAL, SOCK_STREAM, 0);
-	struct sockaddr_un sa;
-	sa.sun_family = AF_UNIX;
-	sa.sun_path[0] = 0;
-	char const* unix_socket = arg;
-	strcpy(sa.sun_path+1, unix_socket);
-	socklen_t len =
-		offsetof(struct sockaddr_un, sun_path) + strlen(sa.sun_path+1) + 1;
+	struct sockaddr_storage sa;
+	socklen_t len;
+	char const* addr = arg;
+	if (parseAddress(addr, &sa, &len) != 0)
+		die("Failed to parse address [%s]", addr);
+	int sd = socket(sa.ss_family, SOCK_STREAM, 0);
+	if (sd < 0)
+		die("Trace server socket: %s\n", strerror(errno));
 	if (bind(sd, (struct sockaddr*)&sa, len) != 0)
-		die("bind\n");
+		die("Trace server bind: %s\n", strerror(errno));
 	if (listen(sd, 1) != 0)
-		die("listen\n");
+		die("Trace server listen: %s\n", strerror(errno));
 	for (;;) {
 		debug("Trace: accept\n");
 		int cd = accept(sd, NULL, NULL);

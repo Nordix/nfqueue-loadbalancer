@@ -8,12 +8,11 @@
   The intended use is for 16-bit ports, which mean max 16 recursions.
  */
 
-#include <rangeset.h>
+#include "rangeset.h"
 #include <die.h>
 #define _GNU_SOURCE				/* (for strndupa) */
 #include <stdlib.h>
 #include <stdio.h>
-#include <stddef.h>
 #include <limits.h>
 #include <string.h>
 

@@ -3,12 +3,17 @@
   Copyright (c) 2021-2022 Nordix Foundation
 */
 
+#define _GNU_SOURCE
 #include "iputils.h"
 #include <hash.h>
 #include <netinet/ip_icmp.h>
 #include <netinet/ip6.h>
 #include <netinet/ether.h>
 #include <netinet/icmp6.h>
+#include <sys/un.h>
+#include <netdb.h>
+#include <stddef.h>
+#include <stdlib.h>
 
 #ifdef VERBOSE
 #include "stdio.h"
@@ -369,4 +374,52 @@ unsigned hashKey(struct ctKey* key)
 unsigned hashKeyAddresses(struct ctKey* key)
 {
 	return HASH(key, sizeof(struct in6_addr) * 2);
+}
+
+int parseAddress(char const* _adr, struct sockaddr_storage* sas, socklen_t* len)
+{
+	if (strncmp(_adr, "tcp:", 4) == 0) {
+		char* astr = strdupa(_adr);
+		char* adr = astr+4;
+		char* port;
+		if (*adr == '[') {
+			adr++;
+			port = strchr(adr, ']');
+			if (port == NULL || port[1] != ':')
+				return -1;
+			*port = 0;
+			port += 2;
+		} else {
+			port = strchr(adr, ':');
+			if (port == NULL)
+				return -1;
+			*port++ = 0;
+		}
+		// We must check the port explicitly since getaddrinfo accepts anything
+		if (atoi(port) < 0 || atoi(port) > 0xffff)
+			return -1;
+		struct addrinfo *res = NULL;
+		struct addrinfo hints;
+		memset(&hints, 0, sizeof(struct addrinfo));
+		hints.ai_family = AF_UNSPEC;
+		hints.ai_socktype = SOCK_STREAM;
+		hints.ai_flags = AI_NUMERICHOST | AI_NUMERICSERV;
+		if (getaddrinfo(adr, port, &hints, &res) != 0)
+			return -1;
+		if (res == NULL)
+			return -1;
+		memcpy(sas, res->ai_addr, res->ai_addrlen);
+		*len = res->ai_addrlen;
+		freeaddrinfo(res);
+	} else if (strncmp(_adr, "unix:", 5) == 0) {
+		struct sockaddr_un* sa = (struct sockaddr_un*)sas;
+		sa->sun_family = AF_UNIX;
+		sa->sun_path[0] = 0;
+		strcpy(sa->sun_path+1, _adr+5);
+		*len =
+			offsetof(struct sockaddr_un, sun_path) + strlen(_adr+5) + 1;
+	} else {
+		return -1;
+	}
+	return 0;
 }

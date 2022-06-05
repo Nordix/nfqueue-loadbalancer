@@ -44,7 +44,14 @@ port range, but a flow may be re-configured with an updated
 configuration.
 
 Unlike the lb-configuration (MaglevData) flows are stored in the lb
-process and must be re-configured if the lb process is restarted.
+process and must be re-configured if the lb process is
+restarted. Communication with the `flowlb` process uses a `AF_UNIX`
+socket by default. In a "POD" environment you might want to use TCP
+instead. This is controlled by an environment variable;
+
+```
+export NFQLB_FLOW_ADDRESS="tcp:[::1]:10033"
+```
 
 
 ## Performance

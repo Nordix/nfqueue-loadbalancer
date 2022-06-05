@@ -3,11 +3,10 @@
   Copyright (c) 2021-2022 Nordix Foundation
 */
 
-#include <match.h>
+#include "match.h"
 #include <die.h>
 #include <iputils.h>
 
-#include <stddef.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
