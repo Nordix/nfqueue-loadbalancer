@@ -57,23 +57,101 @@ nfqlb trace --mask=0xffffffff   # trace everything
 
 ## Trace-flows
 
-**Not yet implemented** (but shoudn't be to hard)
-
 Per-packet printouts should normally be avoided but may sometimes be
 necessary. The flows in `nfqlb` are re-use to select packets to
-trace. The flow commands are duplicated, like;
+trace;
 
 ```
   trace-flow-set
   trace-flow-delete
   trace-flow-list
+  trace-flow-list-names
 ```
 
-And per-packet printouts only for packets that matches the trace-flows
-can be initated with;
+**NOTE**; that only packets in the *ingress* direction is seen by the
+  `nfqlb`, so you will *not* see any egress packets.
+
+The `trace-flow-set` is basically the same as `flow-set` but lacks
+some options that doesn't apply for trace-flows;
 
 ```
-nfqlb trace --selection=flows,...
+# nfqlb trace-flow-set -h
+trace-flow-set [options]
+  Set a flow. An un-defined value means match-all.
+  Use comma separated lists for multiple items (no spaces)
+  --name= Name of the flow (required)
+  --protocols= Protocols. tcp, udp, sctp 
+  --dsts= Destination CIDRs 
+  --srcs= Source CIDRs 
+  --dports= Destination port ranges 
+  --sports= Source port ranges 
+  --match= Bit-match statements 
+```
+
+While you *can* specify a "default" flow that will match *every*
+packet, the idea with `trace-flows` is to narrow the selection. You may
+use `--srcs` and `--dports` and possibly `--sports`.
+
+```
+xcluster_FLOW=yes ./nfqlb.sh test -nrouters=1 start_mtu_squeeze > $log
+# On vm-201
+#nfqlb trace-flow-set --name=default  # will match anything. Don't do that!
+nfqlb trace-flow-set --name=from-test-server --srcs=20.0.0.0/24,1000::1:20.0.0.0/120
+nfqlb trace-flow-list
+```
+
+Per-packet printouts only for packets that matches the trace-flows
+can now be initated with;
+
+```
+nfqlb trace --selection=flows
+```
+
+Example;
+```
+# On test server
+ping -I 20.0.0.0 10.0.0.0
+# Trace printout;
+Match for trace-flow: from-test-server
+ICMP_ECHO: id=58880, seq=0
+proto=icmp, len=84, ::ffff:20.0.0.0 0 -> ::ffff:10.0.0.0 0
+target=nfqlb, fwmark=102
+
+Match for trace-flow: from-test-server
+ICMP_ECHO: id=58880, seq=1
+proto=icmp, len=84, ::ffff:20.0.0.0 0 -> ::ffff:10.0.0.0 0
+target=nfqlb, fwmark=102
+...
+```
+
+The "match" option may also be used to narrow the matching
+packets. Here is an example that matches TCP packets with the *only*
+the SYN flag set, or the RST flag (and any other flag) set;
+
+```
+nfqlb trace-flow-set --name=SYN-only --match='tcp[12:2]&0x01ff=0x0002'
+nfqlb trace-flow-set --name=RST --match='tcp[12:2]&0x0004=0x0004'
+```
+
+
+For some ICMP packets the addresses are from the "inner" packet, most
+interresting for the `ICMP_DEST_UNREACH/FRAG_NEEDED` (ipv4) and
+`ICMP6_PACKET_TOO_BIG` (ipv6) packets. Example;
+
+```
+Match for trace-flow: from-test-server
+ICMP6_PACKET_TOO_BIG: mtu=1480
+proto=tcp, len=1280, 1000::1:1400:3 45118 -> 1000::1 80
+target=vm-003, fwmark=103
+```
+
+The printed match is the packet that *caused* the
+`ICMP6_PACKET_TOO_BIG`, not the ICMP packet itself. This is the `nfqlb` [destunreach](https://github.com/Nordix/nfqueue-loadbalancer/blob/master/destunreach.md)
+function in action.
+
+Delete all trace-flows;
+```
+for n in $(nfqlb trace-flow-list-names | jq -r .[]); do nfqlb trace-flow-delete --name=$n; done
 ```
 
 

@@ -14,6 +14,7 @@
 #include <netdb.h>
 #include <stddef.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 #ifdef VERBOSE
 #include "stdio.h"
@@ -376,6 +377,90 @@ unsigned hashKeyAddresses(struct ctKey* key)
 	return HASH(key, sizeof(struct in6_addr) * 2);
 }
 
+static void printIcmp4(
+	int (*outf)(const char *fmt, ...), void const* data, unsigned len)
+{
+	void const* endp = data + len;
+	struct iphdr* hdr = (struct iphdr*)data;
+	if (!IN_BOUNDS(hdr, sizeof(*hdr), endp) || hdr->ihl < 5)
+		return;
+	if (hdr->protocol != IPPROTO_ICMP)
+		return;
+	struct icmphdr* ihdr = (struct icmphdr*)((uint32_t*)data + hdr->ihl);
+	switch (ihdr->type) {
+	case ICMP_DEST_UNREACH:
+		switch (ihdr->code) {
+		case ICMP_FRAG_NEEDED:
+			outf(
+				"ICMP_DEST_UNREACH/FRAG_NEEDED: mtu=%u\n",
+				ntohs(ihdr->un.frag.mtu));
+			break;
+		default:
+			outf("ICMP_DEST_UNREACH: code=%u\n", ihdr->code);
+		}
+		break;
+	case ICMP_ECHO:
+		outf(
+			"ICMP_ECHO: id=%u, seq=%u\n",
+			ntohs(ihdr->un.echo.id), ntohs(ihdr->un.echo.sequence));
+		break;
+	default:
+		outf("ICMP %u, %u\n", ihdr->type, ihdr->code);
+	}
+
+}
+static void printIcmp6(
+	int (*outf)(const char *fmt, ...), void const* data, unsigned len)
+{
+	void const* endp = data + len;
+	struct ip6_hdr const* ip6hdr = data;
+	if (!IN_BOUNDS(ip6hdr, sizeof(*ip6hdr), endp))
+		return;
+
+	uint8_t htype = ip6hdr->ip6_nxt;
+	void const* hdr = (void*)ip6hdr + sizeof(struct ip6_hdr);
+	while (ipv6IsExtensionHeader(htype)) {
+		struct ip6_ext const* xh = hdr;
+		if (!IN_BOUNDS(xh, sizeof(*xh), endp))
+			return;
+		htype = xh->ip6e_nxt;
+		if (xh->ip6e_len == 0)
+			return;			/* Corrupt header */
+		hdr = hdr + (xh->ip6e_len * 8);
+	}
+	if (htype != IPPROTO_ICMPV6)
+		return;
+	struct icmp6_hdr const* ihdr = hdr;
+	switch (ihdr->icmp6_type) {
+	case ICMP6_PACKET_TOO_BIG:
+		outf("ICMP6_PACKET_TOO_BIG: mtu=%u\n", ntohl(ihdr->icmp6_mtu));
+		break;
+	case ICMP6_ECHO_REQUEST:
+		outf(
+			"ICMP6_ECHO_REQUEST: id=%u, seq=%u\n",
+			ntohs(ihdr->icmp6_id), ntohs(ihdr->icmp6_seq));
+		break;
+	default:
+		outf("ICMP6 %u, %u\n", ihdr->icmp6_type, ihdr->icmp6_code);
+	}
+}
+
+void printIcmp(
+	int (*outf)(const char *fmt, ...),
+	unsigned proto, void const* data, unsigned len)
+{
+	switch (proto) {
+	case ETH_P_IP:
+		printIcmp4(outf, data, len);
+		break;
+	case ETH_P_IPV6:
+		printIcmp6(outf, data, len);
+		break;
+	default:;
+		// We should not get here because ip(6)tables handles only ip (4/6)
+	}
+}
+
 int parseAddress(char const* _adr, struct sockaddr_storage* sas, socklen_t* len)
 {
 	if (strncmp(_adr, "tcp:", 4) == 0) {
@@ -422,4 +507,21 @@ int parseAddress(char const* _adr, struct sockaddr_storage* sas, socklen_t* len)
 		return -1;
 	}
 	return 0;
+}
+
+char const* protostr(unsigned short p, char* buf)
+{
+	static char _buf[8];
+	if (buf == NULL)
+		buf = _buf;
+	switch (p) {
+	case IPPROTO_TCP: return "tcp";
+	case IPPROTO_UDP: return "udp";
+	case IPPROTO_SCTP: return "sctp";
+	case IPPROTO_ICMP: return "icmp";
+	case IPPROTO_ICMPV6: return "icmp6";
+	default:;
+	}
+	sprintf(buf, "%u", p);
+	return buf;
 }
