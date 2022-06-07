@@ -4,7 +4,11 @@
   Copyright (c) 2022 Nordix Foundation
 */
 
+#include <die.h>
+#include <iputils.h>
 #include <stdio.h>
+#include <netinet/in.h>
+#include <errno.h>
 
 /*
   Remote Commands;
@@ -36,6 +40,9 @@
  */
 
 #define DEFAULT_FLOW_ADDRESS "unix:nfqlb"
+// The only constraint is the command line for the client
+#define MAX_CMD_LINE 1024
+#define MAX_ARG_LEN 1000
 
 /* ----------------------------------------------------------------------
    Server functions;
@@ -77,21 +84,21 @@ void freeFlowCmd(struct FlowCmd* cmd);
    Client functions;
  */
 
-// The only constraint is the command line for the client
-#define MAX_CMD_LINE 1024
-
-
+int connectToLb(void);
+FILE* stream(int sd, char const* perm);
 
 
 /* ----------------------------------------------------------------------
    Trace
  */
 
-#define TRACE_PACKET	2
-#define TRACE_FRAG		4
-#define TRACE_FLOW_CONF	8
-#define TRACE_SCTP		16
-#define TRACE_TARGET	32
+#define TRACE_PACKET    2
+#define TRACE_FRAG      4
+#define TRACE_FLOW_CONF 8
+#define TRACE_SCTP      16
+#define TRACE_TARGET    32
+#define TRACE_FLOWS     64
 
 #define TRACE_SHM "nfqlb-trace"
 #define DEFAULT_TRACE_ADDRESS "unix:nfqlb-trace"
+

@@ -6,10 +6,8 @@
 #include "nfqlb.h"
 
 #include <nfqueue.h>
-#include <iputils.h>
 #include <shmem.h>
 #include <cmd.h>
-#include <die.h>
 #include <tuntap.h>
 #include <maglevdyn.h>
 #include <reassembler.h>

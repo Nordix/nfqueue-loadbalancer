@@ -6,10 +6,8 @@
 #include "nfqlb.h"
 
 #include <nfqueue.h>
-#include <iputils.h>
 #include <shmem.h>
 #include <cmd.h>
-#include <die.h>
 #include <tuntap.h>
 #include <maglevdyn.h>
 #include <reassembler.h>
@@ -23,7 +21,7 @@
 #include <assert.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
-#include <errno.h>
+#include <arpa/inet.h>
 
 #ifdef VERBOSE
 #define D(x)
@@ -39,6 +37,7 @@
 #define UNLOCK(m) pthread_mutex_unlock(&(m))
 #define MALLOC(x) calloc(1, sizeof(*(x))); if (x == NULL) die("OOM")
 
+
 // Types
 struct LoadBalancer {
 	struct LoadBalancer* next;
@@ -53,6 +52,7 @@ struct LoadBalancer {
 static void* flowThread(void* a);
 static void loadbalancerLock(void* user_ref);
 static void loadbalancerRelease(struct LoadBalancer* lb);
+static void traceHandleFlowCmd(struct FlowCmd* cmd, FILE* out, int cd);
 
 // Statics
 static struct FragTable* ft;
@@ -61,6 +61,7 @@ static struct fragStats* sft;
 static struct SharedData* slb;
 static struct MagDataDyn magdlb;
 static struct FlowSet* fset;
+static struct FlowSet* trace_fset;
 static struct LoadBalancer* lblist = NULL;
 static pthread_mutex_t lblistLock = PTHREAD_MUTEX_INITIALIZER;
 static int notargets_fw = -1;
@@ -123,6 +124,27 @@ static int packetHandleFn(
 		fset, &key, proto, data, len, &udpencap);
 	// (NOTE: the received lb is locked. Call loadbalancerRelease(lb))
 
+	char const* tflow = NULL;
+	TRACE(TRACE_FLOWS) {
+		tflow = flowLookup(trace_fset, &key, proto, data, len, NULL);
+		if (tflow != NULL) {
+			tracef("\nMatch for trace-flow: %s\n", tflow);
+			printIcmp(tracef, proto, data, len); //(will be a no-op if not icmp)
+			char src[INET6_ADDRSTRLEN];
+			char dst[INET6_ADDRSTRLEN];
+			tracef(
+				"proto=%s, len=%u, %s %u -> %s %u\n",
+				protostr(key.ports.proto, NULL), len,
+				inet_ntop(AF_INET6, &key.src, src, sizeof(src)),
+				ntohs(key.ports.src),
+				inet_ntop(AF_INET6, &key.dst, dst, sizeof(dst)),
+				ntohs(key.ports.dst));
+			if (key.ports.proto == IPPROTO_UDP && udpencap != 0) {
+				tracef("udpencap=%u\n", udpencap);
+			}
+		}
+	}
+	
 	if (key.ports.proto == IPPROTO_UDP && ntohs(key.ports.dst) == udpencap) {
 		/*
 		  We have an udp encapsulated sctp packet. Re-compute the key
@@ -144,6 +166,8 @@ static int packetHandleFn(
 	if (lb == NULL) {
 		trace(TRACE_PACKET, "Failed flowLookup\n");
 		info("Failed flowLookup\n");
+		if (tflow != NULL)
+			tracef("NO target, fwmark=%d\n", nolb_fw);
 		return nolb_fw;
 	}
 
@@ -153,8 +177,15 @@ static int packetHandleFn(
 	if (fw >= 0)
 		fw = lb->magd.active[fw];
 	loadbalancerRelease(lb);
-	if (fw < 0)
+	if (fw < 0) {
+		if (tflow != NULL)
+			tracef(
+				"NO servers, target=%s, fwmark=%d\n", lb->target, notargets_fw);
 		return notargets_fw;
+	}
+	if (tflow != NULL) {
+		tracef("target=%s, fwmark=%d\n", lb->target, fw);
+	}
 
 	if (rc & 1) {
 		// First fragment
@@ -164,6 +195,8 @@ static int packetHandleFn(
 		key.id = fragid;
 		if (handleFirstFragment(ft, &now, &key, fw, data, len) != 0) {
 			trace(TRACE_FRAG, "FAILED: Handle first fragment\n");
+			if (tflow != NULL)
+				tracef("FAILED: Handle first fragment\n");
 			return -1;
 		}
 	}
@@ -237,6 +270,9 @@ static int cmdFlowLb(int argc, char **argv)
 		slb = mapSharedDataOrDie(lbShm, O_RDONLY);
 		magDataDyn_map(&magdlb, slb->mem);
 	}
+
+	trace_fset = flowSetCreate(NULL);
+	flowSetPromiscuousPing(trace_fset, 1);
 
 	fset = flowSetCreate(loadbalancerLock);
 	if (promiscuous_ping == NULL)
@@ -476,6 +512,14 @@ static void* flowThread(void* a)
 			writeReply(cd, "FAIL: no action");
 			continue;
 		}
+		if (strncmp(cmd.action, "trace-", 6) == 0) {
+			out = fdopen(dup(cd), "w");
+			if (out == NULL)
+				writeReply(cd, "FAIL: fdopen");
+			else
+				traceHandleFlowCmd(&cmd, out, cd);
+			continue;
+		}
 
 		if (strcmp(cmd.action, "set") == 0) {
 			char const* err;
@@ -566,3 +610,35 @@ static void* flowThread(void* a)
 	return NULL;
 }
 	
+static void traceHandleFlowCmd(struct FlowCmd* cmd, FILE* out, int cd)
+{
+	if (strcmp(cmd->action, "trace-set") == 0) {
+		char const* err;
+		void* user_ref = strdup(cmd->name);
+		if (user_ref == NULL)
+			die("OOM");
+		err = flowDefine(
+			trace_fset, cmd->name, cmd->priority, user_ref, cmd->protocols,
+			cmd->dports, cmd->sports, cmd->dsts, cmd->srcs,
+			cmd->match, cmd->udpencap);
+		if (err != NULL) {
+			writeReply(cd, err);
+		}
+	} else if (strcmp(cmd->action, "trace-delete") == 0) {
+		if (cmd->name != NULL) {
+			void* user_ref = flowDelete(trace_fset, cmd->name, NULL);
+			free(user_ref);
+			writeReply(cd, "OK");
+		} else {
+			writeReply(cd, "FAIL: no name");
+		}
+	} else if (strcmp(cmd->action, "trace-list") == 0) {
+		flowSetPrint(out, trace_fset, cmd->name, NULL);
+		fflush(out);
+	} else if (strcmp(cmd->action, "trace-list-names") == 0) {
+		flowSetPrintNames(out, trace_fset);
+		fflush(out);
+	} else {
+		writeReply(cd, "FAIL: action unknown");
+	}
+}

@@ -173,6 +173,15 @@ test_start_dual_path() {
 	otcw "default_route 1000::1:192.168.4.202"
 }
 
+##   test start_mtu_squeeze
+##     Start with the mtu squeeze chain on the evil tester.
+test_start_mtu_squeeze() {
+	test_start mtu
+	otcprog=mtu_test
+	otc 222 squeeze_chain
+	unset otcprog
+}
+
 ##   test basic
 ##     Basic connectivity tests.
 test_basic() {

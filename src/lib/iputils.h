@@ -47,3 +47,13 @@ unsigned hashKey(struct ctKey* key);
 int parseAddress(
 	char const* adr, struct sockaddr_storage* sas, socklen_t* len);
 
+// Return an L4 protocol as a string.
+// The passed buf is used for unknown protocols. If NULL -> not thread-safe.
+char const* protostr(unsigned short p, char* buf);
+
+/*
+  Print ICMP info using the passed "outf()" function.
+ */
+void printIcmp(
+	int (*outf)(const char *fmt, ...),
+	unsigned proto, void const* data, unsigned len);

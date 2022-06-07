@@ -9,11 +9,11 @@
 #include <shmem.h>
 #include <iputils.h>
 #include <pthread.h>
-#include <sys/un.h>
 #include <unistd.h>
 #include <stdarg.h>
 #include <signal.h>
 #include <errno.h>
+#include <string.h>
 
 static struct LogConfig default_config = {5, 0};
 struct LogConfig* logconfig = &default_config;

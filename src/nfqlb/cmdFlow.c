@@ -6,40 +6,8 @@
 #define _GNU_SOURCE				/* (for strcasestr) */
 #include "nfqlb.h"
 #include <cmd.h>
-#include <die.h>
-#include <iputils.h>
-#include <stdlib.h>
-#include <errno.h>
-#include <sys/un.h>
 #include <unistd.h>
-
-#define MAX_ARG_LEN 1000
-
-static int connectToLb(void)
-{
-	struct sockaddr_storage sa;
-	socklen_t len;
-	char const* addr;
-	addr = getenv("NFQLB_FLOW_ADDRESS");
-	if (addr == NULL)
-		addr = DEFAULT_FLOW_ADDRESS;
-	if (parseAddress(addr, &sa, &len) != 0)
-		die("Failed to parse address [%s]", addr);	
-	int sd = socket(sa.ss_family, SOCK_STREAM, 0);
-	if (sd < 0)
-		die("Client socket: %s\n", strerror(errno));
-	if (connect(sd, (struct sockaddr*)&sa, len) != 0)
-		die("Connect failed. %s\n", strerror(errno));
-	return sd;
-}
-
-static FILE* stream(int sd, char const* perm)
-{
-	FILE* f = fdopen(sd, perm);
-	if (f == NULL)
-		die("fdopen: %s\n", strerror(errno));
-	return f;
-}
+#include <string.h>
 
 static int cmdFlowSet(int argc, char **argv)
 {
