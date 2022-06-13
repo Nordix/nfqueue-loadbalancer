@@ -25,12 +25,14 @@
 
 O ?= /tmp/$(USER)/nfqlb
 X ?= $(O)/nfqlb/nfqlb
+IPU ?= $(O)/nfqlb/ipu
 LIB ?= $(O)/lib/libnfqlb.a
 VERSION ?= $(shell git describe --dirty --tags)
 
 DIRS := $(O)/lib/test $(O)/nfqlb
 SRC := $(filter-out $(wildcard nfqlb/*-test.c),$(wildcard nfqlb/*.c))
 LIB_SRC := $(wildcard lib/*.c)
+IPU_SRC := $(wildcard ipu/*.c)
 OBJ := $(SRC:%.c=$(O)/%.o)
 LIB_OBJ := $(LIB_SRC:%.c=$(O)/%.o)
 SYSD := $(O)/sys/usr/local
@@ -39,19 +41,23 @@ $(O)/%.o : %.c
 	$(CC) -c $(XCFLAGS) $(CFLAGS) -DVERSION=$(VERSION) -pthread -Wall -Ilib $< -o $@
 
 .PHONY: all static
-all: $(X)
-static: $(X)
+all: $(X) $(IPU)
+static: $(X) $(IPU)
 # https://stackoverflow.com/questions/47905554/segmentation-fault-appears-when-i-use-shared-memory-only-from-statically-build-p
 static: XLDFLAGS := -static -L$(SYSD)/lib -Wl,--whole-archive -lpthread -Wl,--no-whole-archive
 static: XCFLAGS := -I$(SYSD)/include
 
 $(X): $(LIB) $(OBJ)
 	$(CC) -o $(X) $(OBJ) $(XLDFLAGS) $(LDFLAGS) -pthread -L$(O)/lib  -lnfqlb -lnetfilter_queue -lrt -lmnl
+	strip $(X)
 $(OBJ): | $(DIRS)
 $(LIB): $(LIB_OBJ)
 	@rm -f $(LIB)
 	ar rcs $(LIB) $(LIB_OBJ)
 $(LIB_OBJ): | $(DIRS)
+$(IPU): $(LIB) $(IPU_SRC)
+	$(CC) $(XCFLAGS) $(CFLAGS) -DVERSION=$(VERSION) -Wall -Ilib -o $@ $(IPU_SRC) -L$(O)/lib  -lnfqlb
+	strip $(IPU)
 
 .PHONY: test test_progs
 $(O)/lib/test/% : lib/test/%.c

@@ -115,7 +115,7 @@ cmd_mkrelease() {
 	local dst=$tmp/nfqlb-$ver
 	mkdir -p $dst/bin $dst/lib $dst/include
 	local O=/tmp/$USER/nfqlb
-	cp $O/nfqlb/nfqlb $dst/bin
+	cp $O/nfqlb/nfqlb $O/nfqlb/ipu $dst/bin
 	cp $O/lib/libnfqlb.a $dst/lib
 	cp $dir/src/lib/*.h $dst/include
 	cp -R $dir/src/nfqlb $dst/src
