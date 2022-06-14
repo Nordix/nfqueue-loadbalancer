@@ -15,7 +15,7 @@ static int cmdMakeip(int argc, char* argv[])
 	char const* opt_net = "0";
 	char const* opt_host = "0";
 	char const* opt_subnet = NULL;
-	char const* opt_ipv6prefix = NULL;
+	char const* opt_ipv6template = NULL;
 	struct Option options[] = {
 		{"help", NULL, 0,
 		 "makeip [options]\n"
@@ -26,7 +26,7 @@ static int cmdMakeip(int argc, char* argv[])
 		{"net", &opt_net, 0, "Net number. Will go into the first slot in the CIDR"},
 		{"host", &opt_host, 0, "Host number. Will go into the second slot in the CIDR"},
 		{"subnet", &opt_subnet, 0, "Print subnet. Values=1,2"},
-		{"ipv6prefix", &opt_ipv6prefix, 0, "Print as ipv6 with the passed prefix"},
+		{"ipv6template", &opt_ipv6template, 0, "Print as ipv6 with the passed template"},
 		{0, 0, 0, 0}
 	};
 	(void)parseOptionsOrDie(argc, argv, options);
@@ -55,8 +55,8 @@ static int cmdMakeip(int argc, char* argv[])
 
 	if (bits == 128 && s1 < 97)
 		die("Can only handle /97 subnets and larger\n");
-	if (bits == 128 && opt_ipv6prefix != NULL)
-		die("Can't combine ipv6prefix and IPv6 addresses\n");
+	if (bits == 128 && opt_ipv6template != NULL)
+		die("Can't combine ipv6template and IPv6 addresses\n");
 	if (s1 > s2 || s2 > bits || s1 <= 0)
 		die("Invalid cidr [%s]\n", opt_cidr);
 	max = 1 << (s2 - s1);
@@ -78,10 +78,10 @@ static int cmdMakeip(int argc, char* argv[])
 		a = (a & mask) + (net << (bits - s2)) + host;
 
 		addr.s_addr = htonl(a);
-		if (opt_ipv6prefix != NULL) {
+		if (opt_ipv6template != NULL) {
 			struct in6_addr a6;
-			if (inet_pton(AF_INET6, opt_ipv6prefix, &a6) != 1)
-				die("Invalid IPv6 prefix [%s]\n", opt_ipv6prefix);
+			if (inet_pton(AF_INET6, opt_ipv6template, &a6) != 1)
+				die("Invalid IPv6 prefix [%s]\n", opt_ipv6template);
 			a6.s6_addr32[3] = addr.s_addr;
 			inet_ntop(AF_INET6, &a6, strbuf, sizeof(strbuf));
 			if (opt_subnet != NULL) {
@@ -196,6 +196,95 @@ static int cmdContains(int argc, char* argv[])
 	return 0;
 }
 
+/*
+  NAME
+    ipu - IP address format utility
+
+  DESCRIPTION
+    Interpretes a segmented ip-range in a 'double-dash' form, for example;
+    '192.168.0.0/20/24' or '2000:2::/112/120' and prints a defined address.
+    The first 'slot' holds the net and the second the host.
+
+    makeip:
+
+    --cidr=segmented-ip-range
+
+    --net=number
+
+    --host=number
+
+    --subnet=1|2
+        Append the subnet to the address printout. 1-net 2-host subnet number.
+
+    --ipv6template=ipv6-address
+        Print an IPv6 address from an IPv4 cidr by applying the mask and
+        insert the IPv4 address in the last 32-bits.
+
+  EXAMPLES
+
+    # ipu makeip --cidr=10.0.0.0/16/24 --net=1 --host=2
+    10.0.1.2
+
+    # ipu makeip --cidr=10.0.0.0/16/24 --net=1 --host=2 --subnet=2
+    10.0.1.2/24
+
+    # ipu makeip --cidr=10.0.0.0/16/24 --net=1 --host=2 --subnet=2 --ipv6template=2000:1::0.0.0.0
+    2000:1::a00:102/120
+
+  SEE ALSO
+    'ipu' is a part of https://github.com/Nordix/nfqueue-loadbalancer/.
+ */
+static int cmdManual(int argc, char **argv)
+{
+	struct Option options[] = {
+		{"help", NULL, 0,
+		 "man\n"
+		 "  Print manual"},
+		{0, 0, 0, 0}
+	};
+	char const* const man =
+		"  NAME\n"
+		"    ipu - IP address format utility\n"
+		"\n"
+		"  DESCRIPTION\n"
+		"    Interpretes a segmented ip-range in a 'double-dash' form, for example;\n"
+		"    '192.168.0.0/20/24' or '2000:2::/112/120' and prints a defined address.\n"
+		"    The first 'slot' holds the net and the second the host.\n"
+		"\n"
+		"    makeip:\n"
+		"\n"
+		"    --cidr=segmented-ip-range\n"
+		"\n"
+		"    --net=number\n"
+		"\n"
+		"    --host=number\n"
+		"\n"
+		"    --subnet=1|2\n"
+		"        Append the subnet to the address printout. 1-net 2-host subnet number.\n"
+		"\n"
+		"    --ipv6template=ipv6-address\n"
+		"        Print an IPv6 address from an IPv4 cidr by applying the mask and\n"
+		"        insert the IPv4 address in the last 32-bits.\n"
+		"\n"
+		"  EXAMPLES\n"
+		"\n"
+		"    # ipu makeip --cidr=10.0.0.0/16/24 --net=1 --host=2\n"
+		"    10.0.1.2\n"
+		"\n"
+		"    # ipu makeip --cidr=10.0.0.0/16/24 --net=1 --host=2 --subnet=2\n"
+		"    10.0.1.2/24\n"
+		"\n"
+		"    # ipu makeip --cidr=10.0.0.0/16/24 --net=1 --host=2 --subnet=2 --ipv6template=2000:1::0.0.0.0\n"
+		"    2000:1::a00:102/120\n"
+		"\n"
+		"  SEE ALSO\n"
+		"    'ipu' is a part of https://github.com/Nordix/nfqueue-loadbalancer/.\n"
+		;
+	parseOptionsOrDie(argc, argv, options);
+	puts(man);
+	return 0;
+}
+
 #ifndef VERSION
 #define VERSION unknown
 #endif
@@ -219,4 +308,5 @@ __attribute__ ((__constructor__)) static void addCommands(void) {
 	addCmd("makeip", cmdMakeip);
 	addCmd("contains", cmdContains);
 	addCmd("version", cmdVersion);
+	addCmd("man", cmdManual);
 }
