@@ -135,6 +135,7 @@ static int cmdLb(int argc, char **argv)
 	char const* reassembler = "0";
 	char const* sctpEncap = "0";
 	char const* notargets_fwmark = "-1";
+	char const* trace_address = DEFAULT_TRACE_ADDRESS;
 	struct Option options[] = {
 		{"help", NULL, 0,
 		 "lb [options]\n"
@@ -153,11 +154,12 @@ static int cmdLb(int argc, char **argv)
 		{"ft_buckets", &ft_buckets, 0, "Frag table; extra buckets"},
 		{"ft_frag", &ft_frag, 0, "Frag table; stored frags"},
 		{"ft_ttl", &ft_ttl, 0, "Frag table; ttl milliS"},
+		{"trace_address",  &trace_address, 0, "Trace server address"},
 		{0, 0, 0, 0}
 	};
 	(void)parseOptionsOrDie(argc, argv, options);
 	logConfigShm(TRACE_SHM);
-	logTraceServer(DEFAULT_TRACE_ADDRESS);
+	logTraceServer(trace_address);
 
 	st = mapSharedDataOrDie(targetShm, O_RDONLY);
 	magDataDyn_map(&magd, st->mem);

@@ -241,6 +241,7 @@ static int cmdFlowLb(int argc, char **argv)
 	char const* promiscuous_ping = "no";
 	char const* notargets_fwmark = "-1";
 	char const* nolb_fwmark = "-1";
+	char const* trace_address = DEFAULT_TRACE_ADDRESS;
 	struct Option options[] = {
 		{"help", NULL, 0,
 		 "flowlb [options]\n"
@@ -260,11 +261,12 @@ static int cmdFlowLb(int argc, char **argv)
 		{"ft_buckets", &ft_buckets, 0, "Frag table; extra buckets"},
 		{"ft_frag", &ft_frag, 0, "Frag table; stored frags"},
 		{"ft_ttl", &ft_ttl, 0, "Frag table; ttl milliS"},
+		{"trace_address",  &trace_address, 0, "Trace server address"},
 		{0, 0, 0, 0}
 	};
 	(void)parseOptionsOrDie(argc, argv, options);
 	logConfigShm(TRACE_SHM);
-	logTraceServer(DEFAULT_TRACE_ADDRESS);
+	logTraceServer(trace_address);
 
 	if (lbShm != NULL) {
 		slb = mapSharedDataOrDie(lbShm, O_RDONLY);
