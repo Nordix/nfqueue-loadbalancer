@@ -39,6 +39,7 @@ static int cmdTrace(int argc, char **argv)
 {
 	char const* traceMaskOpt = NULL;
 	char const* traceSelectionOpt = NULL;
+	char const* trace_address = DEFAULT_TRACE_ADDRESS;
 	struct Option options[] = {
 		{"help", NULL, 0,
 		 "trace [options]\n"
@@ -47,6 +48,7 @@ static int cmdTrace(int argc, char **argv)
 		{"selection", &traceSelectionOpt, 0,
 		 "Trace selection. A comma separated list of;\n"
 		 "     log,packet,frag,flow-conf,sctp,target,flows"},
+		{"trace_address", &trace_address, 0, "Trace server address"},
 		{0, 0, 0, 0}
 	};
 	(void)parseOptionsOrDie(argc, argv, options);
@@ -72,15 +74,14 @@ static int cmdTrace(int argc, char **argv)
 
 	struct sockaddr_storage sa;
 	socklen_t len;
-	char const* addr = DEFAULT_TRACE_ADDRESS;
-	if (parseAddress(addr, &sa, &len) != 0)
-		die("Failed to parse address [%s]", addr);
+	if (parseAddress(trace_address, &sa, &len) != 0)
+		die("Failed to parse address [%s]", trace_address);
 	
 	int sd = socket(sa.ss_family, SOCK_STREAM, 0);
 	if (sd < 0)
 		die("Trace client socket: %s\n", strerror(errno));
 	if (connect(sd, (struct sockaddr*)&sa, len) != 0)
-		die("Trace client connect to %s: %s\n", addr, strerror(errno));
+		die("Trace client connect to %s: %s\n", trace_address, strerror(errno));
 
 	char buffer[4*1024];
 	int rc = read(sd, buffer, sizeof(buffer));
