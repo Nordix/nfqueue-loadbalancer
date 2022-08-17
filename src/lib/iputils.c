@@ -525,3 +525,14 @@ char const* protostr(unsigned short p, char* buf)
 	sprintf(buf, "%u", p);
 	return buf;
 }
+
+unsigned parseProto(char const* str)
+{
+	if (strcasecmp("tcp", str) == 0)
+		return IPPROTO_TCP;
+	if (strcasecmp("udp", str) == 0)
+		return IPPROTO_UDP;
+	if (strcasecmp("sctp", str) == 0)
+		return IPPROTO_SCTP;
+	return 0;
+}

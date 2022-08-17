@@ -43,6 +43,7 @@ unsigned hashKey(struct ctKey* key);
     "tcp:0.0.0.0:4567"
     "tcp:[::1]:4567"
     "unix:nfqlb"
+  Returns; 0 if OK
  */
 int parseAddress(
 	char const* adr, struct sockaddr_storage* sas, socklen_t* len);
@@ -50,6 +51,10 @@ int parseAddress(
 // Return an L4 protocol as a string.
 // The passed buf is used for unknown protocols. If NULL -> not thread-safe.
 char const* protostr(unsigned short p, char* buf);
+
+// Parse a protocol string. Valid values "tcp|udp|sctp" (case insensitive)
+// Returns the protocol number or 0 (IPPROTO_IP) if parsing failed.
+unsigned parseProto(char const* str);
 
 /*
   Print ICMP info using the passed "outf()" function.
