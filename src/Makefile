@@ -45,7 +45,7 @@ all: $(X) $(IPU)
 static: $(X) $(IPU)
 # https://stackoverflow.com/questions/47905554/segmentation-fault-appears-when-i-use-shared-memory-only-from-statically-build-p
 static: XLDFLAGS := -static -L$(SYSD)/lib -Wl,--whole-archive -lpthread -Wl,--no-whole-archive
-static: XCFLAGS := -I$(SYSD)/include
+static: XCFLAGS := -static -I$(SYSD)/include
 
 $(X): $(LIB) $(OBJ)
 	$(CC) -o $(X) $(OBJ) $(XLDFLAGS) $(LDFLAGS) -pthread -L$(O)/lib  -lnfqlb -lnetfilter_queue -lrt -lmnl
