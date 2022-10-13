@@ -414,7 +414,7 @@ static struct LoadBalancer* loadbalancerFindOrCreate(char const* target)
 		if (strcmp(lb->target, target) == 0) {
 			REFINC(lb->refCounter);
 			UNLOCK(lblistLock);
-			Dx(printf("Found LB; %s\n", target));
+			trace(TRACE_TARGET, "Found LB; %s (%u)\n", target, lb->refCounter);
 			return lb;
 		}
 	}
@@ -559,6 +559,12 @@ static void* flowThread(void* a)
 						continue;
 					}
 				}
+
+				// Release the LB to avoid incrementing the ref-count.
+				// This is a no-op if the flow doesn't exist.
+				// https://github.com/Nordix/nfqueue-loadbalancer/issues/9
+				loadbalancerRelease(flowDelete(fset, cmd.name, NULL));
+
 				err = flowDefine(
 					fset, cmd.name, cmd.priority, lb, cmd.protocols,
 					cmd.dports, cmd.sports, cmd.dsts, cmd.srcs,

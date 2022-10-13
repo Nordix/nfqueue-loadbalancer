@@ -20,7 +20,7 @@ cp -R $dir/default/* $tmp
 
 src=$(readlink -f $dir/../../../src)
 make -C $src clean > /dev/null
-make -C $src -j8 $MAKEOPT > /dev/null || die make
+make -C $src -j8 $MAKEOPT VERSION=$(date +%F.%T) > /dev/null || die make
 $XCLUSTER install_prog --dest=$tmp /tmp/$USER/nfqlb/nfqlb/nfqlb
 
 src=$($XCLUSTER ovld sctp)/src
