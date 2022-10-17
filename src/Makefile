@@ -63,7 +63,7 @@ $(IPU): $(LIB) $(IPU_SRC)
 $(O)/lib/test/% : lib/test/%.c
 	$(CC) $(CFLAGS) -Wall -Ilib -pthread $< -o $@ -L$(O)/lib -lnfqlb -lrt -lpcap
 $(O)/nfqlb/%-test : nfqlb/%-test.c
-	$(CC) $(CFLAGS) -Wall -Ilib -pthread $< $(subst -test,,$<) -o $@ -L$(O)/lib -lnfqlb -lrt
+	$(CC) $(CFLAGS) -Wall -Ilib -pthread $< $(subst -test,,$<) -o $@ -L$(O)/lib -lnfqlb -lnetfilter_queue -lrt -lmnl
 TEST_SRC := $(wildcard lib/test/*-test.c) $(wildcard nfqlb/*-test.c)
 TEST_PROGS := $(TEST_SRC:%.c=$(O)/%)
 $(TEST_PROGS): $(LIB)

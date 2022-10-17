@@ -51,6 +51,14 @@ void* flowLookup(
 	unsigned l3proto, void const* data, unsigned len, /* (for byte-match) */
 	/*out*/unsigned short* udpencap);
 
+// Lookup a name.
+// If a lock_user_ref() function is defined it will be called while
+// the set is locked. It shall be used to ensure that the user_ref is not
+// deleted while in use.
+// Returns the "user_ref" the name is found, NULL if not.
+void* flowLookupName(
+	struct FlowSet* set, char const* name, /*out*/unsigned short* udpencap);
+
 // Print a flow if name != NULL or the entire set.
 // Output is in json format.
 void flowSetPrint(

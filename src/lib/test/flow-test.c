@@ -65,7 +65,9 @@ int main(int argc, char* argv[])
 		sprintf(name, "flow%u", i);
 		sprintf(port, "%u", i + 20);
 		err = flowDefine(
-			f, name, 101-i, user_ref++, NULL, port, NULL, NULL, NULL, NULL, 0);
+			f, name, 101-i, user_ref, NULL, port, NULL, NULL, NULL, NULL, 0);
+		assert(flowLookupName(f, name, NULL) == user_ref);
+		user_ref++;
 		assert(err == NULL);
 	}
 	assert(flowSetSize(f) == 100);
