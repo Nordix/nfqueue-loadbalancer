@@ -336,6 +336,25 @@ void* flowDelete(
 	return user_ref;
 }
 
+void* flowLookupName(
+	struct FlowSet* set, char const* name, /*out*/unsigned short* udpencap)
+{
+	void* user_ref = NULL;
+	WLOCK(set);
+	for (unsigned i = 0; i < set->count; i++) {
+		if (strncmp(set->flows[i]->name, name, MAX_NAME) == 0) {
+			user_ref = set->flows[i]->user_ref;
+			if (set->lock_user_ref != NULL)
+				set->lock_user_ref(user_ref);
+			if (udpencap != NULL)
+				*udpencap = set->flows[i]->udpencap;
+			break;
+		}
+	}
+	UNLOCK(set);
+	return user_ref;
+}
+
 static int addrInCidr(struct Cidr* cidr, struct in6_addr adr)
 {
 	maskAdr(&adr, cidr->mask);

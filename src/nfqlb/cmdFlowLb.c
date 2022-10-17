@@ -31,6 +31,16 @@
 #define Dx(x)
 #endif
 
+#ifdef UNIT_TEST
+// White-box testing
+#define STATIC
+#else
+#define STATIC static
+#endif
+
+STATIC void cmd_set(struct FlowCmd* cmd, int cd);
+STATIC void cmd_delete(struct FlowCmd* cmd, int cd);
+
 #define REFINC(x) __atomic_add_fetch(&(x),1,__ATOMIC_SEQ_CST)
 #define REFDEC(x) __atomic_sub_fetch(&(x),1,__ATOMIC_SEQ_CST)
 #define LOCK(m) pthread_mutex_lock(&(m))
@@ -50,8 +60,8 @@ struct LoadBalancer {
 
 // Forward declarations;
 static void* flowThread(void* a);
-static void loadbalancerLock(void* user_ref);
-static void loadbalancerRelease(struct LoadBalancer* lb);
+STATIC void loadbalancerLock(void* user_ref);
+STATIC void loadbalancerRelease(struct LoadBalancer* lb);
 static void traceHandleFlowCmd(struct FlowCmd* cmd, FILE* out, int cd);
 
 // Statics
@@ -60,9 +70,9 @@ static int tun_fd = -1;
 static struct fragStats* sft;
 static struct SharedData* slb;
 static struct MagDataDyn magdlb;
-static struct FlowSet* fset;
+STATIC struct FlowSet* fset;
 static struct FlowSet* trace_fset;
-static struct LoadBalancer* lblist = NULL;
+STATIC struct LoadBalancer* lblist = NULL;
 static pthread_mutex_t lblistLock = PTHREAD_MUTEX_INITIALIZER;
 static int notargets_fw = -1;
 static int nolb_fw = -1;
@@ -361,12 +371,12 @@ __attribute__ ((__constructor__)) static void addCommands(void) {
    LoadBalancer handling;
  */
 
-static void loadbalancerLock(void* user_ref)
+STATIC void loadbalancerLock(void* user_ref)
 {
 	struct LoadBalancer* lb = user_ref;
 	REFINC(lb->refCounter);
 }
-static void loadbalancerRelease(struct LoadBalancer* lb)
+STATIC void loadbalancerRelease(struct LoadBalancer* lb)
 {
 	if (lb == NULL)
 		return;
@@ -401,7 +411,7 @@ static void loadbalancerRelease(struct LoadBalancer* lb)
 	}
 }
 
-static struct LoadBalancer* loadbalancerFindOrCreate(char const* target)
+STATIC struct LoadBalancer* loadbalancerFindOrCreate(char const* target)
 {
 	if (target == NULL)
 		return NULL;
@@ -524,75 +534,9 @@ static void* flowThread(void* a)
 		}
 
 		if (strcmp(cmd.action, "set") == 0) {
-			char const* err;
-			struct LoadBalancer* lb = loadbalancerFindOrCreate(cmd.target);
-			if (lb == NULL) {
-				writeReply(cd, "FAIL: Couldn't create load-balancer");
-			} else {
-				if (cmd.udpencap != 0) {
-					/*
-					  If a UDP encapsulated SCTP port is defined the
-					  protocols must be "sctp" only.
-					*/
-					if (cmd.protocols == NULL || cmd.protocols[1] != NULL ||
-						strcasecmp(cmd.protocols[0], "sctp") != 0) {
-						writeReply(cd, "FAIL: only sctp for updencap");
-						continue;
-					}
-					/*
-					  The defined set will never match since the
-					  incoming encapsulated sctp will actually be a
-					  udp packet with dport=udpencap. So we must
-					  insert a flow for the encapsulating udp also.
-					*/
-					char udpname[MAX_CMD_LINE];
-					udpname[0] = '#';
-					strncpy(udpname+1, cmd.name, MAX_CMD_LINE-2);
-					const char* udpproto[] = {"udp", NULL};
-					char udpdport[16];
-					sprintf(udpdport, "%u", cmd.udpencap);
-					err = flowDefine(
-						fset, udpname, cmd.priority, NULL, udpproto, udpdport,
-						NULL, cmd.dsts, cmd.srcs, NULL, cmd.udpencap);
-					if (err != NULL) {
-						writeReply(cd, err);
-						continue;
-					}
-				}
-
-				// Release the LB to avoid incrementing the ref-count.
-				// This is a no-op if the flow doesn't exist.
-				// https://github.com/Nordix/nfqueue-loadbalancer/issues/9
-				loadbalancerRelease(flowDelete(fset, cmd.name, NULL));
-
-				err = flowDefine(
-					fset, cmd.name, cmd.priority, lb, cmd.protocols,
-					cmd.dports, cmd.sports, cmd.dsts, cmd.srcs,
-					cmd.match, cmd.udpencap);
-				if (err == NULL)
-					writeReply(cd, "OK");
-				else
-					writeReply(cd, err);
-			}
+			cmd_set(&cmd, cd);
 		} else if (strcmp(cmd.action, "delete") == 0) {
-			if (cmd.name != NULL) {
-				unsigned short udpencap = 0;
-				loadbalancerRelease(flowDelete(fset, cmd.name, &udpencap));
-				if (udpencap > 0) {
-					/*
-					  This is a sctp flow with encapsulater udp. We
-					  have a associated udp flow that must also be
-					  deleted. The udp flow has not reserved the loadbalancer.
-					 */
-					char udpname[MAX_CMD_LINE];
-					udpname[0] = '#';
-					strncpy(udpname+1, cmd.name, MAX_CMD_LINE-2);
-					flowDelete(fset, udpname, NULL);
-				}
-				writeReply(cd, "OK");
-			} else {
-				writeReply(cd, "FAIL: no name");
-			}
+			cmd_delete(&cmd, cd);
 		} else if (strcmp(cmd.action, "list") == 0) {
 			out = fdopen(dup(cd), "w");
 			if (out == NULL)
@@ -617,7 +561,101 @@ static void* flowThread(void* a)
 	}
 	return NULL;
 }
-	
+
+STATIC void cmd_set(struct FlowCmd* cmd, int cd)
+{
+	char const* err;
+	struct LoadBalancer* lb;
+	unsigned short udpencap;
+
+	lb = flowLookupName(fset, cmd->name, &udpencap);
+	if (lb != NULL) {
+		// The flow exists already.
+		loadbalancerRelease(lb); /* We already have reserved the lb */
+		if (udpencap != cmd->udpencap) {
+			writeReply(cd, "FAIL: Alter udpencap not allowed");
+			return;
+		}
+		if (strcmp(cmd->target, lb->target) != 0) {
+			struct LoadBalancer* newLb = loadbalancerFindOrCreate(cmd->target);
+			if (newLb == NULL) {
+				writeReply(cd, "FAIL: Couldn't create new load-balancer");
+				return;
+			}
+			loadbalancerRelease(lb);
+			lb = newLb;
+		}
+	} else {
+		lb = loadbalancerFindOrCreate(cmd->target);
+	}
+	if (lb == NULL) {
+		writeReply(cd, "FAIL: Couldn't create load-balancer");
+		return;
+	}
+
+	if (cmd->udpencap != 0) {
+		/*
+		  If a UDP encapsulated SCTP port is defined the
+		  protocols must be "sctp" only.
+		*/
+		if (cmd->protocols == NULL || cmd->protocols[1] != NULL ||
+			strcasecmp(cmd->protocols[0], "sctp") != 0) {
+			writeReply(cd, "FAIL: only sctp for updencap");
+			return;
+		}
+		/*
+		  The defined set will never match since the
+		  incoming encapsulated sctp will actually be a
+		  udp packet with dport=udpencap. So we must
+		  insert a flow for the encapsulating udp also.
+		*/
+		char udpname[MAX_CMD_LINE];
+		udpname[0] = '#';
+		strncpy(udpname+1, cmd->name, MAX_CMD_LINE-2);
+		const char* udpproto[] = {"udp", NULL};
+		char udpdport[16];
+		sprintf(udpdport, "%u", cmd->udpencap);
+		err = flowDefine(
+			fset, udpname, cmd->priority, NULL, udpproto, udpdport,
+			NULL, cmd->dsts, cmd->srcs, NULL, cmd->udpencap);
+		if (err != NULL) {
+			writeReply(cd, err);
+			return;
+		}
+	}
+
+	err = flowDefine(
+		fset, cmd->name, cmd->priority, lb, cmd->protocols,
+		cmd->dports, cmd->sports, cmd->dsts, cmd->srcs,
+		cmd->match, cmd->udpencap);
+	if (err == NULL)
+		writeReply(cd, "OK");
+	else
+		writeReply(cd, err);
+}
+
+STATIC void cmd_delete(struct FlowCmd* cmd, int cd)
+{
+	if (cmd->name != NULL) {
+		unsigned short udpencap = 0;
+		loadbalancerRelease(flowDelete(fset, cmd->name, &udpencap));
+		if (udpencap > 0) {
+			/*
+			  This is a sctp flow with encapsulater udp. We
+			  have a associated udp flow that must also be
+			  deleted. The udp flow has not reserved the loadbalancer.
+			*/
+			char udpname[MAX_CMD_LINE];
+			udpname[0] = '#';
+			strncpy(udpname+1, cmd->name, MAX_CMD_LINE-2);
+			flowDelete(fset, udpname, NULL);
+		}
+		writeReply(cd, "OK");
+	} else {
+		writeReply(cd, "FAIL: no name");
+	}
+}
+
 static void traceHandleFlowCmd(struct FlowCmd* cmd, FILE* out, int cd)
 {
 	if (strcmp(cmd->action, "trace-set") == 0) {
