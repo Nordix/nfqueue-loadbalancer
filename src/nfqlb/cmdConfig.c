@@ -29,7 +29,10 @@ static int cmdActivate(int argc, char **argv)
 	argc -= nopt;
 	argv += nopt;
 	struct SharedData* s;
-	s = mapSharedDataOrDie(shm, O_RDWR);
+	size_t len;
+	s = mapSharedDataOrDie(shm, O_RDWR, &len);
+	if (magDataDyn_validate(s->mem, len - sizeof(struct SharedData)) != 0)
+		die("Shm invalid; %s\n", shm);
 	struct MagDataDyn magd;
 	magDataDyn_map(&magd, s->mem);
 
@@ -88,7 +91,10 @@ static int cmdDeactivate(int argc, char **argv)
 	argc -= nopt;
 	argv += nopt;
 	struct SharedData* s;
-	s = mapSharedDataOrDie(shm, O_RDWR);
+	size_t len;
+	s = mapSharedDataOrDie(shm, O_RDWR, &len);
+	if (magDataDyn_validate(s->mem, len - sizeof(struct SharedData)) != 0)
+		die("Shm invalid; %s\n", shm);
 	struct MagDataDyn magd;
 	magDataDyn_map(&magd, s->mem);
 

@@ -161,10 +161,10 @@ static int cmdLb(int argc, char **argv)
 	logConfigShm(TRACE_SHM);
 	logTraceServer(trace_address);
 
-	st = mapSharedDataOrDie(targetShm, O_RDONLY);
+	st = mapSharedDataOrDie(targetShm, O_RDONLY, NULL);
 	magDataDyn_map(&magd, st->mem);
 	if (lbShm != NULL) {
-		slb = mapSharedDataOrDie(lbShm, O_RDONLY);
+		slb = mapSharedDataOrDie(lbShm, O_RDONLY, NULL);
 		magDataDyn_map(&magdlb, slb->mem);
 	}
 	notargets_fw = atoi(notargets_fwmark);
@@ -173,7 +173,7 @@ static int cmdLb(int argc, char **argv)
 	sft = calloc(1, sizeof(*sft));
 	createSharedDataOrDie(ftShm, sft, sizeof(*sft));
 	free(sft);
-	sft = mapSharedDataOrDie(ftShm, O_RDWR);
+	sft = mapSharedDataOrDie(ftShm, O_RDWR, NULL);
 
 	// Get MTU from the ingress device
 	int mtu = atoi(mtuOpt);

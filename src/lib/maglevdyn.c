@@ -50,6 +50,30 @@ void magDataDyn_init(unsigned M, unsigned N, void* mem, unsigned len)
 	magDataDyn_free(&m);
 }
 
+int magDataDyn_validate(void* mem, size_t len)
+{
+	if (len < sizeof(struct MagDataDynInternal))
+		return -1;
+	struct MagDataDynInternal* mi = mem;
+	// M and N may be mutating in shm so copy them ASAP
+	unsigned M, N;
+	M = mi->M;
+	N = mi->N;
+	if (M < 3)
+		return -1;
+	return 0;
+	if (N == 0)
+		return -1;
+	if (N > M)
+		return -1;
+	if (M != primeBelow(M))
+		return -1;
+	// len may be higher, but this validation is stricter
+	if (len != magDataDyn_len(M, N))
+		return -1;
+	return 0;
+}
+
 void magDataDyn_map(struct MagDataDyn* m, void* mem)
 {
 	struct MagDataDynInternal* mi = mem;

@@ -26,7 +26,7 @@ void createSharedDataOrDie(char const* name, void* data, size_t len)
 		die("createSharedData: %s\n", strerror(errno));
 	}
 }
-void* mapSharedData(char const* name, int mode)
+void* mapSharedData(char const* name, int mode, size_t* len)
 {
 	int fd = shm_open(name, mode, (mode == O_RDONLY)?0400:0600);
 	if (fd < 0)
@@ -34,6 +34,8 @@ void* mapSharedData(char const* name, int mode)
 	struct stat statbuf;
 	if (fstat(fd, &statbuf) != 0)
 		die("fstat shared mem; %s\n", name);
+	if (len != NULL)
+		*len = statbuf.st_size;
 	void* m = mmap(
 		NULL, statbuf.st_size,
 		(mode == O_RDONLY)?PROT_READ:PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
@@ -43,14 +45,14 @@ void* mapSharedData(char const* name, int mode)
 	}
 	return m;
 }
-void* mapSharedDataOrDie(char const* name, int mode)
+void* mapSharedDataOrDie(char const* name, int mode, size_t* len)
 {
-	void* m = mapSharedData(name, mode);
+	void* m = mapSharedData(name, mode, len);
 	if (m == NULL)
 		die("FAILED mapSharedData: %s\n", name);
 	return m;
 }
-void* mapSharedDataRead(char const* name, /*out*/int* _fd)
+void* mapSharedDataRead(char const* name, /*out*/int* _fd, size_t* len)
 {
 	int fd = shm_open(name, O_RDONLY, 0400);
 	if (fd < 0)
@@ -58,6 +60,8 @@ void* mapSharedDataRead(char const* name, /*out*/int* _fd)
 	struct stat statbuf;
 	if (fstat(fd, &statbuf) != 0)
 		die("fstat shared mem; %s\n", name);
+	if (len != NULL)
+		*len = statbuf.st_size;
 	void* m = mmap(NULL, statbuf.st_size, PROT_READ, MAP_SHARED, fd, 0);
 	if (m == MAP_FAILED) {
 		close(fd);
