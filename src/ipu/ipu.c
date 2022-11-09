@@ -7,7 +7,42 @@
 #include <stdio.h>
 #include <string.h>
 #include <arpa/inet.h>
+#include <netinet/ether.h>
 #include <assert.h>
+
+static int cmdLinklocal(int argc, char* argv[])
+{
+	struct Option options[] = {
+		{"help", NULL, 0,
+		 "linklocal <mac-address>\n"
+		 "  Compute an ipv6 link-local address using EUI-64"
+		},
+		{0, 0, 0, 0}
+	};
+	int n = parseOptionsOrDie(argc, argv, options);
+	argc -= n; argv += n;
+	if (argc < 1)
+		die("No mac-address\n");
+	struct ether_addr* mac = ether_aton(*argv);
+	if (mac == NULL)
+		die("Invalid MAC [%s]\n", *argv);
+	mac->ether_addr_octet[0] ^= 0x02; /* flip bit 7 */
+	
+	struct in6_addr addr = {0};
+	addr.s6_addr32[0] = htonl(0xfe800000);
+	addr.s6_addr[8] = mac->ether_addr_octet[0];
+	addr.s6_addr[9] = mac->ether_addr_octet[1];
+	addr.s6_addr[10] = mac->ether_addr_octet[2];
+	addr.s6_addr[11] = 0xff;
+	addr.s6_addr[12] = 0xfe;
+	addr.s6_addr[13] = mac->ether_addr_octet[3];
+	addr.s6_addr[14] = mac->ether_addr_octet[4];
+	addr.s6_addr[15] = mac->ether_addr_octet[5];
+	char strbuf[INET6_ADDRSTRLEN+1];
+	inet_ntop(AF_INET6, &addr, strbuf, sizeof(strbuf));
+	printf("%s\n", strbuf);
+	return 0;
+}
 
 static int cmdMakeip(int argc, char* argv[])
 {
@@ -305,6 +340,7 @@ static int cmdVersion(int argc, char **argv)
 }
 
 __attribute__ ((__constructor__)) static void addCommands(void) {
+	addCmd("linklocal", cmdLinklocal);
 	addCmd("makeip", cmdMakeip);
 	addCmd("contains", cmdContains);
 	addCmd("version", cmdVersion);
