@@ -118,7 +118,7 @@ test_start_empty() {
 	. $($XCLUSTER ovld network-topology)/$TOPOLOGY/Envsettings
 	local OVLS
 	test "$__fragrev" = "yes" && OVLS=tap-scrambler
-	xcluster_start network-topology iptools nfqlb $OVLS $@
+	xcluster_start network-topology iptools . $OVLS $@
 	test "$__fragrev" = "yes" && otc 222 fragrev
 	otc 1 version
 }

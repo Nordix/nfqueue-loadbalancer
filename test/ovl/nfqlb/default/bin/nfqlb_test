@@ -97,17 +97,19 @@ cmd_tcase_mconnect_vmflow() {
 cmd_tcase_mconnect() {
 	test -n "$__vip" || __vip="[1000::]:5001"
 	tcase "Mconnect to; $__vip"
-	local srccidr=$PREFIX:$XADDR/112
+	srccidr=$PREFIX:$XADDR/112
 	echo $__vip | grep -Fq '[' || srccidr=$XADDR/16
-	do_mconnect $__vip -srccidr $srccidr
+	mcopts="-srccidr $srccidr"
+	do_mconnect $__vip
 }
 
 cmd_tcase_mconnect_udp() {
 	test -n "$__vip" || __vip="[1000::]:5001"
 	tcase "Mconnect with UDP to; $__vip"
-	local srccidr=$PREFIX:$XADDR/112
+	srccidr=$PREFIX:$XADDR/112
 	echo $__vip | grep -Fq '[' || srccidr=$XADDR/16
-	do_mconnect $__vip -srccidr $srccidr -udp
+	mcopts="-srccidr $srccidr -udp"
+	do_mconnect $__vip
 }
 cmd_tcase_ping() {
 	test -n "$__vip" || __vip="1000::"
