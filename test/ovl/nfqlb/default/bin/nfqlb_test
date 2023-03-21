@@ -99,16 +99,30 @@ cmd_tcase_mconnect() {
 	srccidr=$PREFIX:$XADDR/112
 	echo $__vip | grep -Fq '[' || srccidr=$XADDR/16
 	mcopts="-srccidr $srccidr"
-	do_mconnect $__vip $((__nvm * 25)) $__nvm
+	do_mconnect $__vip $((__nvm * 25)) $__nvm $(compute_margin)
 }
-
 cmd_tcase_mconnect_udp() {
 	test -n "$__vip" || __vip="[1000::]:5001"
 	tcase "Mconnect with UDP to; $__vip"
 	srccidr=$PREFIX:$XADDR/112
 	echo $__vip | grep -Fq '[' || srccidr=$XADDR/16
 	mcopts="-srccidr $srccidr -udp"
-	do_mconnect $__vip $((__nvm * 25)) $__nvm
+	do_mconnect $__vip $((__nvm * 25)) $__nvm $(compute_margin)
+}
+# When the number of targets increases the probability for a target to
+# get too many or too few entries increases. We try to compensate for
+# that by making the margin larger when there are many targets. The
+# margin is set to 50% as lowest and 90% max (for 100 targets).
+compute_margin() {
+	if test $__nvm -lt 20; then
+		echo 50
+		return 0
+	fi
+	if test $__nvm -ge 100; then
+		echo 90
+		return 0
+	fi
+	echo $(( 50 + (__nvm - 20) * 40 / 80))
 }
 cmd_tcase_ping() {
 	test -n "$__vip" || __vip="1000::"
