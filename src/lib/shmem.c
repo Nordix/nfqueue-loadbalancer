@@ -22,7 +22,7 @@ write_full(int fd, const void* buf, size_t size)
 	while (sz > 0) {
 		ret = write(fd, buf, sz);
 		if (ret < 0) {
-			if (errno == EINTR || errno == EAGAIN) {
+			if (ret == 0 || errno == EINTR || errno == EAGAIN) {
 				usleep(10000); // 10mS
 				continue;
 			}
@@ -43,7 +43,7 @@ int createSharedData(char const* name, void* data, size_t len)
 	if (c != len)
 		return c;
 	close(fd);
-	return c;
+	return 0;
 }
 void createSharedDataOrDie(char const* name, void* data, size_t len)
 {
