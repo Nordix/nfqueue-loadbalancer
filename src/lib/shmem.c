@@ -12,28 +12,35 @@
 #include <unistd.h>
 
 // https://stackoverflow.com/questions/32683086/handling-incomplete-write-calls
+// Modified to make a short delay between retries and return bytes written
+// to conform with write(2).
 static ssize_t
-write_with_retry (int fd, const void* buf, size_t size)
+write_full(int fd, const void* buf, size_t size)
 {
+	ssize_t sz = size;
 	ssize_t ret;
-	while (size > 0) {
-		do {
-			ret = write(fd, buf, size);
-		} while ((ret < 0) && (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK));
-		if (ret < 0)
+	while (sz > 0) {
+		ret = write(fd, buf, sz);
+		if (ret < 0) {
+			if (errno == EINTR || errno == EAGAIN) {
+				usleep(10000); // 10mS
+				continue;
+			}
+			// A real error
 			return ret;
-		size -= ret;
+		}
+		sz -= ret;
 		buf += ret;
 	}
-	return 0;
+	return size;
 }
 
 int createSharedData(char const* name, void* data, size_t len)
 {
 	int fd = shm_open(name, O_RDWR|O_CREAT|O_TRUNC, 0600);
 	if (fd < 0) return fd;
-	int c = write_with_retry(fd, data, len);
-	if (c != 0)
+	int c = write_full(fd, data, len);
+	if (c != len)
 		return c;
 	close(fd);
 	return c;
