@@ -11,14 +11,32 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+// https://stackoverflow.com/questions/32683086/handling-incomplete-write-calls
+static ssize_t
+write_with_retry (int fd, const void* buf, size_t size)
+{
+	ssize_t ret;
+	while (size > 0) {
+		do {
+			ret = write(fd, buf, size);
+		} while ((ret < 0) && (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK));
+		if (ret < 0)
+			return ret;
+		size -= ret;
+		buf += ret;
+	}
+	return 0;
+}
+
 int createSharedData(char const* name, void* data, size_t len)
 {
 	int fd = shm_open(name, O_RDWR|O_CREAT|O_TRUNC, 0600);
 	if (fd < 0) return fd;
-	int c = write(fd, data, len);
-	if (c != len) return c;
+	int c = write_with_retry(fd, data, len);
+	if (c != 0)
+		return c;
 	close(fd);
-	return 0;
+	return c;
 }
 void createSharedDataOrDie(char const* name, void* data, size_t len)
 {
