@@ -110,6 +110,7 @@ cmd_test() {
 ##   test [--fragrev] start_empty
 ##     Start cluster. --fragrev will start the tap-scrambler on the evil-tester
 test_start_empty() {
+	cd $dir
 	export __image=$XCLUSTER_HOME/hd.img
 	echo "$XOVLS" | grep -q private-reg && unset XOVLS
 	export xcluster_DISABLE_MASQUERADE=yes
@@ -135,6 +136,7 @@ test_start() {
 ##   test [--vip=] start_hw_setup
 ##     Setup for test on real HW
 test_start_hw_setup() {
+	cd $dir
 	export __image=$XCLUSTER_HOME/hd.img
 	echo "$XOVLS" | grep -q private-reg && unset XOVLS
 	export xcluster_HW_SETUP=yes
@@ -145,20 +147,21 @@ test_start_hw_setup() {
 	export __nrouters=1
 	export __ntesters=0
 	export __smp201=4
-	xcluster_start network-topology iptools udp-test nfqlb
+	xcluster_start network-topology iptools udp-test .
 	otc 201 hw_netns
 	otc 1 "hw_server --vip=$__vip"
 }
 ##   test start_dual_path
 ##     Start cluster with TOPOLOGY=dual-path
 test_start_dual_path() {
+	cd $dir
 	export TOPOLOGY=dual-path
 	export xcluster_TOPOLOGY=$TOPOLOGY
 	export __ntesters=1
 	export __image=$XCLUSTER_HOME/hd.img
 	echo "$XOVLS" | grep -q private-reg && unset XOVLS
 	. $($XCLUSTER ovld network-topology)/$TOPOLOGY/Envsettings
-	xcluster_start network-topology iptools nfqlb $@
+	xcluster_start network-topology iptools . $@
 
 	if test "$xcluster_FLOW" != "yes"; then
 		otc 201 nfqueue_activate_all
@@ -215,13 +218,13 @@ test_mtu() {
 	tlog "=== nfqlb: MTU test"
 	test_start mtu
 	otc 221 "http http://10.0.0.0 -s -m2 --interface 20.0.0.1"
-	otc 221 "http http://[1000::] -s -m2 --interface $PREFIX:20.0.0.1"
+	otc 221 "http http://[1000::] -s -m2 --interface 1000::1:20.0.0.1"
 	otcprog=mtu_test
 	otc 222 squeeze_chain
 	unset otcprog
 	otc 221 "http http://10.0.0.0 -s -m2 --interface 20.0.0.1"
 	sleep 1				# ICMP6 not sent immadiately! Probably some DAD problem.
-	otc 221 "http http://[1000::] -s -m2 --interface $PREFIX:20.0.0.1"
+	otc 221 "http http://[1000::] -s -m2 --interface 1000::1:20.0.0.1"
 	xcluster_stop
 }
 
@@ -243,7 +246,7 @@ test_sctp() {
 
 	otc 221 "sctpt_wait --timeout=20"
 	otc 221 sctpt_stats
-	otcw nsctpconn
+	otcwp nsctpconn
 	
 	xcluster_stop
 }
@@ -271,13 +274,13 @@ test_mtu_flow() {
 	test_start_empty mtu
 	otcr nfqueue_flow_vms
 	otc 221 "http http://10.0.0.0 -s -m2 --interface 20.0.0.1"
-	otc 221 "http http://[1000::] -s -m2 --interface $PREFIX:20.0.0.1"
+	otc 221 "http http://[1000::] -s -m2 --interface 1000::1:20.0.0.1"
 	otcprog=mtu_test
 	otc 222 squeeze_chain
 	unset otcprog
 	otc 221 "http http://10.0.0.0 -s -m2 --interface 20.0.0.1"
 	sleep 1				# ICMP6 not sent immadiately! Probably some DAD problem.
-	otc 221 "http http://[1000::] -s -m2 --interface $PREFIX:20.0.0.1"
+	otc 221 "http http://[1000::] -s -m2 --interface 1000::1:20.0.0.1"
 	xcluster_stop
 }
 
@@ -300,7 +303,7 @@ test_sctp_flow() {
 	otcr nfqueue_activate_all
 	otc 221 sctp_ctraffic
 	test "$__no_encap" = "yes" && return 0
-	otcw sctp_server_udpencap
+	otcwp sctp_server_udpencap
 	otc 221 "sctp_ctraffic --udpencap=9899"
 	xcluster_stop
 }
@@ -367,7 +370,7 @@ test_sctp_encap_flow_match() {
 	test_start_dual_path
 	otc 201 "sctp_encap_set_flow_match sctp[2:2]=6000"
 	otc 202 "sctp_encap_set_flow_match sctp[2:2]=6000"
-	otcw sctp_server_udpencap
+	otcwp sctp_server_udpencap
 	otc 221 "sctp_ctraffic --udpencap=9899"
 	otc 201 "sctp_encap_set_flow_match sctp[2:2]=7000"
 	otc 202 "sctp_encap_set_flow_match sctp[2:2]=7000"
