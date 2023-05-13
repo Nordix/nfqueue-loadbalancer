@@ -8,6 +8,9 @@ These tests are using the
 network topology. The "evil-tester" can for instance be used to
 re-order fragments.
 
+Test can (and should) be [executed manually](test-functions.md) to get
+a better understanding, and for troubleshooting and future development.
+
 ## Usage
 
 Basic tests;
