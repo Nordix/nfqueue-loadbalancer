@@ -110,7 +110,7 @@ You can see that 13 fragments has been allocated and later injected
 via the tap interface `nfqlb0`. You may check that with tcpdump:
 
 ```
-# On vm-002
+# On vm-201
 tcpdump -ni nfqlb0
 ```
 
@@ -269,7 +269,8 @@ https://github.com/Nordix/nfqueue-loadbalancer/blob/master/fragments.md).
 The function is not explicitly tested, but it is almost always
 configured in function tests so it's used a lot.
 
-I have no simple way to force Linux to use random targets for ECMP,
+I have no simple way to force Linux to use random targets for ECMP
+([fib_multipath_*](https://www.kernel.org/doc/Documentation/networking/ip-sysctl.txt)),
 but usually the receiving LB is not the one that should make the
 tracking, so fragments are fowarded to another LB. The function can be
 examined with `tcpdump`, but in this example we use the `nfqlb` trace.
