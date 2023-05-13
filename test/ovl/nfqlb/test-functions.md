@@ -8,10 +8,9 @@ useful.
 ## Simple fragment handling
 
 The simplest case is when all fragments arrives to the same LB and in
-order. The first packet (containing ports) is stored in the
-[https://github.com/Nordix/nfqueue-loadbalancer/blob/master/fragtrack.md](
-connection tracker). When subsequent fragments arrive a lookup is made
-in the connection table.
+order. The first packet (containing ports) is stored in the [connection tracker](
+https://github.com/Nordix/nfqueue-loadbalancer/blob/master/fragtrack.md).
+When subsequent fragments arrive a lookup is made in the connection table.
 
 ```
 __nrouters=1 ./nfqlb.sh test start > $log
