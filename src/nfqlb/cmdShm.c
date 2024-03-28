@@ -27,7 +27,7 @@ static void initShm(
 	s->ownFwmark = ownFw;
 	createSharedDataOrDie(name, s, sizeof(struct SharedData) + len);
 	free(s);
-	s = mapSharedDataOrDie(name, O_RDWR);
+	s = mapSharedDataOrDie(name, O_RDWR, NULL);
 	magDataDyn_init(m, n, s->mem, len);
 }
 
@@ -109,7 +109,10 @@ static int cmdShow(int argc, char **argv)
 	};
 	(void)parseOptionsOrDie(argc, argv, options);
 	struct SharedData* s;
-	s = mapSharedDataOrDie(shm, O_RDONLY);
+	size_t len;
+	s = mapSharedDataOrDie(shm, O_RDONLY, &len);
+	if (magDataDyn_validate(s->mem, len - sizeof(struct SharedData)) != 0)
+		die("Shm invalid; %s\n", shm);
 	if (s == NULL)
 		die("Failed to open shared mem; %s\n", shm);
 	printf("Shm: %s\n", shm);
@@ -144,7 +147,7 @@ static int cmdStats(int argc, char **argv)
 		{0, 0, 0, 0}
 	};
 	(void)parseOptionsOrDie(argc, argv, options);
-	struct fragStats* sft = mapSharedDataOrDie(ftShm, O_RDONLY);
+	struct fragStats* sft = mapSharedDataOrDie(ftShm, O_RDONLY, NULL);
 	fragPrintStats(sft);
 	return 0;
 }

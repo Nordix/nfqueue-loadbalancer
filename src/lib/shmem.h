@@ -9,7 +9,7 @@
 
 int createSharedData(char const* name, void* data, size_t len);
 void createSharedDataOrDie(char const* name, void* data, size_t len);
-void* mapSharedData(char const* name, int mode);
-void* mapSharedDataOrDie(char const* name, int mode);
-void* mapSharedDataRead(char const* name, /*out*/int* fd);
+void* mapSharedData(char const* name, int mode, size_t* len);
+void* mapSharedDataOrDie(char const* name, int mode, size_t* len);
+void* mapSharedDataRead(char const* name, /*out*/int* fd, size_t* len);
 

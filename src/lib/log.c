@@ -66,11 +66,11 @@ int logp(const char *fmt, ...)
 
 void logConfigShm(char const* name)
 {
-	logconfig = mapSharedData(name, O_RDWR);
+	logconfig = mapSharedData(name, O_RDWR, NULL);
 	if (logconfig != NULL)
 		return;
 	createSharedDataOrDie(name, &default_config, sizeof(struct LogConfig));
-	logconfig = mapSharedDataOrDie(name, O_RDWR);
+	logconfig = mapSharedDataOrDie(name, O_RDWR, NULL);
 }
 
 __attribute__ ((__constructor__)) static void loginit(void) {

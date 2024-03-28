@@ -60,7 +60,7 @@ static int cmdFwmark(int argc, char **argv)
 
 	if (shm != NULL) {
 		struct SharedData* s = NULL;
-		s = mapSharedDataOrDie(shm, O_RDWR);
+		s = mapSharedDataOrDie(shm, O_RDWR, NULL);
 		struct MagDataDyn magd;
 		magDataDyn_map(&magd, s->mem);
 		unsigned index = hash % magd.M;

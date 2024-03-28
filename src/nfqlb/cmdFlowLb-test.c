@@ -222,7 +222,7 @@ static void initShm(
 	s->ownFwmark = ownFw;
 	createSharedDataOrDie(name, s, sizeof(struct SharedData) + len);
 	free(s);
-	s = mapSharedDataOrDie(name, O_RDWR);
+	s = mapSharedDataOrDie(name, O_RDWR, NULL);
 	magDataDyn_init(m, n, s->mem, len);
 }
 
