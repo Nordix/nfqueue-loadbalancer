@@ -107,10 +107,13 @@ cmd_mkrelease() {
 		|| die "Incorrect version (semver) [$1]"
 	local ver=$1
 	make -C $dir/src clean
-	cmd_libnfqueue_download
+    cmd_libmnl_download
+    cmd_libnfqueue_download
 	__force=yes
-	cmd_libmnl_unpack
-	cmd_libmnl_build
+    cmd_libmnl_unpack
+    cmd_libmnl_build
+    cmd_libnfqueue_unpack
+    cmd_libnfqueue_build
 	make -C $dir/src VERSION=$ver -j8 static || die make
 	local dst=$tmp/nfqlb-$ver
 	mkdir -p $dst/bin $dst/lib $dst/include
@@ -289,11 +292,11 @@ libmnl_url=$netfilter_url/libmnl/files/$libmnl_ar
 cmd_libmnl_download() {
 	local dstd=$ARCHIVE
 	test -n "$dstd" || dstd=$HOME/Downloads
-	if test -r $dstd/$libnfqueue_ar; then
-		log "Already downloaded [$dstd/$libnfqueue_ar]"
+	if test -r $dstd/$libmnl_ar; then
+		log "Already downloaded [$dstd/$libmnl_ar]"
 		return 0
 	fi
-	curl -L $libnfqueue_url > $dstd/$libnfqueue_ar || die curl
+	curl -L $libmnl_url > $dstd/$libmnl_ar || die curl
 }
 cmd_libmnl_unpack() {
 	local ar=$ARCHIVE/$libmnl_ar
