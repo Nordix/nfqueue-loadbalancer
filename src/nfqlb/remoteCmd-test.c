@@ -24,7 +24,7 @@ static int cmpArgv(char const** argv1, char const* argv2[])
 		if (strcmp(*argv1++, *argv2++) != 0)
 			return 1;
 	}
-	return *argv1 == NULL && *argv2 == NULL;
+    return (*argv1 == NULL && *argv2 == NULL) ? 0 : 1;
 }
 
 int main(int argc, char* argv[])
