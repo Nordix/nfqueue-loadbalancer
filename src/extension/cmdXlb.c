@@ -38,7 +38,7 @@ static int packetHandleFn(
 {
 	struct ctKey key;
 	uint64_t fragid;
-	int rc = getHashKey(&key, 0, &fragid, proto, data, len);
+	int rc = getHashKey(&key, 0, &fragid, proto, data, len, 1);
 	if (rc < 0)
 		return -1;
 	unsigned hash = hashKeyAddresses(&key);

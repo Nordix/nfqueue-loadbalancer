@@ -22,6 +22,7 @@ static int cmdFwmark(int argc, char **argv)
 	char const* src = NULL;
 	char const* dst = NULL;
 	char const* proto = NULL;
+	char const* lb_hash_mode = "1";
 	struct Option options[] = {
 		{"help", NULL, 0,
 		 "fwmark [--shm=] [--proto=tcp|udp|sctp] --src=addr:port --dst=addr:port\n"
@@ -31,6 +32,7 @@ static int cmdFwmark(int argc, char **argv)
 		{"proto", &proto, 0, "Protocol, tcp|udp|sctp. NOT specified -> address-only hash"},
 		{"src", &src, 1, "Source addr:port, e.g \"[1000::80]:80\"" },
 		{"dst", &dst, 1, "Destination addr:port"},
+		{"hash_mode", &lb_hash_mode, 0, "Load balance with a different hash mode. 0: Tuple-5, 1: SCTP Ports only. default=1"},
 		{0, 0, 0, 0}
 	};
 	int nopt = parseOptionsOrDie(argc, argv, options);
@@ -48,12 +50,14 @@ static int cmdFwmark(int argc, char **argv)
 	key.dst = adr.sin6_addr;
 	key.ports.dst = adr.sin6_port;
 
+	unsigned hash_mode = atoi(lb_hash_mode);
+
 	unsigned hash;
 	if (proto != NULL) {
 		key.ports.proto = parseProto(proto);
 		if (key.ports.proto == 0)
 			die("Failed to parse protocol [%s]\n", proto);
-		hash = hashKey(&key);
+		hash = hashKey(&key, hash_mode);
 	} else {
 		hash = hashKeyAddresses(&key);
 	}

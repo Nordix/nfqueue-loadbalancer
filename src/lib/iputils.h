@@ -27,15 +27,15 @@ int ipv6IsExtensionHeader(unsigned htype);
  */
 int getHashKey(
 	struct ctKey* key, unsigned short udpencap, uint64_t* fragid,
-	unsigned proto, void const* data, unsigned len);
+	unsigned proto, void const* data, unsigned len, unsigned short hash_mode);
 
 // Hash on addresses only
 unsigned hashKeyAddresses(struct ctKey* key);
 
 // The default hash function.
-// Hashes on the entire key, unless proto=sctp in which case we hash on
-// ports only.
-unsigned hashKey(struct ctKey* key);
+// Hashes on the entire key with hash_mode set to 0. With hash_mode 
+// set to 1 and proto=sctp, we hash on ports only.
+unsigned hashKey(struct ctKey* key, unsigned short hash_mode);
 
 /*
   parseAddress parses an address into a struct sockaddr_storage.
