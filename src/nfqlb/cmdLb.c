@@ -26,6 +26,7 @@ static struct fragStats* sft;
 static struct MagDataDyn magd;
 static struct MagDataDyn magdlb;
 static unsigned udpEncap;
+static unsigned hash_mode;
 static int notargets_fw = -1;
 
 #ifdef VERBOSE
@@ -54,7 +55,7 @@ static int packetHandleFn(
 {
 	struct ctKey key;
 	uint64_t fragid;
-	int rc = getHashKey(&key, udpEncap, &fragid, proto, data, len);
+	int rc = getHashKey(&key, udpEncap, &fragid, proto, data, len, hash_mode);
 	if (rc < 0)
 		return -1;
 
@@ -88,7 +89,7 @@ static int packetHandleFn(
 		}
 	}
 
-	hash = hashKey(&key);
+	hash = hashKey(&key, hash_mode);
 	fw = magd.lookup[hash % magd.M];
 	if (fw >= 0)
 		fw = magd.active[fw];
@@ -135,6 +136,7 @@ static int cmdLb(int argc, char **argv)
 	char const* reassembler = "0";
 	char const* sctpEncap = "0";
 	char const* notargets_fwmark = "-1";
+	char const* lb_hash_mode = "1";
 	char const* trace_address = DEFAULT_TRACE_ADDRESS;
 	struct Option options[] = {
 		{"help", NULL, 0,
@@ -147,6 +149,7 @@ static int cmdLb(int argc, char **argv)
 		{"tshm", &targetShm, 0, "Target shared memory"},
 		{"lbshm", &lbShm, 0, "Lb shared memory"},
 		{"notargets_fwmark", &notargets_fwmark, 0, "Set when there are no targets"},
+		{"hash_mode", &lb_hash_mode, 0, "Load balance with a different hash mode. 0: Tuple-5, 1: SCTP Ports only. default=1"},
 		{"queue", &qnum, 0, "NF-queues to listen to (default 2)"},
 		{"qlength", &qlen, 0, "Lenght of queues (default 1024)"},
 		{"ft_shm", &ftShm, 0, "Frag table; shared memory stats"},
@@ -182,6 +185,8 @@ static int cmdLb(int argc, char **argv)
 
 	// SCTP encapsulation. 0 - No encapsulation (default)
 	udpEncap = atoi(sctpEncap);
+
+	hash_mode = atoi(lb_hash_mode);
 
 	/* Open the "tun" device if specified. Check that the mtu is at
 	 * least as large as for the ingress device */

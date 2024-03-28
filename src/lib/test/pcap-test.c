@@ -88,9 +88,9 @@ cmdParse(int argc, char* argv[])
 		struct Packet* p = packets + i;
 		struct ctKey key;
 		uint64_t fragid;
-		rc = getHashKey(&key, 0, &fragid, p->protocol, p->data, p->len);
+		rc = getHashKey(&key, 0, &fragid, p->protocol, p->data, p->len, 1);
 		if (rc & 1) {
-			hash = hashKey(&key);
+			hash = hashKey(&key, 1);
 			key.id = fragid;
 			rc = handleFirstFragment(ft, &now, &key, hash, p->data, p->len);
 		} else if (rc & 2) {

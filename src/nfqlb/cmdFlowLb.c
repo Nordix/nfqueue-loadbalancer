@@ -76,6 +76,7 @@ STATIC struct LoadBalancer* lblist = NULL;
 static pthread_mutex_t lblistLock = PTHREAD_MUTEX_INITIALIZER;
 static int notargets_fw = -1;
 static int nolb_fw = -1;
+static unsigned hash_mode;
 
 static void injectFrag(void const* data, unsigned len)
 {
@@ -94,7 +95,7 @@ static int packetHandleFn(
 {
 	struct ctKey key;
 	uint64_t fragid;
-	int rc = getHashKey(&key, 0, &fragid, proto, data, len);
+	int rc = getHashKey(&key, 0, &fragid, proto, data, len, hash_mode);
 	if (rc < 0) {
 		warning("getHashKey rc=%d. proto=%u, len=%u\n", rc, proto, len);
 		return -1;
@@ -161,7 +162,7 @@ static int packetHandleFn(
 		  and make a new lookup. (note; lb==NULL here)
 		 */
 		trace(TRACE_SCTP,"Udp encapsulated sctp packet on port %u\n", udpencap);
-		rc = getHashKey(&key, udpencap, &fragid, proto, data, len);
+		rc = getHashKey(&key, udpencap, &fragid, proto, data, len, hash_mode);
 		if (rc < 0) {
 			// (this shouldn't happen)
 			trace(TRACE_SCTP, "FAILED: Re-compute key with udpencap\n");
@@ -182,7 +183,7 @@ static int packetHandleFn(
 	}
 
 	// Compute the fwmark
-	hash = hashKey(&key);
+	hash = hashKey(&key, hash_mode);
 	fw = lb->magd.lookup[hash % lb->magd.M];
 	if (fw >= 0)
 		fw = lb->magd.active[fw];
@@ -251,6 +252,7 @@ static int cmdFlowLb(int argc, char **argv)
 	char const* promiscuous_ping = "no";
 	char const* notargets_fwmark = "-1";
 	char const* nolb_fwmark = "-1";
+	char const* lb_hash_mode = "1";
 	char const* trace_address = DEFAULT_TRACE_ADDRESS;
 	struct Option options[] = {
 		{"help", NULL, 0,
@@ -264,6 +266,7 @@ static int cmdFlowLb(int argc, char **argv)
 		 "Accept ping on any flow with an address match"},
 		{"notargets_fwmark", &notargets_fwmark, 0, "Set when there are no targets"},
 		{"nolb_fwmark", &nolb_fwmark, 0, "Set when there is no matching LB"},
+		{"hash_mode", &lb_hash_mode, 0, "Load balance with a different hash mode. 0: Tuple-5, 1: SCTP Ports only. default=1"},
 		{"queue", &qnum, 0, "NF-queues to listen to (default 2)"},
 		{"qlength", &qlen, 0, "Lenght of queues (default 1024)"},
 		{"ft_shm", &ftShm, 0, "Frag table; shared memory stats"},
@@ -291,6 +294,7 @@ static int cmdFlowLb(int argc, char **argv)
 		flowSetPromiscuousPing(fset, 1);
 	notargets_fw = atoi(notargets_fwmark);
 	nolb_fw = atoi(nolb_fwmark);
+	hash_mode = atoi(lb_hash_mode);
 
 	// Create and re-map the stats struct
 	sft = calloc(1, sizeof(*sft));

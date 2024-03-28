@@ -50,7 +50,7 @@ static inline void keySetAddr4(struct ctKey* key, struct iphdr* hdr)
 // Prerequisite; the packet is icmp with an inner header
 static int getInnerHashKeyIpv4(
 	struct ctKey* key, unsigned short udpencap, struct icmphdr* ihdr,
-	void const* data, unsigned len)
+	void const* data, unsigned len, unsigned short hash_mode)
 {
 	void const* endp = data + len;
 	int rc = 8;
@@ -99,13 +99,13 @@ static int getInnerHashKeyIpv4(
 	// (swapped!)
 	key->ports.src = ports[1];
 	key->ports.dst = ports[0];
-	D(printf("getInnerHashKeyIpv4: rc=%d, hash=%u\n", rc, hashKey(key)));
+	D(printf("getInnerHashKeyIpv4: rc=%d, hash=%u\n", rc, hashKey(key, hash_mode)));
 	return rc;
 }
 
 static int getHashKeyIpv4(
 	struct ctKey* key, unsigned short udpencap, uint64_t* fragid,
-	void const* data, unsigned len)
+	void const* data, unsigned len, unsigned short hash_mode)
 {
 	void const* endp = data + len;
 	int rc = 0;
@@ -139,7 +139,7 @@ static int getHashKeyIpv4(
 		case ICMP_TIME_EXCEEDED:
 			if (rc & 1)
 				return -1;		/* A fragmented icmp reply */
-			return getInnerHashKeyIpv4(key, udpencap, ihdr, data, len);
+			return getInnerHashKeyIpv4(key, udpencap, ihdr, data, len, hash_mode);
 		default:;
 		}
 		keySetAddr4(key, hdr);
@@ -179,7 +179,7 @@ static int getHashKeyIpv4(
 
 	key->ports.src = ports[0];
 	key->ports.dst = ports[1];
-	D(printf("getHashKeyIpv4: rc=%d, hash=%u\n", rc, hashKey(key)));
+	D(printf("getHashKeyIpv4: rc=%d, hash=%u\n", rc, hashKey(key, hash_mode)));
 	return rc;
 }
 
@@ -187,7 +187,7 @@ static int getHashKeyIpv4(
 // Prerequisite; the packet is icmp with an inner header
 static int getInnerHashKeyIpv6(
 	struct ctKey* key, unsigned short udpencap, struct icmp6_hdr const* ihdr,
-	void const* data, unsigned len)
+	void const* data, unsigned len, unsigned short hash_mode)
 {
 	void const* endp = data + len;
 	int rc = 8;
@@ -246,13 +246,13 @@ static int getInnerHashKeyIpv6(
 	// (swapped!)
 	key->ports.src = ports[1];
 	key->ports.dst = ports[0];
-	D(printf("getInnerHashKeyIpv6: rc=%d, hash=%u\n", rc, hashKey(key)));
+	D(printf("getInnerHashKeyIpv6: rc=%d, hash=%u\n", rc, hashKey(key, hash_mode)));
 	return rc;
 }
 
 static int getHashKeyIpv6(
 	struct ctKey* key, unsigned short udpencap, uint64_t* fragid,
-	void const* data, unsigned len)
+	void const* data, unsigned len, unsigned short hash_mode)
 {
 	void const* endp = data + len;
 	int rc = 0;
@@ -303,7 +303,7 @@ static int getHashKeyIpv6(
 			// TODO; More types here?
 			if (rc & 1)
 				return -1;		/* A fragmented icmp reply */
-			return getInnerHashKeyIpv6(key, udpencap, ih, data, len);
+			return getInnerHashKeyIpv6(key, udpencap, ih, data, len, hash_mode);
 		default:;
 		}
 		key->dst = ip6hdr->ip6_dst;
@@ -345,30 +345,30 @@ static int getHashKeyIpv6(
 
 	key->ports.src = ports[0];
 	key->ports.dst = ports[1];
-	D(printf("getHashKeyIpv6: rc=%d, hash=%u (%u,%u)\n", rc, hashKey(key), ntohs(ports[0]), ntohs(ports[1])));
+	D(printf("getHashKeyIpv6: rc=%d, hash=%u (%u,%u)\n", rc, hashKey(key, hash_mode), ntohs(ports[0]), ntohs(ports[1])));
 	return rc;
 }
 
 int getHashKey(
 	struct ctKey* key, unsigned short udpencap, uint64_t* fragid,
-	unsigned proto, void const* data, unsigned len)
+	unsigned proto, void const* data, unsigned len, unsigned short hash_mode)
 {
 	memset(key, 0, sizeof(*key));
 
 	switch (proto) {
 	case ETH_P_IP:
-		return getHashKeyIpv4(key, udpencap, fragid, data, len);
+		return getHashKeyIpv4(key, udpencap, fragid, data, len, hash_mode);
 	case ETH_P_IPV6:
-		return getHashKeyIpv6(key, udpencap, fragid, data, len);
+		return getHashKeyIpv6(key, udpencap, fragid, data, len, hash_mode);
 	default:;
 		// We should not get here because ip(6)tables handles only ip (4/6)
 	}
 	return -1;
 }
 
-unsigned hashKey(struct ctKey* key)
+unsigned hashKey(struct ctKey* key, unsigned short hash_mode)
 {
-	if (key->ports.proto == IPPROTO_SCTP)
+	if (key->ports.proto == IPPROTO_SCTP && hash_mode == 1)
 		return HASH(&key->ports.src, sizeof(uint16_t) * 2);
 	return HASH(key, sizeof(*key));
 }
