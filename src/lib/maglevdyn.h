@@ -1,4 +1,10 @@
+/*
+   SPDX-License-Identifier: Apache-2.0
+   Copyright (c) 2021-2022 Nordix Foundation
+*/
 #pragma once
+
+#include <stddef.h>
 
 struct MagDataDyn {
 	unsigned M, N;
@@ -19,6 +25,11 @@ unsigned magDataDyn_len(unsigned M, unsigned N);
   Prerequisite; mem allocated and len >= returned by magDataDyn_len()
  */
 void magDataDyn_init(unsigned M, unsigned N, void* mem, unsigned len);
+
+/*
+  Validate that a memory area is MagDataDyn compatible
+*/
+int magDataDyn_validate(void* mem, size_t len);
 
 /*
   Map to a memory area that may be in shared mem.

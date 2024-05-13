@@ -282,7 +282,7 @@ static int cmdFlowLb(int argc, char **argv)
 	logTraceServer(trace_address);
 
 	if (lbShm != NULL) {
-		slb = mapSharedDataOrDie(lbShm, O_RDONLY);
+		slb = mapSharedDataOrDie(lbShm, O_RDONLY, NULL);
 		magDataDyn_map(&magdlb, slb->mem);
 	}
 
@@ -300,7 +300,7 @@ static int cmdFlowLb(int argc, char **argv)
 	sft = calloc(1, sizeof(*sft));
 	createSharedDataOrDie(ftShm, sft, sizeof(*sft));
 	free(sft);
-	sft = mapSharedDataOrDie(ftShm, O_RDWR);
+	sft = mapSharedDataOrDie(ftShm, O_RDWR, NULL);
 
 	// Get MTU from the ingress device
 	int mtu = atoi(mtuOpt);
@@ -437,12 +437,19 @@ STATIC struct LoadBalancer* loadbalancerFindOrCreate(char const* target)
 	// Not found, create a new LB
 	trace(TRACE_TARGET, "Creating LB; %s\n", target);
 	int fd;
-	struct SharedData* st = mapSharedDataRead(target, &fd);
+	size_t len;
+	struct SharedData* st = mapSharedDataRead(target, &fd, &len);
 	if (st == NULL) {
 		UNLOCK(lblistLock);
 		trace(TRACE_TARGET, "Map shm failed; %s\n", target);
 		return NULL;
 	}
+	if (magDataDyn_validate(st->mem, len - sizeof(struct SharedData)) != 0) {
+		UNLOCK(lblistLock);
+		trace(TRACE_TARGET, "Shm invalid; %s\n", target);
+		return NULL;
+	}
+
 
 	lb = MALLOC(lb);
 	lb->target = strdup(target);
