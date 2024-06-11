@@ -128,7 +128,6 @@ static int cmdShow(int argc, char **argv)
 			printf(" %d(%d)", magd.active[i], i);
 	}
 	printf("\n");
-	magDataDyn_free(&magd);
 
 	return 0;
 }

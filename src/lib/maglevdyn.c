@@ -17,7 +17,7 @@ unsigned magDataDyn_len(unsigned M, unsigned N)
 	if (M < 3)
 		M = 3;
 	M = primeBelow(M);
-	return sizeof(struct MagDataDynInternal)  + sizeof(unsigned) * (3 + M * N)
+	return sizeof(struct MagDataDynInternal) + sizeof(unsigned) * 3
 		+ sizeof(int) * (M + N);
 }
 
@@ -37,17 +37,8 @@ void magDataDyn_init(unsigned M, unsigned N, void* mem, unsigned len)
 
 	struct MagDataDyn m;
 	magDataDyn_map(&m, mem);
-	for (int i = 0; i < m.N; i++) {
-		unsigned offset = rand() % m.M;
-		unsigned skip = rand() % (m.M - 1) + 1;
-		unsigned* row = m.permutation[i];
-		for (unsigned j = 0; j < m.M; j++) {			
-			row[j] = (offset + j * skip) % m.M;
-		}
-		m.active[i] = -1;
-	}
-	magDataDyn_populate(&m);
-	magDataDyn_free(&m);
+	memset(m.active, 0xff, sizeof(int)*N);
+	memset(m.lookup, 0xff, sizeof(int)*M);
 }
 
 void magDataDyn_map(struct MagDataDyn* m, void* mem)
@@ -55,54 +46,62 @@ void magDataDyn_map(struct MagDataDyn* m, void* mem)
 	struct MagDataDynInternal* mi = mem;
 	m->M = mi->M;
 	m->N = mi->N;
-	unsigned offset = sizeof(struct MagDataDynInternal);
-	m->lookup = mem + offset;
-	offset += (m->M * sizeof(int));
-	m->permutation = malloc(m->N * sizeof(unsigned*));
-	if (m->permutation == NULL)
-		die("Out of mem\n");
-	unsigned i;
-	for (i = 0; i < m->N; i++) {
-		m->permutation[i] = mem + offset;
-		offset += (m->M * sizeof(unsigned));
-	}
-	m->active = mem + offset;	   
+	m->lookup = mem + sizeof(struct MagDataDynInternal);
+	m->active = mem + sizeof(struct MagDataDynInternal) + sizeof(int) * m->M;
 }
-void magDataDyn_free(struct MagDataDyn* m)
-{
-	free(m->permutation);
-}
+
+struct ActiveTarget {
+	int skip;
+	int c;
+	int idx;
+};
+
 
 void magDataDyn_populate(struct MagDataDyn* d)
 {
-	for (int i = 0; i < d->M; i++) {
-		d->lookup[i] = -1;
-	}
+	struct ActiveTarget* activeTargets = (struct ActiveTarget*) malloc(d->N * sizeof(struct ActiveTarget));
+	if (activeTargets == NULL) die("Out of memory activeTargets");
+	int num_targets = 0;
 
-	// Corner case; no active targets
-	unsigned nActive = 0;
 	for (int i = 0; i < d->N; i++) {
-		if (d->active[i] >= 0) nActive++;
-	}
-	if (nActive == 0) return;
-
-	unsigned next[d->N], c = 0;
-	memset(next, 0, sizeof(next));
-	unsigned n = 0;
-	unsigned* row;
-	for (;;) {
-		for (int i = 0; i < d->N; i++) {
-			if (d->active[i] < 0) continue; /* Target not active */
-			row = d->permutation[i];
-			c = row[next[i]];
-			while (d->lookup[c] >= 0) {
-				next[i] = next[i] + 1;
-				c = row[next[i]];
-			}
-			d->lookup[c] = i;
-			next[i] = next[i] + 1;
-			n = n + 1;
-			if (n == d->M) return;
+		int offset = rand();
+		int skip = rand();
+		if (d->active[i] >= 0) {
+			activeTargets[num_targets].idx = i;
+			activeTargets[num_targets].c = offset % d->M;
+			// The old algorithm went "upwards" with random skip values in [1, M-1]
+			// and the next element in the permutation table was given by current+skip % M
+			// But we can compute the next element much faster if we go "downwards",
+			// using another skip' value such that skip + skip' == M
+			// The two methods yield the same permutation sequence.
+			activeTargets[num_targets].skip = d->M - ((skip % (d->M - 1)) + 1);
+			num_targets++;
 		}
 	}
+	if (num_targets < 2) { // Corner cases: no active targets or just 1 active target
+		int w = num_targets == 0 ? -1 : activeTargets[0].idx;
+		for (int i = 0; i < d->M; i++) {
+			d->lookup[i] = w;
+		}
+		free(activeTargets);
+		return;
+	}
+
+	int* tmpLookup = (int*) malloc(d->M * sizeof(int));
+	if (tmpLookup == NULL) die ("Out of memory tmpLookup");
+	memset(tmpLookup, 0xff, sizeof(int)*d->M);
+
+	int k = 0;
+	for (int n = 0; n < d->M; n++) {
+		int c = activeTargets[k].c;
+		while (tmpLookup[c] >= 0) {
+			c = compute_next_element_in_permutation(c, activeTargets[k].skip, d->M);
+		}
+		tmpLookup[c] = activeTargets[k].idx;
+		activeTargets[k].c = c = compute_next_element_in_permutation(c, activeTargets[k].skip, d->M);
+		k = k < num_targets - 1 ? k+1 : 0;
+	}
+	memcpy(d->lookup, tmpLookup, sizeof(int) * d->M);
+	free(tmpLookup);
+	free(activeTargets);
 }

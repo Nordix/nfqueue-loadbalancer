@@ -2,8 +2,7 @@
 
 struct MagDataDyn {
 	unsigned M, N;
-	int *lookup;
-	unsigned** permutation;
+	int* lookup;
 	int* active;
 };
 
@@ -25,9 +24,20 @@ void magDataDyn_init(unsigned M, unsigned N, void* mem, unsigned len);
   Must call magDataDyn_free() to free allocated memory.
  */
 void magDataDyn_map(struct MagDataDyn* m, void* mem);
-void magDataDyn_free(struct MagDataDyn* m);
 
 /*
   Call when the "active" array is updated
  */
 void magDataDyn_populate(struct MagDataDyn* m);
+
+
+// This is equivalent to
+// currentValue - skip >= 0 ? currentValue - skip : currentValue - skip + mod
+// but much faster than any conditional branching. In fact, this is as fast
+// as retrieving the values from a pre-computed table.
+static inline int compute_next_element_in_permutation(int currentValue, int skip, int mod)
+{
+	int v = currentValue - skip;
+	v += mod & ((v >= 0) - 1);
+	return v;
+}
