@@ -17,18 +17,18 @@
 
 static void targetAddRemove(unsigned M, unsigned N, unsigned A, float lim);
 static int cmdTest(int argc, char **argv);
+static void magDataDyn_populate_test(struct MagDataDyn* d);
+static void testFastComputationEquevalence(int M);
+static int rand_seed = 0;
 
 int main(int argc, char* argv[])
 {
-	srand(time(NULL));
-
 	if (argc > 1)
 		return cmdTest(argc, argv);
 
-	unsigned int M=1000, N=100, len, i, j;
+	unsigned int M=1000, N=100, len, i;
 	struct MagDataDyn m;
 	void* mem;
-	unsigned* row;
 
 	len = magDataDyn_len(M, N);
 	mem = malloc(len);
@@ -38,25 +38,19 @@ int main(int argc, char* argv[])
 	assert(m.M == primeBelow(M));
 	assert(m.N == N);
 	for (i = 0; i < m.N; i++) {
-		row = m.permutation[i];
-		assert((void*)row - (void*)m.lookup < len);
-		for (j = 0; j < m.M; j++) {
-			assert(row[j] < m.M);
-		}
 		assert(m.active[i] == -1);
 		assert(m.lookup[i] == -1);
 	}
 	m.active[0] = 100;
-	magDataDyn_populate(&m);
+	magDataDyn_populate_test(&m);
 	for (i = 0; i < m.N; i++) {
 		assert(m.lookup[i] == 0);
 	}
 	m.active[1] = 101;
-	magDataDyn_populate(&m);
+	magDataDyn_populate_test(&m);
 	for (i = 0; i < m.N; i++) {
 		assert(m.lookup[i] < 2);
 	}
-	magDataDyn_free(&m);
 	free(mem);
 
 	/*
@@ -67,14 +61,40 @@ int main(int argc, char* argv[])
 	targetAddRemove(109, 20, 10, 24.0); /* perfect = 10% */
 	targetAddRemove(1009, 20, 10, 13.0); /* perfect = 10% */
 	targetAddRemove(10009, 100, 50, 5.0); /* perfect = 2% */
+	testFastComputationEquevalence(37);
 
 	printf("==== maglevdyn-test OK\n");
 	return 0;
 }
 
+static void testFastComputationEquevalence(int M)
+{
+	int permutations[65536];
+	M = primeBelow(M);
+	assert (M < sizeof(permutations)/sizeof(permutations[0]));
+
+	for (int offset = 0; offset < M; offset++ ) {
+		for (int skip = 1; skip < M; skip++) {
+			// Old method with permutation table
+			int value = offset;
+			for (int i = 0; i < M; i++) {
+				permutations[i] = value;
+				value = (value + skip) % M;
+			}
+			// New method with on-the-fly compute:
+			value = offset;
+			int skip_bar = M - skip;
+			for (int i = 0; i < M; i++) {
+				assert (permutations[i] == value);
+				value = compute_next_element_in_permutation(value, skip_bar, M);
+			}
+		}
+	}
+}
 
 static void* create(unsigned M, unsigned N)
 {
+	rand_seed = time(NULL);
 	unsigned len = magDataDyn_len(M, N);
 	void* mem = malloc(len);
 	magDataDyn_init(M, N, mem, len);
@@ -94,7 +114,7 @@ static float addTargets(void* mem, unsigned n)
 			n--;
 		}
 	}
-	magDataDyn_populate(&m);
+	magDataDyn_populate_test(&m);
 
 	// Compute the update impact in percent
 	unsigned ndiff = 0;
@@ -102,7 +122,6 @@ static float addTargets(void* mem, unsigned n)
 		if (lookup[i] != m.lookup[i])
 			ndiff++;
 	}
-	magDataDyn_free(&m);
 	return 100.0 * (float)ndiff / (float)m.M;
 }
 
@@ -119,7 +138,7 @@ static float removeTargets(void* mem, unsigned n)
 			n--;
 		}
 	}
-	magDataDyn_populate(&m);
+	magDataDyn_populate_test(&m);
 
 	// Compute the update impact in percent
 	unsigned ndiff = 0;
@@ -127,7 +146,6 @@ static float removeTargets(void* mem, unsigned n)
 		if (lookup[i] != m.lookup[i])
 			ndiff++;
 	}
-	magDataDyn_free(&m);
 	return 100.0 * (float)ndiff / (float)m.M;
 }
 
@@ -180,3 +198,8 @@ static int cmdTest(int argc, char **argv)
 }
 
 
+static void magDataDyn_populate_test(struct MagDataDyn* d)
+{
+	srand(rand_seed);
+	magDataDyn_populate(d);
+}

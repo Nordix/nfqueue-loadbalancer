@@ -411,7 +411,6 @@ STATIC void loadbalancerRelease(struct LoadBalancer* lb)
 		munmap(lb->st, statbuf.st_size);
 		close(lb->fd);
 		free(lb->target);
-		magDataDyn_free(&lb->magd);
 		free(lb);
 	}
 }
